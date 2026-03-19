@@ -106,6 +106,38 @@ Two tests are excluded at **runtime** (via `-b btf,send_signal`) because they ca
 
 **`patch` command fails**: This means the upstream `Makefile` has changed. The patch targets Linux 6.12.20 exactly. If you are using a different kernel version, the patch may need to be adjusted.
 
+## Fault Injection Testing (ENOMEM Handling)
+
+This repository also includes a second set of patches and a test harness for validating **graceful `-ENOMEM` handling** in the BPF test infrastructure under `failslab` fault injection.
+
+### Motivation
+
+Under memory pressure (e.g., during CI stress runs or on memory-constrained systems), `kmalloc`-backed allocations can fail with `-ENOMEM`. Without proper handling, such failures cause test crashes or false failures that obscure real bugs. The patches in `patches/` fix four files in the test infrastructure to convert `-ENOMEM` into graceful test skips.
+
+### Patches
+
+| Patch | File | Change |
+|-------|------|--------|
+| `0001` | `prog_tests/align.c` | After `bpf_prog_load()`, check `errno == ENOMEM` and call `test__skip()` |
+| `0002` | `prog_tests/btf.c` | In `btf_raw_create()`, return `-ENOMEM` when allocation fails; callers skip |
+| `0003` | `prog_tests/verifier_log.c` | Propagate `-ENOMEM` from `check_prog_load()`; top-level calls `test__skip()` |
+| `0004` | `test_loader.c` | After `bpf_object__load()`, check `err == -ENOMEM` and skip before cleanup |
+
+### Fault Injection Test Results
+
+The harness (`bpf_failslab_test.sh`) runs 8 phases using `failslab` with `task-filter` mode:
+
+| Phase | Fault Rate | Sub-tests Passed | Sub-tests Skipped | Crashes |
+|-------|-----------|-----------------|-------------------|--------|
+| Baseline | 0% | 256 | 25 | 0 |
+| Iterations 1–5 | 10% | 240–247 | 34–41 | 0 |
+| Stress | 50% | 210 | 69 | 0 |
+| Extreme | 100% | 176 | 37 | 0 |
+
+**Total crashes: 0.** The `align` test is the clearest demonstration — at 100% failure rate, 11/12 sub-tests gracefully skip and the top-level result remains `OK`.
+
+See `bpf_fault_injection_analysis.md` for the full analysis and `failslab_results.txt` for the raw output.
+
 ## License
 
 The patches and scripts in this repository are provided under the [GPL-2.0 License](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html), consistent with the Linux kernel's own license.

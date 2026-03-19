@@ -1,0 +1,2369 @@
+WARNING! Selftests relying on bpf_testmod.ko will be skipped.
+Can't find bpf_testmod.ko kernel module: -2
+#1/1     align/mov:OK
+#1/2     align/shift:OK
+#1/3     align/addsub:OK
+#1/4     align/mul:OK
+#1/5     align/unknown shift:OK
+#1/6     align/unknown mul:OK
+#1/7     align/packet const offset:OK
+#1/8     align/packet variable offset:OK
+#1/9     align/packet variable offset 2:OK
+#1/10    align/dubious pointer arithmetic:OK
+#1/11    align/variable subtraction:OK
+#1/12    align/pointer variable subtraction:OK
+#1       align:OK
+#7/1     async_stack_depth/pseudo_call_check:OK
+#7/2     async_stack_depth/async_call_root_check:OK
+#7       async_stack_depth:OK
+#24/1    btf/struct test #1:OK
+#24/2    btf/struct test #2:OK
+#24/3    btf/struct test #3 Invalid member offset:OK
+#24/4    btf/global data test #1:OK
+#24/5    btf/global data test #2:OK
+#24/6    btf/global data test #3:OK
+#24/7    btf/global data test #4, unsupported linkage:OK
+#24/8    btf/global data test #5, invalid var type:OK
+#24/9    btf/global data test #6, invalid var type (fwd type):OK
+#24/10   btf/global data test #7, invalid var type (fwd type):OK
+#24/11   btf/global data test #8, invalid var size:OK
+#24/12   btf/global data test #9, invalid var size:OK
+#24/13   btf/global data test #10, invalid var size:OK
+#24/14   btf/global data test #11, multiple section members:OK
+#24/15   btf/global data test #12, invalid offset:OK
+#24/16   btf/global data test #13, invalid offset:OK
+#24/17   btf/global data test #14, invalid offset:OK
+#24/18   btf/global data test #15, not var kind:OK
+#24/19   btf/global data test #16, invalid var referencing sec:OK
+#24/20   btf/global data test #17, invalid var referencing var:OK
+#24/21   btf/global data test #18, invalid var loop:OK
+#24/22   btf/global data test #19, invalid var referencing var:OK
+#24/23   btf/global data test #20, invalid ptr referencing var:OK
+#24/24   btf/global data test #21, var included in struct:OK
+#24/25   btf/global data test #22, array of var:OK
+#24/26   btf/var after datasec, ptr followed by modifier:OK
+#24/27   btf/size check test #1:OK
+#24/28   btf/size check test #2:OK
+#24/29   btf/size check test #3:OK
+#24/30   btf/size check test #4:OK
+#24/31   btf/size check test #5:OK
+#24/32   btf/void test #1:OK
+#24/33   btf/void test #2:OK
+#24/34   btf/void test #3:OK
+#24/35   btf/void test #4:OK
+#24/36   btf/loop test #1:OK
+#24/37   btf/loop test #2:OK
+#24/38   btf/loop test #3:OK
+#24/39   btf/loop test #4:OK
+#24/40   btf/loop test #5:OK
+#24/41   btf/loop test #6:OK
+#24/42   btf/loop test #7:OK
+#24/43   btf/loop test #8:OK
+#24/44   btf/string section does not end with null:OK
+#24/45   btf/empty string section:OK
+#24/46   btf/empty type section:OK
+#24/47   btf/btf_header test. Longer hdr_len:OK
+#24/48   btf/btf_header test. Gap between hdr and type:OK
+#24/49   btf/btf_header test. Gap between type and str:OK
+#24/50   btf/btf_header test. Overlap between type and str:OK
+#24/51   btf/btf_header test. Larger BTF size:OK
+#24/52   btf/btf_header test. Smaller BTF size:OK
+#24/53   btf/array test. index_type/elem_type "int":OK
+#24/54   btf/array test. index_type/elem_type "const int":OK
+#24/55   btf/array test. index_type "const int:31":OK
+#24/56   btf/array test. elem_type "const int:31":OK
+#24/57   btf/array test. index_type "void":OK
+#24/58   btf/array test. index_type "const void":OK
+#24/59   btf/array test. elem_type "const void":OK
+#24/60   btf/array test. elem_type "const void *":OK
+#24/61   btf/array test. index_type "const void *":OK
+#24/62   btf/array test. t->size != 0":OK
+#24/63   btf/int test. invalid int_data:OK
+#24/64   btf/invalid BTF_INFO:OK
+#24/65   btf/fwd test. t->type != 0":OK
+#24/66   btf/typedef (invalid name, name_off = 0):OK
+#24/67   btf/typedef (invalid name, invalid identifier):OK
+#24/68   btf/ptr type (invalid name, name_off <> 0):OK
+#24/69   btf/volatile type (invalid name, name_off <> 0):OK
+#24/70   btf/const type (invalid name, name_off <> 0):OK
+#24/71   btf/restrict type (invalid name, name_off <> 0):OK
+#24/72   btf/fwd type (invalid name, name_off = 0):OK
+#24/73   btf/fwd type (invalid name, invalid identifier):OK
+#24/74   btf/array type (invalid name, name_off <> 0):OK
+#24/75   btf/struct type (name_off = 0):OK
+#24/76   btf/struct type (invalid name, invalid identifier):OK
+#24/77   btf/struct member (name_off = 0):OK
+#24/78   btf/struct member (invalid name, invalid identifier):OK
+#24/79   btf/enum type (name_off = 0):OK
+#24/80   btf/enum type (invalid name, invalid identifier):OK
+#24/81   btf/enum member (invalid name, name_off = 0):OK
+#24/82   btf/enum member (invalid name, invalid identifier):OK
+#24/83   btf/arraymap invalid btf key (a bit field):OK
+#24/84   btf/arraymap invalid btf key (!= 32 bits):OK
+#24/85   btf/arraymap invalid btf value (too small):OK
+#24/86   btf/arraymap invalid btf value (too big):OK
+#24/87   btf/func proto (int (*)(int, unsigned int)):OK
+#24/88   btf/func proto (vararg):OK
+#24/89   btf/func proto (vararg with name):OK
+#24/90   btf/func proto (arg after vararg):OK
+#24/91   btf/func proto (CONST=>TYPEDEF=>PTR=>FUNC_PROTO):OK
+#24/92   btf/func proto (TYPEDEF=>FUNC_PROTO):OK
+#24/93   btf/func proto (btf_resolve(arg)):OK
+#24/94   btf/func proto (Not all arg has name):OK
+#24/95   btf/func proto (Bad arg name_off):OK
+#24/96   btf/func proto (Bad arg name):OK
+#24/97   btf/func proto (Invalid return type):OK
+#24/98   btf/func proto (with func name):OK
+#24/99   btf/func proto (const void arg):OK
+#24/100  btf/func (void func(int a, unsigned int b)):OK
+#24/101  btf/func (No func name):OK
+#24/102  btf/func (Invalid func name):OK
+#24/103  btf/func (Some arg has no name):OK
+#24/104  btf/func (Non zero vlen):OK
+#24/105  btf/func (Not referring to FUNC_PROTO):OK
+#24/106  btf/invalid int kind_flag:OK
+#24/107  btf/invalid ptr kind_flag:OK
+#24/108  btf/invalid array kind_flag:OK
+#24/109  btf/valid fwd kind_flag:OK
+#24/110  btf/invalid typedef kind_flag:OK
+#24/111  btf/invalid volatile kind_flag:OK
+#24/112  btf/invalid const kind_flag:OK
+#24/113  btf/invalid restrict kind_flag:OK
+#24/114  btf/invalid func kind_flag:OK
+#24/115  btf/invalid func_proto kind_flag:OK
+#24/116  btf/valid struct, kind_flag, bitfield_size = 0:OK
+#24/117  btf/valid struct, kind_flag, int member, bitfield_size != 0:OK
+#24/118  btf/valid union, kind_flag, int member, bitfield_size != 0:OK
+#24/119  btf/valid struct, kind_flag, enum member, bitfield_size != 0:OK
+#24/120  btf/valid union, kind_flag, enum member, bitfield_size != 0:OK
+#24/121  btf/valid struct, kind_flag, typedef member, bitfield_size != 0:OK
+#24/122  btf/valid union, kind_flag, typedef member, bitfield_size != 0:OK
+#24/123  btf/invalid struct, kind_flag, bitfield_size greater than struct size:OK
+#24/124  btf/invalid struct, kind_flag, bitfield base_type int not regular:OK
+#24/125  btf/invalid struct, kind_flag, base_type int not regular:OK
+#24/126  btf/invalid union, kind_flag, bitfield_size greater than struct size:OK
+#24/127  btf/invalid struct, kind_flag, int member, bitfield_size = 0, wrong byte alignment:OK
+#24/128  btf/invalid struct, kind_flag, enum member, bitfield_size = 0, wrong byte alignment:OK
+#24/129  btf/128-bit int:OK
+#24/130  btf/struct, 128-bit int member:OK
+#24/131  btf/struct, 120-bit int member bitfield:OK
+#24/132  btf/struct, kind_flag, 128-bit int member:OK
+#24/133  btf/struct, kind_flag, 120-bit int member bitfield:OK
+#24/134  btf/struct->ptr->typedef->array->int size resolution:OK
+#24/135  btf/struct->ptr->typedef->multi-array->int size resolution:OK
+#24/136  btf/typedef/multi-arr mix size resolution:OK
+#24/137  btf/datasec: vlen == 0:OK
+#24/138  btf/datasec: name '?.foo bar:buz' is ok:OK
+#24/139  btf/datasec: name with non-printable first char not is ok:OK
+#24/140  btf/datasec: name '\0' is not ok:OK
+#24/141  btf/type name '?foo' is not ok:OK
+#24/142  btf/float test #1, well-formed:OK
+#24/143  btf/float test #2, invalid vlen:OK
+#24/144  btf/float test #3, invalid kind_flag:OK
+#24/145  btf/float test #4, member does not fit:OK
+#24/146  btf/float test #5, member is not properly aligned:OK
+#24/147  btf/float test #6, invalid size:OK
+#24/148  btf/decl_tag test #1, struct/member, well-formed:OK
+#24/149  btf/decl_tag test #2, union/member, well-formed:OK
+#24/150  btf/decl_tag test #3, variable, well-formed:OK
+#24/151  btf/decl_tag test #4, func/parameter, well-formed:OK
+#24/152  btf/decl_tag test #5, invalid value:OK
+#24/153  btf/decl_tag test #6, invalid target type:OK
+#24/154  btf/decl_tag test #7, invalid vlen:OK
+#24/155  btf/decl_tag test #8, invalid kflag:OK
+#24/156  btf/decl_tag test #9, var, invalid component_idx:OK
+#24/157  btf/decl_tag test #10, struct member, invalid component_idx:OK
+#24/158  btf/decl_tag test #11, func parameter, invalid component_idx:OK
+#24/159  btf/decl_tag test #12, < -1 component_idx:OK
+#24/160  btf/decl_tag test #13, typedef, well-formed:OK
+#24/161  btf/decl_tag test #14, typedef, invalid component_idx:OK
+#24/162  btf/decl_tag test #15, func, invalid func proto:OK
+#24/163  btf/decl_tag test #16, func proto, return type:OK
+#24/164  btf/decl_tag test #17, func proto, argument:OK
+#24/165  btf/decl_tag test #18, decl_tag as the map key type:OK
+#24/166  btf/decl_tag test #19, decl_tag as the map value type:OK
+#24/167  btf/type_tag test #1:OK
+#24/168  btf/type_tag test #2, type tag order:OK
+#24/169  btf/type_tag test #3, type tag order:OK
+#24/170  btf/type_tag test #4, type tag order:OK
+#24/171  btf/type_tag test #5, type tag order:OK
+#24/172  btf/type_tag test #6, type tag order:OK
+#24/173  btf/enum64 test #1, unsigned, size 8:OK
+#24/174  btf/enum64 test #2, signed, size 4:OK
+#24/175  btf/== raw_btf_size+1:OK
+#24/176  btf/== raw_btf_size-3:OK
+#24/177  btf/Large bpf_btf_info:OK
+#24/178  btf/BTF ID:OK
+#24/179  btf/test_btf_newkv.bpf.o:SKIP
+#24/180  btf/test_btf_nokv.bpf.o:SKIP
+#24/181  btf/func_type (main func + one sub):OK
+#24/182  btf/func_type (Incorrect func_info_rec_size):OK
+#24/183  btf/func_type (Incorrect func_info_cnt):OK
+#24/184  btf/func_type (Incorrect bpf_func_info.insn_off):OK
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/185  btf/line_info (No subprog):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+do_test_info_raw:FAIL:check expected err_str:line_info[4].insn_off
+#24/186  btf/line_info (No subprog. insn_off >= prog->len):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+do_test_info_raw:FAIL:check expected err_str:Invalid insn code at line_info[1]
+#24/187  btf/line_info (Zero bpf insn code):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/188  btf/line_info (No subprog. zero tailing line_info:FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+do_test_info_raw:FAIL:check expected err_str:nonzero tailing record in line_info
+#24/189  btf/line_info (No subprog. nonzero tailing line_info):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/190  btf/line_info (subprog):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/191  btf/line_info (subprog + func_info):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+do_test_info_raw:FAIL:check expected err_str:missing bpf_line_info for func#0
+#24/192  btf/line_info (subprog. missing 1st func line info):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+do_test_info_raw:FAIL:check expected err_str:missing bpf_line_info for func#1
+#24/193  btf/line_info (subprog. missing 2nd func line info):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+do_test_info_raw:FAIL:check expected err_str:Invalid line_info[2].insn_off
+#24/194  btf/line_info (subprog. unordered insn offset):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/195  btf/line_info (dead start):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/196  btf/line_info (dead end):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/197  btf/line_info (dead code + subprog + func_info):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/198  btf/line_info (dead subprog):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/199  btf/line_info (dead last subprog):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/200  btf/line_info (dead subprog + dead start):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/201  btf/line_info (dead subprog + dead start w/ move):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/202  btf/line_info (dead end + subprog start w/ no linfo):FAIL
+#24/203  btf/dedup: unused strings filtering:OK
+#24/204  btf/dedup: strings deduplication:OK
+#24/205  btf/dedup: struct example #1:OK
+#24/206  btf/dedup: struct <-> fwd resolution w/ hash collision:OK
+#24/207  btf/dedup: void equiv check:OK
+#24/208  btf/dedup: all possible kinds (no duplicates):OK
+#24/209  btf/dedup: no int/float duplicates:OK
+#24/210  btf/dedup: enum fwd resolution:OK
+#24/211  btf/dedup: datasec and vars pass-through:OK
+#24/212  btf/dedup: func/func_arg/var tags:OK
+#24/213  btf/dedup: func/func_param tags:OK
+#24/214  btf/dedup: struct/struct_member tags:OK
+#24/215  btf/dedup: typedef tags:OK
+#24/216  btf/dedup: btf_type_tag #1:OK
+#24/217  btf/dedup: btf_type_tag #2:OK
+#24/218  btf/dedup: btf_type_tag #3:OK
+#24/219  btf/dedup: btf_type_tag #4:OK
+#24/220  btf/dedup: btf_type_tag #5, struct:OK
+#24/221  btf/dedup: enum64, standalone:OK
+#24/222  btf/dedup: enum64, fwd resolution:OK
+#24/223  btf/dedup: enum and enum64, no dedup:OK
+#24/224  btf/dedup: enum of different size: no dedup:OK
+#24/225  btf/dedup: enum fwd to enum64:OK
+#24/226  btf/dedup: enum64 fwd to enum:OK
+#24/227  btf/dedup: standalone fwd declaration struct:OK
+#24/228  btf/dedup: standalone fwd declaration union:OK
+#24/229  btf/dedup: standalone fwd declaration wrong kind:OK
+#24/230  btf/dedup: standalone fwd declaration name conflict:OK
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:FAIL:check bpf_obj_pin(/sys/fs/bpf/pprint_test_array): errno:2.
+#24/231  btf/BTF pretty print array:FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:FAIL:check bpf_obj_pin(/sys/fs/bpf/pprint_test_hash): errno:2.
+#24/232  btf/BTF pretty print hash:FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:FAIL:check bpf_obj_pin(/sys/fs/bpf/pprint_test_lru_hash): errno:2.
+#24/233  btf/BTF pretty print lru hash:FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:FAIL:check bpf_obj_pin(/sys/fs/bpf/pprint_test_percpu_array): errno:2.
+#24/234  btf/BTF pretty print percpu array:FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:FAIL:check bpf_obj_pin(/sys/fs/bpf/pprint_test_percpu_hash): errno:2.
+#24/235  btf/BTF pretty print percpu hash:FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:FAIL:check bpf_obj_pin(/sys/fs/bpf/pprint_test_lru_percpu_hash): errno:2.
+#24/236  btf/BTF pretty print lru percpu hash:FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:FAIL:check bpf_obj_pin(/sys/fs/bpf/pprint_test_array): errno:2.
+#24/237  btf/BTF pretty print array:FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:FAIL:check bpf_obj_pin(/sys/fs/bpf/pprint_test_array): errno:2.
+#24/238  btf/BTF pretty print array:FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:FAIL:check bpf_obj_pin(/sys/fs/bpf/pprint_test_array): errno:2.
+#24/239  btf/BTF pretty print array:FAIL
+#24      btf:FAIL
+#25/1    btf_dedup_split/split_simple:OK
+#25/2    btf_dedup_split/split_struct_duped:OK
+#25/3    btf_dedup_split/split_fwd_resolve:OK
+#25/4    btf_dedup_split/split_dup_struct_in_cu:OK
+#25      btf_dedup_split:OK
+#26/1    btf_distill/distilled_base:OK
+#26/2    btf_distill/distilled_base_multi:OK
+#26/3    btf_distill/distilled_base_missing_err:OK
+#26/4    btf_distill/distilled_base_multi_err:OK
+#26/5    btf_distill/distilled_base_multi_err2:OK
+#26/6    btf_distill/distilled_base_vmlinux:OK
+#26/7    btf_distill/distilled_endianness:OK
+#26      btf_distill:OK
+libbpf: failed to open btf_dump_test_case_syntax.bpf.o: No such file or directory
+test_btf_dump_case:FAIL:btf_parse_elf unexpected error: -2
+#27/1    btf_dump/btf_dump: syntax:FAIL
+libbpf: failed to open btf_dump_test_case_ordering.bpf.o: No such file or directory
+test_btf_dump_case:FAIL:btf_parse_elf unexpected error: -2
+#27/2    btf_dump/btf_dump: ordering:FAIL
+libbpf: failed to open btf_dump_test_case_padding.bpf.o: No such file or directory
+test_btf_dump_case:FAIL:btf_parse_elf unexpected error: -2
+#27/3    btf_dump/btf_dump: padding:FAIL
+libbpf: failed to open btf_dump_test_case_packing.bpf.o: No such file or directory
+test_btf_dump_case:FAIL:btf_parse_elf unexpected error: -2
+#27/4    btf_dump/btf_dump: packing:FAIL
+libbpf: failed to open btf_dump_test_case_bitfields.bpf.o: No such file or directory
+test_btf_dump_case:FAIL:btf_parse_elf unexpected error: -2
+#27/5    btf_dump/btf_dump: bitfields:FAIL
+libbpf: failed to open btf_dump_test_case_multidim.bpf.o: No such file or directory
+test_btf_dump_case:FAIL:btf_parse_elf unexpected error: -2
+#27/6    btf_dump/btf_dump: multidim:FAIL
+libbpf: failed to open btf_dump_test_case_namespacing.bpf.o: No such file or directory
+test_btf_dump_case:FAIL:btf_parse_elf unexpected error: -2
+#27/7    btf_dump/btf_dump: namespacing:FAIL
+#27/8    btf_dump/btf_dump: incremental:OK
+#27/9    btf_dump/btf_dump: int_data:OK
+#27/10   btf_dump/btf_dump: float_data:OK
+#27/11   btf_dump/btf_dump: char_data:OK
+#27/12   btf_dump/btf_dump: typedef_data:OK
+#27/13   btf_dump/btf_dump: enum_data:OK
+#27/14   btf_dump/btf_dump: struct_data:OK
+btf_dump_data:FAIL:find type id unexpected find type id: actual -2 < expected 0
+#27/15   btf_dump/btf_dump: var_data:FAIL
+test_btf_dump_datasec_data:FAIL:xdping_kern.bpf.o BTF not found unexpected error: -2
+#27/16   btf_dump/btf_dump: datasec_data:FAIL
+#27      btf_dump:FAIL
+libbpf: failed to open btf_dump_test_case_syntax.bpf.o: No such file or directory
+test_btf_endian:FAIL:parse_native_btf unexpected error: -2
+#28      btf_endian:FAIL
+#29      btf_field_iter:OK
+libbpf: prog 'handle__sys_enter': BPF program load failed: Invalid argument
+libbpf: prog 'handle__sys_enter': failed to load: -22
+libbpf: failed to load object 'test_btf_map_in_map'
+libbpf: failed to load BPF skeleton 'test_btf_map_in_map': -22
+test_lookup_update:FAIL:skel_open failed to open&load skeleton
+#30/1    btf_map_in_map/lookup_update:FAIL
+libbpf: prog 'handle__sys_enter': BPF program load failed: Invalid argument
+libbpf: prog 'handle__sys_enter': failed to load: -22
+libbpf: failed to load object 'test_btf_map_in_map'
+libbpf: failed to load BPF skeleton 'test_btf_map_in_map': -22
+test_diff_size:FAIL:skel_open failed to open&load skeleton
+#30/2    btf_map_in_map/diff_size:FAIL
+#30      btf_map_in_map:FAIL
+#31      btf_module:SKIP
+#32      btf_split:OK
+libbpf: prog 'sub': BPF program load failed: Invalid argument
+libbpf: prog 'sub': failed to load: -22
+libbpf: failed to load object 'test_btf_decl_tag'
+libbpf: failed to load BPF skeleton 'test_btf_decl_tag': -22
+test_btf_decl_tag:FAIL:btf_decl_tag unexpected error: -22
+#33/1    btf_tag/btf_decl_tag:FAIL
+libbpf: prog 'sub': BPF program load failed: Invalid argument
+libbpf: prog 'sub': failed to load: -22
+libbpf: failed to load object 'btf_type_tag'
+libbpf: failed to load BPF skeleton 'btf_type_tag': -22
+test_btf_type_tag:FAIL:btf_type_tag unexpected error: -22
+#33/2    btf_tag/btf_type_tag:FAIL
+#33/3    btf_tag/btf_type_tag_user_mod1:SKIP
+#33/4    btf_tag/btf_type_tag_user_mod2:SKIP
+#33/5    btf_tag/btf_type_tag_sys_user_vmlinux:SKIP
+#33/6    btf_tag/btf_type_tag_percpu_mod1:SKIP
+#33/7    btf_tag/btf_type_tag_percpu_mod2:SKIP
+#33/8    btf_tag/btf_type_tag_percpu_vmlinux_load:SKIP
+#33/9    btf_tag/btf_type_tag_percpu_vmlinux_helper:SKIP
+#33      btf_tag:FAIL
+#34/1    btf_write/btf_add:OK
+#34/2    btf_write/btf_add_btf:OK
+#34      btf_write:OK
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+sh: ./bpftool: not found
+#64/1    core_reloc_btfgen/kernel:SKIP
+#64/2    core_reloc_btfgen/module_probed:SKIP
+#64/3    core_reloc_btfgen/module_direct:SKIP
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/4    core_reloc_btfgen/flavors:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/5    core_reloc_btfgen/flavors__err_wrong_name:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/6    core_reloc_btfgen/nesting:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/7    core_reloc_btfgen/nesting___anon_embed:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/8    core_reloc_btfgen/nesting___struct_union_mixup:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/9    core_reloc_btfgen/nesting___extra_nesting:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/10   core_reloc_btfgen/nesting___dup_compat_types:FAIL
+#64/11   core_reloc_btfgen/nesting___err_missing_field:SKIP
+#64/12   core_reloc_btfgen/nesting___err_array_field:SKIP
+#64/13   core_reloc_btfgen/nesting___err_missing_container:SKIP
+#64/14   core_reloc_btfgen/nesting___err_nonstruct_container:SKIP
+#64/15   core_reloc_btfgen/nesting___err_array_container:SKIP
+#64/16   core_reloc_btfgen/nesting___err_dup_incompat_types:SKIP
+#64/17   core_reloc_btfgen/nesting___err_partial_match_dups:SKIP
+#64/18   core_reloc_btfgen/nesting___err_too_deep:SKIP
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/19   core_reloc_btfgen/arrays:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/20   core_reloc_btfgen/arrays___diff_arr_dim:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/21   core_reloc_btfgen/arrays___diff_arr_val_sz:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/22   core_reloc_btfgen/arrays___equiv_zero_sz_arr:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/23   core_reloc_btfgen/arrays___fixed_arr:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/24   core_reloc_btfgen/arrays___err_too_small:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/25   core_reloc_btfgen/arrays___err_too_shallow:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/26   core_reloc_btfgen/arrays___err_non_array:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/27   core_reloc_btfgen/arrays___err_wrong_val_type:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/28   core_reloc_btfgen/arrays___err_bad_zero_sz_arr:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/29   core_reloc_btfgen/primitives:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/30   core_reloc_btfgen/primitives___diff_enum_def:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/31   core_reloc_btfgen/primitives___diff_func_proto:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/32   core_reloc_btfgen/primitives___diff_ptr_type:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/33   core_reloc_btfgen/primitives___err_non_enum:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/34   core_reloc_btfgen/primitives___err_non_int:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/35   core_reloc_btfgen/primitives___err_non_ptr:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/36   core_reloc_btfgen/mods:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/37   core_reloc_btfgen/mods___mod_swap:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/38   core_reloc_btfgen/mods___typedefs:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/39   core_reloc_btfgen/ptr_as_arr:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/40   core_reloc_btfgen/ptr_as_arr___diff_sz:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/41   core_reloc_btfgen/ints:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/42   core_reloc_btfgen/ints___bool:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/43   core_reloc_btfgen/ints___reverse_sign:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/44   core_reloc_btfgen/misc:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/45   core_reloc_btfgen/existence:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/46   core_reloc_btfgen/existence___minimal:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/47   core_reloc_btfgen/existence___wrong_field_defs:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/48   core_reloc_btfgen/probed:bitfields:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/49   core_reloc_btfgen/direct:bitfields:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/50   core_reloc_btfgen/probed:bitfields___bit_sz_change:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/51   core_reloc_btfgen/direct:bitfields___bit_sz_change:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/52   core_reloc_btfgen/probed:bitfields___bitfield_vs_int:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/53   core_reloc_btfgen/direct:bitfields___bitfield_vs_int:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/54   core_reloc_btfgen/probed:bitfields___just_big_enough:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/55   core_reloc_btfgen/direct:bitfields___just_big_enough:FAIL
+#64/56   core_reloc_btfgen/probed:bitfields___err_too_big_bitfield:SKIP
+#64/57   core_reloc_btfgen/direct:bitfields___err_too_big_bitfield:SKIP
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/58   core_reloc_btfgen/size:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/59   core_reloc_btfgen/size___diff_sz:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/60   core_reloc_btfgen/size___diff_offs:FAIL
+#64/61   core_reloc_btfgen/size___err_ambiguous:SKIP
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/62   core_reloc_btfgen/type_based:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/63   core_reloc_btfgen/type_based___all_missing:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/64   core_reloc_btfgen/type_based___diff:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/65   core_reloc_btfgen/type_based___diff_sz:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/66   core_reloc_btfgen/type_based___incompat:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/67   core_reloc_btfgen/type_based___fn_wrong_args:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/68   core_reloc_btfgen/type_id:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/69   core_reloc_btfgen/type_id___missing_targets:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/70   core_reloc_btfgen/enumval:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/71   core_reloc_btfgen/enumval___diff:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/72   core_reloc_btfgen/enumval___val3_missing:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/73   core_reloc_btfgen/enumval___err_missing:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/74   core_reloc_btfgen/enum64val:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/75   core_reloc_btfgen/enum64val___diff:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/76   core_reloc_btfgen/enum64val___val3_missing:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/77   core_reloc_btfgen/enum64val___err_missing:FAIL
+#64      core_reloc_btfgen:FAIL
+libbpf: prog 'test1': failed to find kernel BTF type ID of 'bpf_testmod_fentry_test1': -3
+libbpf: prog 'test1': failed to prepare load attributes: -3
+libbpf: prog 'test1': failed to load: -3
+libbpf: failed to load object 'fentry_recursive_target'
+libbpf: failed to load BPF skeleton 'fentry_recursive_target': -3
+test_fentry_attach_btf_presence:FAIL:fentry_recursive_target__open_and_load unexpected error: -3
+#83      fentry_attach_btf_presence:FAIL
+libbpf: prog 'add_to_list_in_array': failed to find kernel BTF type ID of '__x64_sys_nanosleep': -3
+libbpf: prog 'add_to_list_in_array': failed to prepare load attributes: -3
+libbpf: prog 'add_to_list_in_array': failed to load: -3
+libbpf: failed to load object 'normal_map_btf'
+libbpf: failed to load BPF skeleton 'normal_map_btf': -3
+do_test_normal_map_btf:FAIL:open_load unexpected error: -3
+#147/1   map_btf/array_btf:FAIL
+libbpf: prog 'add_to_list_in_inner_array': failed to find kernel BTF type ID of '__x64_sys_nanosleep': -3
+libbpf: prog 'add_to_list_in_inner_array': failed to prepare load attributes: -3
+libbpf: prog 'add_to_list_in_inner_array': failed to load: -3
+libbpf: failed to load object 'map_in_map_btf'
+libbpf: failed to load BPF skeleton 'map_in_map_btf': -3
+do_test_map_in_map_btf:FAIL:open_load unexpected error: -3
+#147/2   map_btf/inner_array_btf:FAIL
+#147     map_btf:FAIL
+#192/1   rbtree_btf_fail/rbtree_btf_fail__wrong_node_type:OK
+#192/2   rbtree_btf_fail/rbtree_btf_fail__add_wrong_type:OK
+#192     rbtree_btf_fail:OK
+libbpf: failed to open btf_data.bpf.o: No such file or directory
+resolve_symbols:FAIL:resolve Failed to load BTF from btf_data.bpf.o
+#268     resolve_btfids:FAIL
+serial_test_snprintf_btf:PASS:skel_open 0 nsec
+libbpf: prog 'trace_netif_receive_skb': relo #17: relocation decision ambiguity: success 32525 != success 3373
+libbpf: prog 'trace_netif_receive_skb': relo #17: failed to relocate: -22
+libbpf: failed to perform CO-RE relocations: -22
+libbpf: failed to load object 'netif_receive_skb'
+libbpf: failed to load BPF skeleton 'netif_receive_skb': -22
+serial_test_snprintf_btf:FAIL:skel_load failed to load skeleton: -22
+#287     snprintf_btf:FAIL
+#386     tp_btf_nullable:SKIP
+test_verif_stats:FAIL:trace_vprintk__open_and_load unexpected error: -22
+#428     verif_stats:FAIL
+tester_init:PASS:tester_log_buf 0 nsec
+process_subtest:PASS:obj_open_mem 0 nsec
+process_subtest:PASS:specs_alloc 0 nsec
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'task_kfunc_raw_tp': BPF program load failed: Invalid argument
+libbpf: prog 'task_kfunc_raw_tp': failed to load: -22
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:PASS:unexpected_load_success 0 nsec
+validate_msgs:FAIL:695 expect_msg
+VERIFIER LOG:
+=============
+=============
+EXPECTED   SUBSTR: 'calling kernel function'
+#430/1   verifier_kfunc_prog_types/task_kfunc_raw_tp:FAIL
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'cgrp_kfunc_raw_tp': BPF program load failed: Invalid argument
+libbpf: prog 'cgrp_kfunc_raw_tp': failed to load: -22
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:PASS:unexpected_load_success 0 nsec
+validate_msgs:FAIL:695 expect_msg
+VERIFIER LOG:
+=============
+=============
+EXPECTED   SUBSTR: 'calling kernel function'
+#430/2   verifier_kfunc_prog_types/cgrp_kfunc_raw_tp:FAIL
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'cpumask_kfunc_raw_tp': BPF program load failed: Invalid argument
+libbpf: prog 'cpumask_kfunc_raw_tp': failed to load: -22
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:PASS:unexpected_load_success 0 nsec
+validate_msgs:FAIL:695 expect_msg
+VERIFIER LOG:
+=============
+=============
+EXPECTED   SUBSTR: 'calling kernel function'
+#430/3   verifier_kfunc_prog_types/cpumask_kfunc_raw_tp:FAIL
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'task_kfunc_syscall': BPF program load failed: unknown error (-524)
+libbpf: prog 'task_kfunc_syscall': failed to load: -524
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:FAIL:unexpected_load_failure unexpected error: -524 (errno 524)
+VERIFIER LOG:
+=============
+JIT is required for calling kernel function
+processed 0 insns (limit 1000000) max_states_per_insn 0 total_states 0 peak_states 0 mark_read 0
+=============
+#430/4   verifier_kfunc_prog_types/task_kfunc_syscall:FAIL
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'cgrp_kfunc_syscall': BPF program load failed: unknown error (-524)
+libbpf: prog 'cgrp_kfunc_syscall': failed to load: -524
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:FAIL:unexpected_load_failure unexpected error: -524 (errno 524)
+VERIFIER LOG:
+=============
+JIT is required for calling kernel function
+processed 0 insns (limit 1000000) max_states_per_insn 0 total_states 0 peak_states 0 mark_read 0
+=============
+#430/5   verifier_kfunc_prog_types/cgrp_kfunc_syscall:FAIL
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'cpumask_kfunc_syscall': BPF program load failed: Invalid argument
+libbpf: prog 'cpumask_kfunc_syscall': failed to load: -22
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:FAIL:unexpected_load_failure unexpected error: -22 (errno 22)
+VERIFIER LOG:
+=============
+0: R1=ctx() R10=fp0
+; alloc = bpf_cpumask_create(); @ verifier_kfunc_prog_types.c:128
+0: <invalid kfunc call>
+kfunc 'bpf_cpumask_create' is referenced but wasn't resolved
+processed 1 insns (limit 1000000) max_states_per_insn 0 total_states 0 peak_states 0 mark_read 0
+=============
+#430/6   verifier_kfunc_prog_types/cpumask_kfunc_syscall:FAIL
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'task_kfunc_tracepoint': BPF program load failed: Invalid argument
+libbpf: prog 'task_kfunc_tracepoint': failed to load: -22
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:FAIL:unexpected_load_failure unexpected error: -22 (errno 22)
+VERIFIER LOG:
+=============
+=============
+#430/7   verifier_kfunc_prog_types/task_kfunc_tracepoint:FAIL
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'cgrp_kfunc_tracepoint': BPF program load failed: Invalid argument
+libbpf: prog 'cgrp_kfunc_tracepoint': failed to load: -22
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:FAIL:unexpected_load_failure unexpected error: -22 (errno 22)
+VERIFIER LOG:
+=============
+=============
+#430/8   verifier_kfunc_prog_types/cgrp_kfunc_tracepoint:FAIL
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'cpumask_kfunc_tracepoint': BPF program load failed: Invalid argument
+libbpf: prog 'cpumask_kfunc_tracepoint': failed to load: -22
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:FAIL:unexpected_load_failure unexpected error: -22 (errno 22)
+VERIFIER LOG:
+=============
+=============
+#430/9   verifier_kfunc_prog_types/cpumask_kfunc_tracepoint:FAIL
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'task_kfunc_perf_event': BPF program load failed: Invalid argument
+libbpf: prog 'task_kfunc_perf_event': failed to load: -22
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:FAIL:unexpected_load_failure unexpected error: -22 (errno 22)
+VERIFIER LOG:
+=============
+=============
+#430/10  verifier_kfunc_prog_types/task_kfunc_perf_event:FAIL
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'cgrp_kfunc_perf_event': BPF program load failed: Invalid argument
+libbpf: prog 'cgrp_kfunc_perf_event': failed to load: -22
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:FAIL:unexpected_load_failure unexpected error: -22 (errno 22)
+VERIFIER LOG:
+=============
+=============
+#430/11  verifier_kfunc_prog_types/cgrp_kfunc_perf_event:FAIL
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'cpumask_kfunc_perf_event': BPF program load failed: Invalid argument
+libbpf: prog 'cpumask_kfunc_perf_event': failed to load: -22
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:FAIL:unexpected_load_failure unexpected error: -22 (errno 22)
+VERIFIER LOG:
+=============
+=============
+#430/12  verifier_kfunc_prog_types/cpumask_kfunc_perf_event:FAIL
+#430     verifier_kfunc_prog_types:FAIL
+verif_log_subtest:PASS:skel_open 0 nsec
+libbpf: prog 'good_prog': BPF program load failed: Invalid argument
+libbpf: prog 'good_prog': failed to load: -22
+libbpf: failed to load object 'test_log_buf'
+libbpf: failed to load BPF skeleton 'test_log_buf': -22
+verif_log_subtest:FAIL:unexpected_load_failure unexpected error: -22 (errno 22)
+#431/1   verifier_log/good_prog-level1:FAIL
+verif_log_subtest:PASS:skel_open 0 nsec
+libbpf: prog 'good_prog': BPF program load failed: Invalid argument
+libbpf: prog 'good_prog': failed to load: -22
+libbpf: failed to load object 'test_log_buf'
+libbpf: failed to load BPF skeleton 'test_log_buf': -22
+verif_log_subtest:FAIL:unexpected_load_failure unexpected error: -22 (errno 22)
+#431/2   verifier_log/good_prog-level2:FAIL
+verif_log_subtest:PASS:skel_open 0 nsec
+libbpf: prog 'bad_prog': BPF program load failed: Invalid argument
+libbpf: prog 'bad_prog': failed to load: -22
+libbpf: failed to load object 'test_log_buf'
+libbpf: failed to load BPF skeleton 'test_log_buf': -22
+verif_log_subtest:PASS:unexpected_load_success 0 nsec
+check_prog_load:PASS:prog_load 0 nsec
+verif_log_subtest:FAIL:fixed_log_sz unexpected fixed_log_sz: actual 1 <= expected 50
+#431/3   verifier_log/bad_prog-level1:FAIL
+verif_log_subtest:PASS:skel_open 0 nsec
+libbpf: prog 'bad_prog': BPF program load failed: Invalid argument
+libbpf: prog 'bad_prog': failed to load: -22
+libbpf: failed to load object 'test_log_buf'
+libbpf: failed to load BPF skeleton 'test_log_buf': -22
+verif_log_subtest:PASS:unexpected_load_success 0 nsec
+check_prog_load:PASS:prog_load 0 nsec
+verif_log_subtest:FAIL:fixed_log_sz unexpected fixed_log_sz: actual 1 <= expected 50
+#431/4   verifier_log/bad_prog-level2:FAIL
+#431/5   verifier_log/bad_btf:OK
+#431/6   verifier_log/good_btf:OK
+#431     verifier_log:FAIL
+
+All error logs:
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/185  btf/line_info (No subprog):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+do_test_info_raw:FAIL:check expected err_str:line_info[4].insn_off
+#24/186  btf/line_info (No subprog. insn_off >= prog->len):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+do_test_info_raw:FAIL:check expected err_str:Invalid insn code at line_info[1]
+#24/187  btf/line_info (Zero bpf insn code):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/188  btf/line_info (No subprog. zero tailing line_info:FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+do_test_info_raw:FAIL:check expected err_str:nonzero tailing record in line_info
+#24/189  btf/line_info (No subprog. nonzero tailing line_info):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/190  btf/line_info (subprog):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/191  btf/line_info (subprog + func_info):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+do_test_info_raw:FAIL:check expected err_str:missing bpf_line_info for func#0
+#24/192  btf/line_info (subprog. missing 1st func line info):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+do_test_info_raw:FAIL:check expected err_str:missing bpf_line_info for func#1
+#24/193  btf/line_info (subprog. missing 2nd func line info):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+do_test_info_raw:FAIL:check expected err_str:Invalid line_info[2].insn_off
+#24/194  btf/line_info (subprog. unordered insn offset):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/195  btf/line_info (dead start):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/196  btf/line_info (dead end):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/197  btf/line_info (dead code + subprog + func_info):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/198  btf/line_info (dead subprog):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/199  btf/line_info (dead last subprog):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/200  btf/line_info (dead subprog + dead start):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/201  btf/line_info (dead subprog + dead start w/ move):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_info_raw:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+patch_name_tbd:PASS:check 0 nsec
+do_test_info_raw:FAIL:check prog_fd:-1 expected_prog_load_failure:0 errno:22
+#24/202  btf/line_info (dead end + subprog start w/ no linfo):FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:FAIL:check bpf_obj_pin(/sys/fs/bpf/pprint_test_array): errno:2.
+#24/231  btf/BTF pretty print array:FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:FAIL:check bpf_obj_pin(/sys/fs/bpf/pprint_test_hash): errno:2.
+#24/232  btf/BTF pretty print hash:FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:FAIL:check bpf_obj_pin(/sys/fs/bpf/pprint_test_lru_hash): errno:2.
+#24/233  btf/BTF pretty print lru hash:FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:FAIL:check bpf_obj_pin(/sys/fs/bpf/pprint_test_percpu_array): errno:2.
+#24/234  btf/BTF pretty print percpu array:FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:FAIL:check bpf_obj_pin(/sys/fs/bpf/pprint_test_percpu_hash): errno:2.
+#24/235  btf/BTF pretty print percpu hash:FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:FAIL:check bpf_obj_pin(/sys/fs/bpf/pprint_test_lru_percpu_hash): errno:2.
+#24/236  btf/BTF pretty print lru percpu hash:FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:FAIL:check bpf_obj_pin(/sys/fs/bpf/pprint_test_array): errno:2.
+#24/237  btf/BTF pretty print array:FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:FAIL:check bpf_obj_pin(/sys/fs/bpf/pprint_test_array): errno:2.
+#24/238  btf/BTF pretty print array:FAIL
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+btf_raw_create:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:PASS:check 0 nsec
+do_test_pprint:FAIL:check bpf_obj_pin(/sys/fs/bpf/pprint_test_array): errno:2.
+#24/239  btf/BTF pretty print array:FAIL
+#24      btf:FAIL
+libbpf: failed to open btf_dump_test_case_syntax.bpf.o: No such file or directory
+test_btf_dump_case:FAIL:btf_parse_elf unexpected error: -2
+#27/1    btf_dump/btf_dump: syntax:FAIL
+libbpf: failed to open btf_dump_test_case_ordering.bpf.o: No such file or directory
+test_btf_dump_case:FAIL:btf_parse_elf unexpected error: -2
+#27/2    btf_dump/btf_dump: ordering:FAIL
+libbpf: failed to open btf_dump_test_case_padding.bpf.o: No such file or directory
+test_btf_dump_case:FAIL:btf_parse_elf unexpected error: -2
+#27/3    btf_dump/btf_dump: padding:FAIL
+libbpf: failed to open btf_dump_test_case_packing.bpf.o: No such file or directory
+test_btf_dump_case:FAIL:btf_parse_elf unexpected error: -2
+#27/4    btf_dump/btf_dump: packing:FAIL
+libbpf: failed to open btf_dump_test_case_bitfields.bpf.o: No such file or directory
+test_btf_dump_case:FAIL:btf_parse_elf unexpected error: -2
+#27/5    btf_dump/btf_dump: bitfields:FAIL
+libbpf: failed to open btf_dump_test_case_multidim.bpf.o: No such file or directory
+test_btf_dump_case:FAIL:btf_parse_elf unexpected error: -2
+#27/6    btf_dump/btf_dump: multidim:FAIL
+libbpf: failed to open btf_dump_test_case_namespacing.bpf.o: No such file or directory
+test_btf_dump_case:FAIL:btf_parse_elf unexpected error: -2
+#27/7    btf_dump/btf_dump: namespacing:FAIL
+btf_dump_data:FAIL:find type id unexpected find type id: actual -2 < expected 0
+#27/15   btf_dump/btf_dump: var_data:FAIL
+test_btf_dump_datasec_data:FAIL:xdping_kern.bpf.o BTF not found unexpected error: -2
+#27/16   btf_dump/btf_dump: datasec_data:FAIL
+#27      btf_dump:FAIL
+libbpf: failed to open btf_dump_test_case_syntax.bpf.o: No such file or directory
+test_btf_endian:FAIL:parse_native_btf unexpected error: -2
+#28      btf_endian:FAIL
+libbpf: prog 'handle__sys_enter': BPF program load failed: Invalid argument
+libbpf: prog 'handle__sys_enter': failed to load: -22
+libbpf: failed to load object 'test_btf_map_in_map'
+libbpf: failed to load BPF skeleton 'test_btf_map_in_map': -22
+test_lookup_update:FAIL:skel_open failed to open&load skeleton
+#30/1    btf_map_in_map/lookup_update:FAIL
+libbpf: prog 'handle__sys_enter': BPF program load failed: Invalid argument
+libbpf: prog 'handle__sys_enter': failed to load: -22
+libbpf: failed to load object 'test_btf_map_in_map'
+libbpf: failed to load BPF skeleton 'test_btf_map_in_map': -22
+test_diff_size:FAIL:skel_open failed to open&load skeleton
+#30/2    btf_map_in_map/diff_size:FAIL
+#30      btf_map_in_map:FAIL
+libbpf: prog 'sub': BPF program load failed: Invalid argument
+libbpf: prog 'sub': failed to load: -22
+libbpf: failed to load object 'test_btf_decl_tag'
+libbpf: failed to load BPF skeleton 'test_btf_decl_tag': -22
+test_btf_decl_tag:FAIL:btf_decl_tag unexpected error: -22
+#33/1    btf_tag/btf_decl_tag:FAIL
+libbpf: prog 'sub': BPF program load failed: Invalid argument
+libbpf: prog 'sub': failed to load: -22
+libbpf: failed to load object 'btf_type_tag'
+libbpf: failed to load BPF skeleton 'btf_type_tag': -22
+test_btf_type_tag:FAIL:btf_type_tag unexpected error: -22
+#33/2    btf_tag/btf_type_tag:FAIL
+#33      btf_tag:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/4    core_reloc_btfgen/flavors:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/5    core_reloc_btfgen/flavors__err_wrong_name:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/6    core_reloc_btfgen/nesting:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/7    core_reloc_btfgen/nesting___anon_embed:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/8    core_reloc_btfgen/nesting___struct_union_mixup:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/9    core_reloc_btfgen/nesting___extra_nesting:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/10   core_reloc_btfgen/nesting___dup_compat_types:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/19   core_reloc_btfgen/arrays:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/20   core_reloc_btfgen/arrays___diff_arr_dim:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/21   core_reloc_btfgen/arrays___diff_arr_val_sz:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/22   core_reloc_btfgen/arrays___equiv_zero_sz_arr:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/23   core_reloc_btfgen/arrays___fixed_arr:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/24   core_reloc_btfgen/arrays___err_too_small:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/25   core_reloc_btfgen/arrays___err_too_shallow:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/26   core_reloc_btfgen/arrays___err_non_array:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/27   core_reloc_btfgen/arrays___err_wrong_val_type:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/28   core_reloc_btfgen/arrays___err_bad_zero_sz_arr:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/29   core_reloc_btfgen/primitives:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/30   core_reloc_btfgen/primitives___diff_enum_def:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/31   core_reloc_btfgen/primitives___diff_func_proto:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/32   core_reloc_btfgen/primitives___diff_ptr_type:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/33   core_reloc_btfgen/primitives___err_non_enum:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/34   core_reloc_btfgen/primitives___err_non_int:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/35   core_reloc_btfgen/primitives___err_non_ptr:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/36   core_reloc_btfgen/mods:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/37   core_reloc_btfgen/mods___mod_swap:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/38   core_reloc_btfgen/mods___typedefs:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/39   core_reloc_btfgen/ptr_as_arr:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/40   core_reloc_btfgen/ptr_as_arr___diff_sz:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/41   core_reloc_btfgen/ints:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/42   core_reloc_btfgen/ints___bool:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/43   core_reloc_btfgen/ints___reverse_sign:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/44   core_reloc_btfgen/misc:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/45   core_reloc_btfgen/existence:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/46   core_reloc_btfgen/existence___minimal:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/47   core_reloc_btfgen/existence___wrong_field_defs:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/48   core_reloc_btfgen/probed:bitfields:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/49   core_reloc_btfgen/direct:bitfields:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/50   core_reloc_btfgen/probed:bitfields___bit_sz_change:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/51   core_reloc_btfgen/direct:bitfields___bit_sz_change:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/52   core_reloc_btfgen/probed:bitfields___bitfield_vs_int:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/53   core_reloc_btfgen/direct:bitfields___bitfield_vs_int:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/54   core_reloc_btfgen/probed:bitfields___just_big_enough:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/55   core_reloc_btfgen/direct:bitfields___just_big_enough:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/58   core_reloc_btfgen/size:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/59   core_reloc_btfgen/size___diff_sz:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/60   core_reloc_btfgen/size___diff_offs:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/62   core_reloc_btfgen/type_based:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/63   core_reloc_btfgen/type_based___all_missing:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/64   core_reloc_btfgen/type_based___diff:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/65   core_reloc_btfgen/type_based___diff_sz:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/66   core_reloc_btfgen/type_based___incompat:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/67   core_reloc_btfgen/type_based___fn_wrong_args:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/68   core_reloc_btfgen/type_id:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/69   core_reloc_btfgen/type_id___missing_targets:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/70   core_reloc_btfgen/enumval:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/71   core_reloc_btfgen/enumval___diff:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/72   core_reloc_btfgen/enumval___val3_missing:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/73   core_reloc_btfgen/enumval___err_missing:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/74   core_reloc_btfgen/enum64val:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/75   core_reloc_btfgen/enum64val___diff:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/76   core_reloc_btfgen/enum64val___val3_missing:FAIL
+run_core_reloc_tests:PASS:btf_tmp 0 nsec
+run_core_reloc_tests:FAIL:run_btfgen unexpected error: 32512 (errno 22)
+#64/77   core_reloc_btfgen/enum64val___err_missing:FAIL
+#64      core_reloc_btfgen:FAIL
+libbpf: prog 'test1': failed to find kernel BTF type ID of 'bpf_testmod_fentry_test1': -3
+libbpf: prog 'test1': failed to prepare load attributes: -3
+libbpf: prog 'test1': failed to load: -3
+libbpf: failed to load object 'fentry_recursive_target'
+libbpf: failed to load BPF skeleton 'fentry_recursive_target': -3
+test_fentry_attach_btf_presence:FAIL:fentry_recursive_target__open_and_load unexpected error: -3
+#83      fentry_attach_btf_presence:FAIL
+libbpf: prog 'add_to_list_in_array': failed to find kernel BTF type ID of '__x64_sys_nanosleep': -3
+libbpf: prog 'add_to_list_in_array': failed to prepare load attributes: -3
+libbpf: prog 'add_to_list_in_array': failed to load: -3
+libbpf: failed to load object 'normal_map_btf'
+libbpf: failed to load BPF skeleton 'normal_map_btf': -3
+do_test_normal_map_btf:FAIL:open_load unexpected error: -3
+#147/1   map_btf/array_btf:FAIL
+libbpf: prog 'add_to_list_in_inner_array': failed to find kernel BTF type ID of '__x64_sys_nanosleep': -3
+libbpf: prog 'add_to_list_in_inner_array': failed to prepare load attributes: -3
+libbpf: prog 'add_to_list_in_inner_array': failed to load: -3
+libbpf: failed to load object 'map_in_map_btf'
+libbpf: failed to load BPF skeleton 'map_in_map_btf': -3
+do_test_map_in_map_btf:FAIL:open_load unexpected error: -3
+#147/2   map_btf/inner_array_btf:FAIL
+#147     map_btf:FAIL
+libbpf: failed to open btf_data.bpf.o: No such file or directory
+resolve_symbols:FAIL:resolve Failed to load BTF from btf_data.bpf.o
+#268     resolve_btfids:FAIL
+serial_test_snprintf_btf:PASS:skel_open 0 nsec
+libbpf: prog 'trace_netif_receive_skb': relo #17: relocation decision ambiguity: success 32525 != success 3373
+libbpf: prog 'trace_netif_receive_skb': relo #17: failed to relocate: -22
+libbpf: failed to perform CO-RE relocations: -22
+libbpf: failed to load object 'netif_receive_skb'
+libbpf: failed to load BPF skeleton 'netif_receive_skb': -22
+serial_test_snprintf_btf:FAIL:skel_load failed to load skeleton: -22
+#287     snprintf_btf:FAIL
+test_verif_stats:FAIL:trace_vprintk__open_and_load unexpected error: -22
+#428     verif_stats:FAIL
+tester_init:PASS:tester_log_buf 0 nsec
+process_subtest:PASS:obj_open_mem 0 nsec
+process_subtest:PASS:specs_alloc 0 nsec
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'task_kfunc_raw_tp': BPF program load failed: Invalid argument
+libbpf: prog 'task_kfunc_raw_tp': failed to load: -22
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:PASS:unexpected_load_success 0 nsec
+validate_msgs:FAIL:695 expect_msg
+VERIFIER LOG:
+=============
+=============
+EXPECTED   SUBSTR: 'calling kernel function'
+#430/1   verifier_kfunc_prog_types/task_kfunc_raw_tp:FAIL
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'cgrp_kfunc_raw_tp': BPF program load failed: Invalid argument
+libbpf: prog 'cgrp_kfunc_raw_tp': failed to load: -22
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:PASS:unexpected_load_success 0 nsec
+validate_msgs:FAIL:695 expect_msg
+VERIFIER LOG:
+=============
+=============
+EXPECTED   SUBSTR: 'calling kernel function'
+#430/2   verifier_kfunc_prog_types/cgrp_kfunc_raw_tp:FAIL
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'cpumask_kfunc_raw_tp': BPF program load failed: Invalid argument
+libbpf: prog 'cpumask_kfunc_raw_tp': failed to load: -22
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:PASS:unexpected_load_success 0 nsec
+validate_msgs:FAIL:695 expect_msg
+VERIFIER LOG:
+=============
+=============
+EXPECTED   SUBSTR: 'calling kernel function'
+#430/3   verifier_kfunc_prog_types/cpumask_kfunc_raw_tp:FAIL
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'task_kfunc_syscall': BPF program load failed: unknown error (-524)
+libbpf: prog 'task_kfunc_syscall': failed to load: -524
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:FAIL:unexpected_load_failure unexpected error: -524 (errno 524)
+VERIFIER LOG:
+=============
+JIT is required for calling kernel function
+processed 0 insns (limit 1000000) max_states_per_insn 0 total_states 0 peak_states 0 mark_read 0
+=============
+#430/4   verifier_kfunc_prog_types/task_kfunc_syscall:FAIL
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'cgrp_kfunc_syscall': BPF program load failed: unknown error (-524)
+libbpf: prog 'cgrp_kfunc_syscall': failed to load: -524
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:FAIL:unexpected_load_failure unexpected error: -524 (errno 524)
+VERIFIER LOG:
+=============
+JIT is required for calling kernel function
+processed 0 insns (limit 1000000) max_states_per_insn 0 total_states 0 peak_states 0 mark_read 0
+=============
+#430/5   verifier_kfunc_prog_types/cgrp_kfunc_syscall:FAIL
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'cpumask_kfunc_syscall': BPF program load failed: Invalid argument
+libbpf: prog 'cpumask_kfunc_syscall': failed to load: -22
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:FAIL:unexpected_load_failure unexpected error: -22 (errno 22)
+VERIFIER LOG:
+=============
+0: R1=ctx() R10=fp0
+; alloc = bpf_cpumask_create(); @ verifier_kfunc_prog_types.c:128
+0: <invalid kfunc call>
+kfunc 'bpf_cpumask_create' is referenced but wasn't resolved
+processed 1 insns (limit 1000000) max_states_per_insn 0 total_states 0 peak_states 0 mark_read 0
+=============
+#430/6   verifier_kfunc_prog_types/cpumask_kfunc_syscall:FAIL
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'task_kfunc_tracepoint': BPF program load failed: Invalid argument
+libbpf: prog 'task_kfunc_tracepoint': failed to load: -22
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:FAIL:unexpected_load_failure unexpected error: -22 (errno 22)
+VERIFIER LOG:
+=============
+=============
+#430/7   verifier_kfunc_prog_types/task_kfunc_tracepoint:FAIL
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'cgrp_kfunc_tracepoint': BPF program load failed: Invalid argument
+libbpf: prog 'cgrp_kfunc_tracepoint': failed to load: -22
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:FAIL:unexpected_load_failure unexpected error: -22 (errno 22)
+VERIFIER LOG:
+=============
+=============
+#430/8   verifier_kfunc_prog_types/cgrp_kfunc_tracepoint:FAIL
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'cpumask_kfunc_tracepoint': BPF program load failed: Invalid argument
+libbpf: prog 'cpumask_kfunc_tracepoint': failed to load: -22
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:FAIL:unexpected_load_failure unexpected error: -22 (errno 22)
+VERIFIER LOG:
+=============
+=============
+#430/9   verifier_kfunc_prog_types/cpumask_kfunc_tracepoint:FAIL
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'task_kfunc_perf_event': BPF program load failed: Invalid argument
+libbpf: prog 'task_kfunc_perf_event': failed to load: -22
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:FAIL:unexpected_load_failure unexpected error: -22 (errno 22)
+VERIFIER LOG:
+=============
+=============
+#430/10  verifier_kfunc_prog_types/task_kfunc_perf_event:FAIL
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'cgrp_kfunc_perf_event': BPF program load failed: Invalid argument
+libbpf: prog 'cgrp_kfunc_perf_event': failed to load: -22
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:FAIL:unexpected_load_failure unexpected error: -22 (errno 22)
+VERIFIER LOG:
+=============
+=============
+#430/11  verifier_kfunc_prog_types/cgrp_kfunc_perf_event:FAIL
+run_subtest:PASS:obj_open_mem 0 nsec
+libbpf: prog 'cpumask_kfunc_perf_event': BPF program load failed: Invalid argument
+libbpf: prog 'cpumask_kfunc_perf_event': failed to load: -22
+libbpf: failed to load object 'verifier_kfunc_prog_types'
+run_subtest:FAIL:unexpected_load_failure unexpected error: -22 (errno 22)
+VERIFIER LOG:
+=============
+=============
+#430/12  verifier_kfunc_prog_types/cpumask_kfunc_perf_event:FAIL
+#430     verifier_kfunc_prog_types:FAIL
+verif_log_subtest:PASS:skel_open 0 nsec
+libbpf: prog 'good_prog': BPF program load failed: Invalid argument
+libbpf: prog 'good_prog': failed to load: -22
+libbpf: failed to load object 'test_log_buf'
+libbpf: failed to load BPF skeleton 'test_log_buf': -22
+verif_log_subtest:FAIL:unexpected_load_failure unexpected error: -22 (errno 22)
+#431/1   verifier_log/good_prog-level1:FAIL
+verif_log_subtest:PASS:skel_open 0 nsec
+libbpf: prog 'good_prog': BPF program load failed: Invalid argument
+libbpf: prog 'good_prog': failed to load: -22
+libbpf: failed to load object 'test_log_buf'
+libbpf: failed to load BPF skeleton 'test_log_buf': -22
+verif_log_subtest:FAIL:unexpected_load_failure unexpected error: -22 (errno 22)
+#431/2   verifier_log/good_prog-level2:FAIL
+verif_log_subtest:PASS:skel_open 0 nsec
+libbpf: prog 'bad_prog': BPF program load failed: Invalid argument
+libbpf: prog 'bad_prog': failed to load: -22
+libbpf: failed to load object 'test_log_buf'
+libbpf: failed to load BPF skeleton 'test_log_buf': -22
+verif_log_subtest:PASS:unexpected_load_success 0 nsec
+check_prog_load:PASS:prog_load 0 nsec
+verif_log_subtest:FAIL:fixed_log_sz unexpected fixed_log_sz: actual 1 <= expected 50
+#431/3   verifier_log/bad_prog-level1:FAIL
+verif_log_subtest:PASS:skel_open 0 nsec
+libbpf: prog 'bad_prog': BPF program load failed: Invalid argument
+libbpf: prog 'bad_prog': failed to load: -22
+libbpf: failed to load object 'test_log_buf'
+libbpf: failed to load BPF skeleton 'test_log_buf': -22
+verif_log_subtest:PASS:unexpected_load_success 0 nsec
+check_prog_load:PASS:prog_load 0 nsec
+verif_log_subtest:FAIL:fixed_log_sz unexpected fixed_log_sz: actual 1 <= expected 50
+#431/4   verifier_log/bad_prog-level2:FAIL
+#431     verifier_log:FAIL
+Summary: 10/248 PASSED, 25 SKIPPED, 13 FAILED

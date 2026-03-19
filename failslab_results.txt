@@ -1,0 +1,45 @@
+=== BPF Verifier Failslab Test Harness ===
+Date: Thu Mar 19 05:27:46 UTC 2026
+
+[OK] failslab debugfs available
+
+=== PHASE 1: Baseline (no fault injection) ===
+[BASELINE] Pass=256 Fail=268 Skip=25
+Summary: 10/248 PASSED, 25 SKIPPED, 13 FAILED
+
+=== Configuring failslab ===
+[*] task-filter: Y
+[*] probability: 10%
+[OK] failslab configured
+
+=== PHASE 2: Fault injection (5 iterations at 10%) ===
+--- Iteration 1 ---
+[iter 1] Pass=247 Fail=268 Skip=34 Exit=1
+Summary: 9/240 PASSED, 34 SKIPPED, 14 FAILED
+--- Iteration 2 ---
+[iter 2] Pass=243 Fail=264 Skip=40 Exit=1
+Summary: 9/236 PASSED, 40 SKIPPED, 14 FAILED
+--- Iteration 3 ---
+[iter 3] Pass=244 Fail=272 Skip=35 Exit=1
+Summary: 9/237 PASSED, 35 SKIPPED, 14 FAILED
+--- Iteration 4 ---
+[iter 4] Pass=240 Fail=268 Skip=41 Exit=1
+Summary: 9/233 PASSED, 41 SKIPPED, 14 FAILED
+--- Iteration 5 ---
+[iter 5] Pass=242 Fail=270 Skip=38 Exit=1
+Summary: 9/235 PASSED, 38 SKIPPED, 14 FAILED
+
+=== PHASE 3: 50% stress ===
+[stress 50%] Pass=210 Fail=272 Exit=1
+Summary: 9/203 PASSED, 69 SKIPPED, 14 FAILED
+
+=== PHASE 4: 100% failure rate ===
+[100%] Pass=176 Fail=404 Exit=1
+Summary: 9/169 PASSED, 37 SKIPPED, 14 FAILED
+
+=== FINAL SUMMARY ===
+Baseline:     Pass=256 Fail=268 Skip=25
+50% stress:   Pass=210 Fail=272 Exit=1
+100% rate:    Pass=176 Fail=404 Exit=1
+Total crashes: 0
+=== Test complete ===

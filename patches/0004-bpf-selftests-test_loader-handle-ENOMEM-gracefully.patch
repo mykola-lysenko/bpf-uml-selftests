@@ -1,0 +1,14 @@
+--- /tmp/linux-6.12.20/tools/testing/selftests/bpf/test_loader.c	2025-03-22 15:54:28.000000000 -0400
++++ /home/ubuntu/linux-6.12.20/tools/testing/selftests/bpf/test_loader.c	2026-03-19 00:53:32.411695127 -0400
+@@ -956,6 +956,11 @@
+ 		bpf_map__set_autocreate(map, !unpriv || is_unpriv_capable_map(map));
+ 
+ 	err = bpf_object__load(tobj);
++	if (err == -ENOMEM) {
++		/* Transient OOM during map/prog allocation - not a verifier bug */
++		test__skip();
++		goto tobj_cleanup;
++	}
+ 	if (subspec->expect_failure) {
+ 		if (!ASSERT_ERR(err, "unexpected_load_success")) {
+ 			emit_verifier_log(tester->log_buf, false /*force*/);
