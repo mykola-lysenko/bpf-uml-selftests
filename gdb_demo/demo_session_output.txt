@@ -1,0 +1,287 @@
+[TRIGGER] Waiting for ready file...
+[GDB] Starting GDB with UML kernel...
+[35;1mGNU gdb (Ubuntu 12.1-0ubuntu1~22.04.2) 12.1[m
+Copyright (C) 2022 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Type "show copying" and "show warranty" for details.
+This GDB was configured as "x86_64-linux-gnu".
+Type "show configuration" for configuration details.
+For bug reporting instructions, please see:
+<https://www.gnu.org/software/gdb/bugs/>.
+Find the GDB manual and other documentation resources online at:
+    <http://www.gnu.org/software/gdb/documentation/>.
+
+For help, type "help".
+Type "apropos word" to search for commands related to "word"...
+Reading symbols from [32m/home/ubuntu/linux-uml-debug[m...
+[?2004h(gdb) set pagination off
+set pagination off
+[?2004l[?2004h(gdb) set print pretty on
+set print pretty on
+[?2004l[?2004h(gdb) directory /home/ubuntu/linux-6.12.20
+directory /home/ubuntu/linux-6.12.20
+[?2004lSource directories searched: /home/ubuntu/linux-6.12.20:$cdir:$cwd
+[?2004h(gdb) handle SIGCHLD nostop noprint pass
+handle SIGCHLD nostop noprint pass
+[?2004lSignal        Stop	Print	Pass to program	Description
+SIGCHLD       No	No	Yes		Child status changed
+[?2004h(gdb) handle SIGVTALRM nostop noprint pass
+handle SIGVTALRM nostop noprint pass
+[?2004lSignal        Stop	Print	Pass to program	Description
+SIGVTALRM     No	No	Yes		Virtual timer expired
+[?2004h(gdb) handle SIGIO nostop noprint pass
+handle SIGIO nostop noprint pass
+[?2004lSignal        Stop	Print	Pass to program	Description
+SIGIO         No	No	Yes		I/O possible
+[?2004h(gdb) handle SIGUSR1 nostop noprint pass
+handle SIGUSR1 nostop noprint pass
+[?2004lSignal        Stop	Print	Pass to program	Description
+SIGUSR1       No	No	Yes		User defined signal 1
+[?2004h(gdb) handle SIGUSR2 nostop noprint pass
+handle SIGUSR2 nostop noprint pass
+[?2004lSignal        Stop	Print	Pass to program	Description
+SIGUSR2       No	No	Yes		User defined signal 2
+[?2004h(gdb) break bpf_check
+break bpf_check
+[?2004lBreakpoint 1 at [34m0x600dac84[m: file [32mkernel/bpf/verifier.c[m, line 22338.
+[?2004h(gdb) 
+[OK] bpf_check breakpoint set!
+set args rootfstype=hostfs rootflags=/home/ubuntu/uml-rootfs rw init=/init_gdb_demo mem=256M con=fd:0,fd:1 con0=fd:0,fd:1
+set args rootfstype=hostfs rootflags=/home/ubuntu/uml-rootfs rw init=/init_gdb_demo mem=256M con=fd:0,fd:1 con0=fd:0,fd:1
+[?2004l[?2004h(gdb) set follow-fork-mode parent
+set follow-fork-mode parent
+[?2004l[?2004h(gdb) set detach-on-fork on
+set detach-on-fork on
+[?2004l[?2004h(gdb) 
+[INFO] Running UML under GDB...
+[INFO] Waiting for bpf_check() breakpoint...
+
+run
+run
+[?2004lStarting program: [32m/home/ubuntu/linux-uml-debug[m rootfstype=hostfs rootflags=/home/ubuntu/uml-rootfs rw init=/init_gdb_demo mem=256M con=fd:0,fd:1 con0=fd:0,fd:1
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "[32m/lib/x86_64-linux-gnu/libthread_db.so.1[m".
+Core dump limits :
+	soft - 0
+	hard - NONE
+Checking that ptrace can change system call numbers...[Detaching after fork from child process 622356]
+OK
+Checking syscall emulation for ptrace...[Detaching after fork from child process 622357]
+OK
+Checking environment variables for a tempdir...none found
+Checking if /dev/shm is on tmpfs...OK
+Checking PROT_EXEC mmap in /dev/shm...OK
+[Detaching after fork from child process 622358]
+[New Thread 0x7ffff7faa740 (LWP 622359)]
+[New Thread 0x7ffff7faa740 (LWP 622360)]
+Linux version 6.12.20 (ubuntu@82045ecf2438) (gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, GNU ld (GNU Binutils for Ubuntu) 2.38) #23 Thu Mar 19 22:16:32 EDT 2026
+Zone ranges:
+  Normal   [mem 0x0000000000000000-0x000000006fffffff]
+Movable zone start for each node
+Early memory node ranges
+  node   0: [mem 0x0000000000000000-0x000000000fffffff]
+Initmem setup node 0 [mem 0x0000000000000000-0x000000000fffffff]
+random: crng init done
+Kernel command line: rootfstype=hostfs rootflags=/home/ubuntu/uml-rootfs rw init=/init_gdb_demo mem=256M con=fd:0,fd:1 con0=fd:0,fd:1 root=98:0 console=tty0
+Unknown kernel command line parameters "mem=256M", will be passed to user space.
+Dentry cache hash table entries: 32768 (order: 6, 262144 bytes, linear)
+Inode-cache hash table entries: 16384 (order: 5, 131072 bytes, linear)
+Sorting __ex_table...
+Built 1 zonelists, mobility grouping on.  Total pages: 65536
+mem auto-init: stack:off, heap alloc:off, heap free:off
+SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=1, Nodes=1
+RCU Tasks Trace: Setting shift to 0 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=1.
+NR_IRQS: 64
+clocksource: timer: mask: 0xffffffffffffffff max_cycles: 0x1cd42e205, max_idle_ns: 881590404426 ns
+Calibrating delay loop... 4884.07 BogoMIPS (lpj=24420352)
+Checking that host ptys support output SIGIO...Yes
+pid_max: default: 32768 minimum: 301
+LSM: initializing lsm=capability
+Mount-cache hash table entries: 512 (order: 0, 4096 bytes, linear)
+Mountpoint-cache hash table entries: 512 (order: 0, 4096 bytes, linear)
+Memory: 246832K/262144K available (4648K kernel code, 1175K rwdata, 4028K rodata, 175K init, 266K bss, 14468K reserved, 0K cma-reserved)
+devtmpfs: initialized
+clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 19112604462750000 ns
+futex hash table entries: 256 (order: 0, 6144 bytes, linear)
+bpf_prog_select_runtime: jited=1 jit_needed=1 err=0
+NET: Registered PF_NETLINK/PF_ROUTE protocol family
+pps_core: LinuxPPS API ver. 1 registered
+pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+PTP clock support registered
+clocksource: Switched to clocksource timer
+VFS: Disk quotas dquot_6.6.0
+VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+NET: Registered PF_INET protocol family
+IP idents hash table entries: 4096 (order: 3, 32768 bytes, linear)
+tcp_listen_portaddr_hash hash table entries: 512 (order: 0, 4096 bytes, linear)
+Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+TCP established hash table entries: 2048 (order: 2, 16384 bytes, linear)
+TCP bind hash table entries: 2048 (order: 3, 32768 bytes, linear)
+TCP: Hash tables configured (established 2048 bind 2048)
+UDP hash table entries: 256 (order: 1, 8192 bytes, linear)
+UDP-Lite hash table entries: 256 (order: 1, 8192 bytes, linear)
+NET: Registered PF_UNIX/PF_LOCAL protocol family
+NET: Registered PF_XDP protocol family
+printk: legacy console [stderr0] disabled
+mconsole (version 2) initialized on /home/ubuntu/.uml/XaqcWj/mconsole
+Checking host MADV_REMOVE support...OK
+workingset: timestamp_bits=62 max_order=16 bucket_order=0
+io scheduler mq-deadline registered
+io scheduler kyber registered
+NET: Registered PF_INET6 protocol family
+Segment Routing with IPv6
+In-situ OAM (IOAM) with IPv6
+sit: IPv6, IPv4 and MPLS over IPv4 tunneling driver
+NET: Registered PF_PACKET protocol family
+Initialized stdio console driver
+Console initialized on /dev/tty0
+printk: legacy console [tty0] enabled
+Initializing software serial port version 1
+printk: legacy console [mc-1] enabled
+Failed to initialize ubd device 0 :Couldn't determine size of device's file
+VFS: Mounted root (hostfs filesystem) on device 0:15.
+devtmpfs: mounted
+This architecture does not have kernel memory protection.
+Run /init_gdb_demo as init process
+[Detaching after fork from child process 622361]
+[Detaching after fork from child process 622362]
+[Detaching after fork from child process 622363]
+[Detaching after fork from child process 622364]
+[Detaching after fork from child process 622365]
+[Detaching after fork from child process 622366]
+[Detaching after fork from child process 622367]
+============================================
+  BPF Verifier GDB Demo
+============================================
+
+The loader will print its PID and then STOP.
+On the HOST, run:
+
+  gdb /home/ubuntu/linux-uml-debug
+  (gdb) attach <PID printed below>
+[TRIGGER] Ready file found! Waiting 1 second before triggering...
+continue
+  (gdb) break bpf_check
+  (gdb) cont
+
+Then in another host terminal:
+  kill -CONT <PID>
+
+============================================
+
+[Detaching after fork from child process 622368]
+[Detaching after fork from child process 622369]
+[bpf_loader_demo] PID = 28
+[bpf_loader_demo]
+[bpf_loader_demo] === GDB SETUP INSTRUCTIONS ===
+[bpf_loader_demo]
+[bpf_loader_demo] 1. Find the UML main PID on the HOST:
+[bpf_loader_demo]      ps aux | grep linux-uml-debug | grep -v grep
+[bpf_loader_demo]
+[bpf_loader_demo] 2. Attach GDB to the UML main process:
+[bpf_loader_demo]      gdb /home/ubuntu/linux-uml-debug
+[bpf_loader_demo]      (gdb) attach <UML_MAIN_PID>
+[bpf_loader_demo]      (gdb) break bpf_check
+[bpf_loader_demo]      (gdb) cont
+[bpf_loader_demo]
+[bpf_loader_demo] 3. Trigger the BPF load (in another HOST terminal):
+[bpf_loader_demo]      touch /home/ubuntu/uml-rootfs/tmp/uml_go
+[bpf_loader_demo]
+[bpf_loader_demo] GDB will stop at bpf_check() in kernel/bpf/verifier.c
+[bpf_loader_demo]
+[bpf_loader_demo] Created ready file: /tmp/uml_ready
+[bpf_loader_demo] Polling for trigger file: /tmp/uml_go
+[bpf_loader_demo] (touch /home/ubuntu/uml-rootfs/tmp/uml_go to trigger)
+continue
+continue
+continue
+continue
+continue
+continue
+continue
+continue
+continue
+continue
+continue
+[TRIGGER] Go file created! BPF load will be triggered.
+[bpf_loader_demo] Trigger file found! Loading BPF program...
+[bpf_loader_demo]
+[bpf_loader_demo] === LOADING BPF PROGRAM ===
+[bpf_loader_demo] Calling bpf(BPF_PROG_LOAD)...
+
+Thread 1 "linux-uml-debug" hit Breakpoint 1, [33mbpf_check[m ([36mprog=prog@entry[m=0x70ac7cd0, [36mattr=attr@entry[m=0x70ac7dd8, [36muattr[m=..., [36muattr_size=uattr_size@entry[m=128) at [32mkernel/bpf/verifier.c[m:22338
+
+[SUCCESS] === BREAKPOINT HIT: bpf_check() ===
+22338	[31m{[m
+[?2004h[?2004l[?2004h(gdb) backtrace 5
+backtrace 5
+[?2004l#0  [33mbpf_check[m ([36mprog=prog@entry[m=0x70ac7cd0, [36mattr=attr@entry[m=0x70ac7dd8, [36muattr[m=..., [36muattr_size=uattr_size@entry[m=128) at [32mkernel/bpf/verifier.c[m:22338
+#1  [34m0x00000000600bd05d[m in [33mbpf_prog_load[m ([36mattr=attr@entry[m=0x70ac7dd8, [36muattr[m=..., [36muattr_size=uattr_size@entry[m=128) at [32mkernel/bpf/syscall.c[m:2847
+#2  [34m0x00000000600bec46[m in [33m__sys_bpf[m ([36mcmd[m=BPF_PROG_LOAD, [36muattr[m=..., [36msize[m=128) at [32mkernel/bpf/syscall.c[m:5668
+#3  [34m0x00000000600c0705[m in [33m__do_sys_bpf[m ([36msize[m=<optimized out>, [36muattr[m=<optimized out>, [36mcmd[m=<optimized out>) at [32mkernel/bpf/syscall.c[m:5775
+#4  [33m__se_sys_bpf[m ([36mcmd[m=<optimized out>, [36muattr[m=<optimized out>, [36msize[m=<optimized out>) at [32mkernel/bpf/syscall.c[m:5773
+(More stack frames follow...)
+[?2004h(gdb) info args
+info args
+[?2004l[36mprog[m = [34m0x70ac7cd0[m
+[36mattr[m = [34m0x70ac7dd8[m
+[36muattr[m = {
+  [36m[m{
+    [36mkernel[m = [34m0x7f7f917ab0[m,
+    [36muser[m = [34m0x7f7f917ab0[m
+  },
+  [36mis_kernel[m = false
+}
+[36muattr_size[m = 128
+[?2004h(gdb) 
+[SUCCESS] BPF verifier breakpoint verified!
+detach
+detach
+[?2004lDetaching from program: /home/ubuntu/linux-uml-debug, process 622353
+[Inferior 1 (process 622353) detached]
+[?2004h(gdb) quit
+quit
+[?2004lbpf_prog_select_runtime: jited=1 jit_needed=1 err=0
+userspace - child stopped with signal 1
+userspace - child stopped with signal 1
+Kernel panic - not syncing: Attempted to kill init! exitcode=0x0000000b
+CPU: 0 UID: 0 PID: 1 Comm: sh Not tainted 6.12.20 #23
+Stack:
+ 70803bb0 604885ec 00000001 60c40000
+ 00000001 605f4ed2 604a1bfa 00000001
+ 70803be0 604a9873 608d4ed0 60c40000
+Call Trace:
+ [<604a1bfa>] ? _printk+0x0/0x98
+ [<6002767b>] show_stack+0x146/0x155
+ [<604885ec>] ? dump_stack_print_info+0x12b/0x13e
+ [<604a1bfa>] ? _printk+0x0/0x98
+ [<604a9873>] dump_stack_lvl+0x60/0x7b
+ [<60038d3b>] ? unblock_signals+0x0/0xcb
+ [<604a98ac>] dump_stack+0x1e/0x20
+ [<604a0c44>] panic+0x18f/0x3c9
+ [<60038e06>] ? um_set_signals+0x0/0x43
+ [<60089eb9>] ? call_rcu+0x5b/0x87
+ [<6006a412>] ? wake_up_process+0x0/0x1d
+ [<604a0ab5>] ? panic+0x0/0x3c9
+ [<601c2ff2>] ? do_coredump+0x13c2/0x182f
+ [<60155a6e>] ? __update_cpu_freelist_fast+0x5b/0x6a
+ [<60038e41>] ? um_set_signals+0x3b/0x43
+ [<60038e06>] ? um_set_signals+0x0/0x43
+ [<60038e33>] ? um_set_signals+0x2d/0x43
+ [<6004fce2>] ? percpu_up_read.constprop.0+0x41/0x73
+ [<60038d3b>] ? unblock_signals+0x0/0xcb
+ [<600486be>] do_exit+0x220/0x9cf
+ [<6004f955>] ? __sigqueue_free+0x53/0x59
+ [<60038d26>] ? block_signals+0x0/0x15
+ [<60049102>] sys_exit_group+0x0/0x1a
+ [<60053d87>] get_signal+0x8df/0x904
+ [<60038e41>] ? um_set_signals+0x3b/0x43
+ [<600534a8>] ? get_signal+0x0/0x904
+ [<6002749a>] do_signal+0x28/0xc3
+ [<60028079>] fatal_sigsegv+0x3d/0x49
+ [<60042386>] ? get_fp_registers+0x14/0x16
+ [<6003b80d>] userspace+0xfb/0x4ca
+ [<60026813>] ? interrupt_end+0x0/0xe4
+ [<600266b4>] new_thread_handler+0xb4/0xb6
