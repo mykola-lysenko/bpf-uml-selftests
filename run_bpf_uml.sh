@@ -3,69 +3,186 @@
 # BPF Selftests in User Mode Linux (UML) — Reproducible Build & Run Script
 # ==============================================================================
 #
-# This script downloads Linux 6.12.20, applies UML-compatibility patches,
-# builds the kernel and BPF selftests (test_progs), sets up a minimal rootfs,
-# and runs the tests inside UML.
+# This script builds the full toolchain from source, then builds and runs
+# the Linux kernel BPF selftests (test_progs) inside User Mode Linux (UML).
+#
+# Toolchain built from source:
+#   - LLVM/Clang  — main branch tip (LLVM 23), clang + BPF + X86 backends only
+#   - pahole      — latest release tag (v1.31), built from source
+#   - Linux       — bpf-next tree, master branch (kernel.org)
 #
 # Usage:
 #   chmod +x run_bpf_uml.sh
 #   ./run_bpf_uml.sh
 #
 # Requirements (Ubuntu 22.04 or compatible):
-#   - ~10 GB free disk space
+#   - ~30 GB free disk space  (LLVM source + build artifacts are large)
+#   - 8+ CPU cores recommended (LLVM build takes ~30 min on 4 cores)
 #   - sudo privileges (for apt-get)
-#   - Internet access (to download kernel tarball)
+#   - Internet access
 #
-# Expected result: ~91 tests pass, ~302 fail (UML limitations), ~40 skipped
-# Full run takes ~15-20 minutes on a 4-core machine.
+# Approximate wall-clock times on an 8-core machine:
+#   LLVM build:         ~25 min
+#   pahole build:       ~1  min
+#   Kernel build:       ~5  min
+#   Selftests build:    ~10 min
+#   Total:              ~45 min
 # ==============================================================================
 
 set -euo pipefail
 
-KERNEL_VERSION="6.12.20"
-KERNEL_URL="https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${KERNEL_VERSION}.tar.xz"
+# ------------------------------------------------------------------------------
+# Source versions — all built from git
+# ------------------------------------------------------------------------------
+LLVM_REPO="https://github.com/llvm/llvm-project.git"
+LLVM_BRANCH="main"                        # LLVM 23 development tip
+
+PAHOLE_REPO="https://github.com/acmel/dwarves.git"
+PAHOLE_TAG="v1.31"                        # Latest release as of April 2026
+
+# bpf-next is the canonical BPF development tree (Starovoitov / Borkmann)
+KERNEL_REPO="https://git.kernel.org/pub/scm/linux/kernel/git/bpf/bpf-next.git"
+KERNEL_BRANCH="master"
+
+# ------------------------------------------------------------------------------
+# Directory layout
+# ------------------------------------------------------------------------------
 WORKDIR="${PWD}/bpf_uml_workspace"
-LINUX_DIR="${WORKDIR}/linux-${KERNEL_VERSION}"
+LLVM_SRC="${WORKDIR}/llvm-project"
+LLVM_BUILD="${WORKDIR}/llvm-build"
+LLVM_INSTALL="${WORKDIR}/llvm-install"
+PAHOLE_SRC="${WORKDIR}/dwarves"
+PAHOLE_BUILD="${WORKDIR}/pahole-build"
+PAHOLE_INSTALL="${WORKDIR}/pahole-install"
+LINUX_DIR="${WORKDIR}/bpf-next"
 ROOTFS_DIR="${WORKDIR}/uml-rootfs"
 OUTPUT_LOG="${WORKDIR}/uml_test_output.txt"
 
+# Resolved after toolchain build
+CLANG="${LLVM_INSTALL}/bin/clang"
+LLC="${LLVM_INSTALL}/bin/llc"
+PAHOLE_BIN="${PAHOLE_INSTALL}/bin/pahole"
+
 # ---- Colour helpers ----------------------------------------------------------
-GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
-info()  { echo -e "${GREEN}[INFO]${NC} $*"; }
-warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
+GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
+info()  { echo -e "${GREEN}[INFO]${NC}  $*"; }
+warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
+step()  { echo -e "${CYAN}[STEP]${NC}  $*"; }
+
+mkdir -p "${WORKDIR}"
 
 # ==============================================================================
-# 1. Install build dependencies
+# 1. Install host build dependencies
 # ==============================================================================
-info "Installing build dependencies..."
+step "1/9  Installing host build dependencies..."
 sudo apt-get update -qq
 sudo apt-get install -y \
-    build-essential git bc flex bison libelf-dev libssl-dev \
-    pkg-config clang-15 llvm-15 lld-15 libcap-dev curl wget \
-    busybox-static rsync pahole
+    build-essential git bc flex bison \
+    libelf-dev libssl-dev libdw-dev libdwarf-dev \
+    pkg-config cmake ninja-build python3 \
+    libcap-dev curl wget rsync \
+    busybox-static \
+    zlib1g-dev
 
 # ==============================================================================
-# 2. Download and extract kernel
+# 2. Build LLVM/Clang from source (main branch, BPF + X86 backends only)
 # ==============================================================================
-mkdir -p "${WORKDIR}"
-cd "${WORKDIR}"
+step "2/9  Building LLVM/Clang from source (${LLVM_BRANCH} branch)..."
+step "     This is the largest step — expect ~25 minutes on 8 cores."
 
-if [ ! -d "${LINUX_DIR}" ]; then
-    info "Downloading Linux ${KERNEL_VERSION}..."
-    wget -q --show-progress -O linux-${KERNEL_VERSION}.tar.xz "${KERNEL_URL}"
-    info "Extracting..."
-    tar -xf linux-${KERNEL_VERSION}.tar.xz
-    rm -f linux-${KERNEL_VERSION}.tar.xz
+if [ ! -d "${LLVM_SRC}/.git" ]; then
+    info "Cloning LLVM repository (shallow clone of ${LLVM_BRANCH})..."
+    git clone --depth=1 --branch "${LLVM_BRANCH}" "${LLVM_REPO}" "${LLVM_SRC}"
 else
-    info "Kernel source already present at ${LINUX_DIR}"
+    info "LLVM source already present; pulling latest ${LLVM_BRANCH}..."
+    git -C "${LLVM_SRC}" fetch --depth=1 origin "${LLVM_BRANCH}"
+    git -C "${LLVM_SRC}" reset --hard "origin/${LLVM_BRANCH}"
 fi
+
+LLVM_COMMIT=$(git -C "${LLVM_SRC}" rev-parse --short HEAD)
+info "LLVM HEAD: ${LLVM_COMMIT}"
+
+if [ ! -f "${LLVM_INSTALL}/bin/clang" ]; then
+    mkdir -p "${LLVM_BUILD}"
+    cmake -S "${LLVM_SRC}/llvm" -B "${LLVM_BUILD}" \
+        -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="${LLVM_INSTALL}" \
+        -DLLVM_TARGETS_TO_BUILD="BPF;X86" \
+        -DLLVM_ENABLE_PROJECTS="clang" \
+        -DLLVM_ENABLE_RUNTIMES="" \
+        -DLLVM_INCLUDE_TESTS=OFF \
+        -DLLVM_INCLUDE_EXAMPLES=OFF \
+        -DLLVM_INCLUDE_BENCHMARKS=OFF \
+        -DLLVM_INCLUDE_DOCS=OFF \
+        -DCLANG_INCLUDE_TESTS=OFF \
+        -DCLANG_INCLUDE_DOCS=OFF \
+        -DLLVM_BUILD_TOOLS=ON \
+        -DLLVM_INSTALL_TOOLCHAIN_ONLY=OFF \
+        -DLLVM_ENABLE_ASSERTIONS=OFF \
+        -DLLVM_ENABLE_ZLIB=ON \
+        -DLLVM_ENABLE_TERMINFO=OFF \
+        -DLLVM_ENABLE_LIBXML2=OFF \
+        2>&1 | tail -5
+
+    ninja -C "${LLVM_BUILD}" -j"$(nproc)" clang llc llvm-strip llvm-objcopy
+    ninja -C "${LLVM_BUILD}" install
+    info "Clang installed: $(${CLANG} --version | head -1)"
+else
+    info "Clang already built at ${LLVM_INSTALL}/bin/clang — skipping."
+fi
+
+# ==============================================================================
+# 3. Build pahole from source
+# ==============================================================================
+step "3/9  Building pahole ${PAHOLE_TAG} from source..."
+
+if [ ! -d "${PAHOLE_SRC}/.git" ]; then
+    info "Cloning dwarves (pahole) repository..."
+    git clone --depth=1 --branch "${PAHOLE_TAG}" "${PAHOLE_REPO}" "${PAHOLE_SRC}"
+else
+    info "pahole source already present."
+fi
+
+if [ ! -f "${PAHOLE_INSTALL}/bin/pahole" ]; then
+    mkdir -p "${PAHOLE_BUILD}"
+    cmake -S "${PAHOLE_SRC}" -B "${PAHOLE_BUILD}" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="${PAHOLE_INSTALL}" \
+        -D__LIB=lib \
+        -DLIBBPF_EMBEDDED=ON \
+        2>&1 | tail -5
+    make -C "${PAHOLE_BUILD}" -j"$(nproc)"
+    make -C "${PAHOLE_BUILD}" install
+    info "pahole installed: $(${PAHOLE_BIN} --version)"
+else
+    info "pahole already built at ${PAHOLE_INSTALL}/bin/pahole — skipping."
+fi
+
+# ==============================================================================
+# 4. Clone / update the bpf-next kernel tree
+# ==============================================================================
+step "4/9  Fetching bpf-next kernel (${KERNEL_BRANCH})..."
+
+if [ ! -d "${LINUX_DIR}/.git" ]; then
+    info "Cloning bpf-next (shallow, ${KERNEL_BRANCH})..."
+    git clone --depth=1 --branch "${KERNEL_BRANCH}" "${KERNEL_REPO}" "${LINUX_DIR}"
+else
+    info "bpf-next already present; pulling latest..."
+    git -C "${LINUX_DIR}" fetch --depth=1 origin "${KERNEL_BRANCH}"
+    git -C "${LINUX_DIR}" reset --hard "origin/${KERNEL_BRANCH}"
+fi
+
+KERNEL_COMMIT=$(git -C "${LINUX_DIR}" rev-parse --short HEAD)
+KERNEL_VERSION=$(make -C "${LINUX_DIR}" -s kernelversion 2>/dev/null || echo "unknown")
+info "bpf-next HEAD: ${KERNEL_COMMIT}  (kernel version: ${KERNEL_VERSION})"
 
 cd "${LINUX_DIR}"
 
 # ==============================================================================
-# 3. Configure UML kernel
+# 5. Configure and build the UML kernel
 # ==============================================================================
-info "Configuring UML kernel..."
+step "5/9  Configuring UML kernel..."
 make ARCH=um defconfig
 
 # Append required options; olddefconfig will resolve any conflicts
@@ -95,23 +212,25 @@ CONFIG_UML_NET_SLIP=y
 CONFIG_UML_NET_DAEMON=y
 KCONFIG
 
-make ARCH=um olddefconfig
+make ARCH=um \
+    PAHOLE="${PAHOLE_BIN}" \
+    olddefconfig
 
-# ==============================================================================
-# 4. Build the UML kernel binary
-# ==============================================================================
-info "Building UML kernel (this takes ~5 minutes)..."
-make ARCH=um -j"$(nproc)" linux
+step "5/9  Building UML kernel binary (~5 minutes)..."
+make ARCH=um \
+    PAHOLE="${PAHOLE_BIN}" \
+    -j"$(nproc)" \
+    linux
 info "UML kernel built: $(ls -lh linux | awk '{print $5}')"
 
 # ==============================================================================
-# 5. Apply UML compatibility patches to the BPF selftests
+# 6. Apply UML compatibility patches to the BPF selftests
 # ==============================================================================
-info "Applying UML compatibility patches..."
+step "6/9  Applying UML compatibility patches to BPF selftests..."
 
 BPF_DIR="${LINUX_DIR}/tools/testing/selftests/bpf"
 
-# ---- 5a. Create uml_vmlinux_stubs.h ----------------------------------------
+# ---- 6a. Create uml_vmlinux_stubs.h ----------------------------------------
 # This file provides stub type definitions for kernel types that are absent
 # in UML (perf_events, kprobes, netfilter, SMP scheduler domains, MPTCP, etc.)
 mkdir -p "${BPF_DIR}/tools/include"
@@ -262,7 +381,7 @@ struct mptcp_sock {
 #endif /* __UML_VMLINUX_STUBS__ */
 STUBS_EOF
 
-# ---- 5b. Patch the BPF selftests Makefile ----------------------------------
+# ---- 6b. Patch the BPF selftests Makefile ----------------------------------
 # Apply all UML-compatibility changes using patch(1)
 patch -p1 -d "${LINUX_DIR}" << 'PATCH_EOF'
 --- a/tools/testing/selftests/bpf/Makefile
@@ -381,24 +500,25 @@ PATCH_EOF
 info "Patches applied successfully."
 
 # ==============================================================================
-# 6. Build BPF selftests (test_progs)
+# 7. Build BPF selftests (test_progs)
 # ==============================================================================
-info "Building BPF selftests — test_progs (this takes ~10 minutes)..."
+step "7/9  Building BPF selftests — test_progs (~10 minutes)..."
 cd "${LINUX_DIR}"
 make headers_install ARCH=x86_64
 make -C tools/testing/selftests/bpf \
     ARCH=x86_64 \
-    CLANG=clang-15 \
-    LLC=llc-15 \
+    CLANG="${CLANG}" \
+    LLC="${LLC}" \
+    PAHOLE="${PAHOLE_BIN}" \
     -j"$(nproc)" \
     test_progs
 
 info "test_progs built: $(ls -lh tools/testing/selftests/bpf/test_progs | awk '{print $5}')"
 
 # ==============================================================================
-# 7. Build minimal root filesystem
+# 8. Build minimal root filesystem
 # ==============================================================================
-info "Building root filesystem..."
+step "8/9  Building root filesystem..."
 rm -rf "${ROOTFS_DIR}"
 mkdir -p "${ROOTFS_DIR}"/{bin,sbin,etc,proc,sys,dev,tmp,lib,lib64,bpf}
 
@@ -469,9 +589,9 @@ INIT_EOF
 chmod +x "${ROOTFS_DIR}/init"
 
 # ==============================================================================
-# 8. Run UML and collect results
+# 9. Run UML and collect results
 # ==============================================================================
-info "Booting UML kernel and running tests (up to 10 minutes)..."
+step "9/9  Booting UML kernel and running tests (up to 10 minutes)..."
 info "Output will be saved to: ${OUTPUT_LOG}"
 
 cd "${WORKDIR}"
@@ -486,6 +606,11 @@ timeout 600 "${LINUX_DIR}/linux" \
 echo ""
 info "=== RESULTS ==="
 grep "Summary:" "${OUTPUT_LOG}" || true
+echo ""
+info "Toolchain versions used:"
+info "  LLVM/Clang: $(${CLANG} --version | head -1)"
+info "  pahole:     $(${PAHOLE_BIN} --version)"
+info "  Kernel:     ${KERNEL_VERSION} (bpf-next ${KERNEL_COMMIT})"
 echo ""
 info "Full log: ${OUTPUT_LOG}"
 info "Done."

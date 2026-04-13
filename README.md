@@ -2,6 +2,8 @@
 
 A fully reproducible environment for building and running the Linux kernel BPF selftests (`test_progs`) inside [User Mode Linux (UML)](https://www.kernel.org/doc/html/latest/virt/uml/user_mode_linux_howto_v2.html) — no root, no QEMU, no hardware virtualization required.
 
+The entire toolchain is built from source: **LLVM/Clang** (main branch, BPF + X86 backends only), **pahole** (latest release), and the **Linux kernel** from the [bpf-next](https://git.kernel.org/pub/scm/linux/kernel/git/bpf/bpf-next.git/) development tree.
+
 ## Background
 
 User Mode Linux allows the Linux kernel to run as a normal user-space process on a host machine. This makes it an attractive, lightweight alternative to QEMU/KVM for testing kernel subsystems such as BPF. The entire test cycle — kernel boot, BPF program loading, map operations, cgroup attachment — runs as an unprivileged process on the host.
@@ -11,29 +13,30 @@ However, UML has architectural constraints that prevent a subset of the BPF self
 ## Quick Start
 
 ```bash
-# Ubuntu 22.04 recommended; requires ~10 GB free disk space and sudo for apt-get
+# Ubuntu 22.04 recommended; requires ~30 GB free disk space and sudo for apt-get
 chmod +x run_bpf_uml.sh
 ./run_bpf_uml.sh
 ```
 
-The script is fully automated. It will install dependencies, download the kernel, apply patches, build everything, and run the tests. The full process takes approximately **15–20 minutes** on a 4-core machine.
+The script is fully automated. It will install host dependencies, build LLVM and pahole from source, clone the bpf-next kernel, apply UML compatibility patches, build everything, and run the tests. The full process takes approximately **45 minutes** on an 8-core machine (dominated by the LLVM build).
 
 ## What the Script Does
 
 | Step | Description |
 |------|-------------|
-| 1. Install dependencies | `clang-15`, `llvm-15`, `libelf-dev`, `busybox-static`, `pahole`, etc. |
-| 2. Download kernel | Linux 6.12.20 from [cdn.kernel.org](https://cdn.kernel.org/pub/linux/kernel/v6.x/) |
-| 3. Configure UML | `make ARCH=um defconfig` + BPF/Cgroup/Networking options |
-| 4. Build UML kernel | Produces the `linux` binary (runs as a process) |
-| 5. Apply patches | Adds `uml_vmlinux_stubs.h`; patches `Makefile` and `testing_helpers.c` |
-| 6. Build `test_progs` | Compiles the BPF selftests using `clang-15` |
-| 7. Build rootfs | Minimal `busybox` rootfs with all required shared libraries |
-| 8. Run tests | Boots UML via `hostfs`, executes `test_progs -v -b btf,send_signal` |
+| 1. Install host deps | `cmake`, `ninja-build`, `libelf-dev`, `busybox-static`, etc. (no pre-built clang/llvm) |
+| 2. Build LLVM/Clang | Shallow-clones `llvm-project` `main` branch; builds with `-DLLVM_TARGETS_TO_BUILD="BPF;X86"` |
+| 3. Build pahole | Clones `dwarves` at `v1.31`; builds with embedded libbpf |
+| 4. Clone bpf-next | Shallow-clones the `bpf-next` kernel tree from kernel.org |
+| 5. Configure + build UML | `make ARCH=um defconfig` + BPF/Cgroup/Networking options; builds the `linux` binary |
+| 6. Apply patches | Adds `uml_vmlinux_stubs.h`; patches `Makefile` and `testing_helpers.c` |
+| 7. Build `test_progs` | Compiles the BPF selftests using the freshly built `clang` and `pahole` |
+| 8. Build rootfs | Minimal `busybox` rootfs with all required shared libraries |
+| 9. Run tests | Boots UML via `hostfs`, executes `test_progs -v -b btf,send_signal` |
 
 ## Patches Applied
 
-Three sets of changes are applied to the upstream Linux 6.12.20 source before building:
+Three sets of changes are applied to the bpf-next kernel source before building:
 
 **`tools/testing/selftests/bpf/tools/include/uml_vmlinux_stubs.h`** (new file)
 Provides stub type definitions for kernel types absent from UML's BTF output: `perf_branch_entry`, `bpf_perf_event_data`, `nf_conn`, `sched_domain`, `mptcp_sock`, and others. These stubs are appended to `vmlinux.h` at build time.
@@ -94,17 +97,22 @@ Two tests are excluded at **runtime** (via `-b btf,send_signal`) because they ca
 ## Requirements
 
 - **OS**: Ubuntu 22.04 LTS (or compatible Debian-based distribution)
-- **Disk**: ~10 GB free space
+- **Disk**: ~30 GB free space (LLVM source ~3 GB, build artifacts ~15 GB, kernel ~2 GB)
+- **CPU**: 8+ cores strongly recommended; LLVM build is CPU-bound
 - **Privileges**: `sudo` (only used to install packages via `apt-get`)
-- **Network**: Internet access to download the kernel tarball
+- **Network**: Internet access (git clones LLVM, dwarves, and bpf-next)
+
+### Incremental Re-runs
+
+All three source-build steps are **idempotent**: if `${WORKDIR}/llvm-install/bin/clang`, `${WORKDIR}/pahole-install/bin/pahole`, or `${WORKDIR}/bpf-next/` already exist, the script skips the corresponding build and only re-runs the kernel configure, patch, and test steps. This makes iterative development fast after the first full build.
 
 ## Troubleshooting
 
-**Build fails with clang errors**: Ensure `clang-15` and `llc-15` are installed. The script installs them automatically, but if they are missing from your package mirror, try `sudo apt-get install clang llvm` and edit the `CLANG=` and `LLC=` variables in the script.
+**LLVM build fails or runs out of disk**: The LLVM build requires ~15 GB of disk space for build artifacts. If space is tight, set `LLVM_BUILD` to a path on a larger partition. If the build fails mid-way, simply re-run the script — it will resume from where it left off (the `cmake` configure step is skipped if the build directory already exists).
 
 **UML hangs on a test**: Add the test name to the `-b` deny-list in the `init` script section near the bottom of `run_bpf_uml.sh`. For example, to also skip `ringbuf`: change `-b btf,send_signal` to `-b btf,send_signal,ringbuf`.
 
-**`patch` command fails**: This means the upstream `Makefile` has changed. The patch targets Linux 6.12.20 exactly. If you are using a different kernel version, the patch may need to be adjusted.
+**`patch` command fails**: This means the bpf-next `Makefile` has changed since the patches were written. Because bpf-next is a fast-moving development tree, the patch context lines may drift. Inspect the `.rej` files produced by `patch` and apply the changes manually.
 
 ## Fault Injection Testing (ENOMEM Handling)
 
