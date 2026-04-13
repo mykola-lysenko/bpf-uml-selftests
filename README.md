@@ -96,10 +96,18 @@ Two tests are excluded at **runtime** (via `-b btf,send_signal`) because they ca
 
 ## Requirements
 
-- **OS**: Ubuntu 22.04 LTS (or compatible Debian-based distribution)
+- **OS**: Any of the following (auto-detected at runtime):
+
+  | Family | Distributions | Package manager |
+  |--------|---------------|-----------------|
+  | Debian | Ubuntu 22.04+, Debian 11+, Mint, Pop!_OS | `apt-get` |
+  | Fedora | Fedora 38+, RHEL 8+, CentOS Stream, AlmaLinux, Rocky | `dnf` / `yum` |
+  | SUSE | openSUSE Leap 15.5+, Tumbleweed, SLES 15+ | `zypper` |
+  | Arch | Arch Linux, Manjaro, EndeavourOS | `pacman` |
+
 - **Disk**: ~30 GB free space (LLVM source ~3 GB, build artifacts ~15 GB, kernel ~2 GB)
 - **CPU**: 8+ cores strongly recommended; LLVM build is CPU-bound
-- **Privileges**: `sudo` (only used to install packages via `apt-get`)
+- **Privileges**: `sudo` (only used to install packages)
 - **Network**: Internet access (git clones LLVM, dwarves, and bpf-next)
 
 ### Incremental Re-runs

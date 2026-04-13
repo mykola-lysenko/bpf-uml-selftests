@@ -72,17 +72,90 @@ step()  { echo -e "${CYAN}[STEP]${NC}  $*"; }
 mkdir -p "${WORKDIR}"
 
 # ==============================================================================
-# 1. Install host build dependencies
+# 1. Detect host OS and install build dependencies
 # ==============================================================================
-step "1/9  Installing host build dependencies..."
-sudo apt-get update -qq
-sudo apt-get install -y \
-    build-essential git bc flex bison \
-    libelf-dev libssl-dev libdw-dev libdwarf-dev \
-    pkg-config cmake ninja-build python3 \
-    libcap-dev curl wget rsync \
-    busybox-static \
-    zlib1g-dev
+step "1/9  Detecting host OS and installing build dependencies..."
+
+# Read /etc/os-release for portable distro identification
+if [ -f /etc/os-release ]; then
+    . /etc/os-release
+    OS_ID="${ID:-unknown}"
+    OS_ID_LIKE="${ID_LIKE:-}"
+else
+    OS_ID="unknown"
+    OS_ID_LIKE=""
+fi
+
+# Normalise: treat ID_LIKE overrides (e.g. "rhel fedora", "suse opensuse")
+_is_like() { echo "${OS_ID} ${OS_ID_LIKE}" | grep -qwi "$1"; }
+
+if _is_like debian || _is_like ubuntu; then
+    DISTRO_FAMILY="debian"
+elif _is_like fedora || _is_like rhel || _is_like centos || _is_like sles; then
+    DISTRO_FAMILY="fedora"
+elif _is_like suse || _is_like opensuse; then
+    DISTRO_FAMILY="suse"
+elif _is_like arch || [ "${OS_ID}" = "arch" ] || [ "${OS_ID}" = "manjaro" ]; then
+    DISTRO_FAMILY="arch"
+else
+    warn "Unrecognised distro '${OS_ID}' (ID_LIKE='${OS_ID_LIKE}')."
+    warn "Attempting Debian/Ubuntu package names as a fallback."
+    DISTRO_FAMILY="debian"
+fi
+
+info "Detected distro family: ${DISTRO_FAMILY} (ID=${OS_ID})"
+
+case "${DISTRO_FAMILY}" in
+
+  debian)
+    # Debian, Ubuntu, Linux Mint, Pop!_OS, etc.
+    sudo apt-get update -qq
+    sudo apt-get install -y \
+        build-essential git bc flex bison \
+        libelf-dev libssl-dev libdw-dev libdwarf-dev \
+        pkg-config cmake ninja-build python3 \
+        libcap-dev curl wget rsync \
+        busybox-static \
+        zlib1g-dev
+    ;;
+
+  fedora)
+    # Fedora, RHEL 8+, CentOS Stream, AlmaLinux, Rocky Linux
+    # dnf is preferred; fall back to yum on older RHEL/CentOS
+    PKG_MGR="dnf"
+    command -v dnf >/dev/null 2>&1 || PKG_MGR="yum"
+    sudo "${PKG_MGR}" install -y \
+        gcc gcc-c++ make git bc flex bison \
+        elfutils-libelf-devel openssl-devel elfutils-devel libdwarf-devel \
+        pkgconf-pkg-config cmake ninja-build python3 \
+        libcap-devel curl wget rsync \
+        busybox \
+        zlib-devel
+    ;;
+
+  suse)
+    # openSUSE Leap / Tumbleweed, SLES
+    sudo zypper install -y \
+        gcc gcc-c++ make git bc flex bison \
+        libelf-devel libopenssl-devel libdw-devel libdwarf-devel \
+        pkg-config cmake ninja python3 \
+        libcap-devel curl wget rsync \
+        busybox-static \
+        zlib-devel
+    ;;
+
+  arch)
+    # Arch Linux, Manjaro, EndeavourOS
+    sudo pacman -Sy --noconfirm \
+        base-devel git bc flex bison \
+        libelf openssl elfutils libdwarf \
+        pkgconf cmake ninja python \
+        libcap curl wget rsync \
+        busybox \
+        zlib
+    ;;
+
+esac
 
 # ==============================================================================
 # 2. Build LLVM/Clang from source (main branch, BPF + X86 backends only)
