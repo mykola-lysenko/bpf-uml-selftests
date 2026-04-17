@@ -260,8 +260,7 @@ make ARCH=um defconfig
 # Use scripts/config to set options idempotently — this avoids the
 # "override: reassigning to symbol" warnings that occur when appending
 # to .config after defconfig has already set the same symbols.
-make ARCH=um PAHOLE="${PAHOLE_BIN}" olddefconfig
-
+# Note: no olddefconfig here — we run it once after scripts/config below.
 scripts/config \
     --enable  BPF \
     --enable  BPF_SYSCALL \
@@ -314,6 +313,16 @@ info "UML kernel: ${UML_BINARY} ($(ls -lh "${UML_BINARY}" | awk '{print $5}'))"
 step "7/7  Building bpftool, veristat and BPF selftests"
 
 mkdir -p "${SELFTESTS_OUTPUT}"
+
+# Export CLANG, LLC, and LLVM_CONFIG so that all sub-makes (including the
+# feature-detection sub-make invoked by Makefile.feature) inherit them.
+# Passing them only on the top-level make command line is not sufficient
+# because Makefile.feature spawns a separate $(MAKE) subprocess for each
+# feature test, and command-line overrides are not propagated to sub-makes
+# unless they are also in the environment.
+export CLANG="${CLANG}"
+export LLC="${LLC}"
+export LLVM_CONFIG="${LLVM_INSTALL}/bin/llvm-config"
 
 # --- 7a: build bpftool from the same tree ---
 BPFTOOL_OUTPUT="${WORKDIR}/bpftool-output"
