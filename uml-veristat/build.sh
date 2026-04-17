@@ -194,7 +194,7 @@ if [ ! -f "${CLANG}" ] || [ "${REBUILD_LLVM}" = "1" ] || [ "${DO_UPDATE}" = "1" 
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="${LLVM_INSTALL}" \
         -DLLVM_TARGETS_TO_BUILD="BPF;X86" \
-        -DLLVM_ENABLE_PROJECTS="clang" \
+        -DLLVM_ENABLE_PROJECTS="clang;lld" \
         -DLLVM_ENABLE_RUNTIMES="" \
         -DLLVM_INCLUDE_TESTS=OFF \
         -DLLVM_INCLUDE_EXAMPLES=OFF \
@@ -207,7 +207,7 @@ if [ ! -f "${CLANG}" ] || [ "${REBUILD_LLVM}" = "1" ] || [ "${DO_UPDATE}" = "1" 
         -DLLVM_ENABLE_TERMINFO=OFF \
         -DLLVM_ENABLE_LIBXML2=OFF \
         2>&1 | tail -5
-    ninja -C "${LLVM_BUILD}" -j"$(nproc)" clang llc llvm-strip llvm-objcopy
+    ninja -C "${LLVM_BUILD}" -j"$(nproc)" clang llc lld llvm-strip llvm-objcopy
     ninja -C "${LLVM_BUILD}" install
     info "Clang: $(${CLANG} --version | head -1)"
 else
@@ -358,6 +358,7 @@ mkdir -p "${SELFTESTS_OUTPUT}"
 export CLANG="${CLANG}"
 export LLC="${LLC}"
 export LLVM_CONFIG="${LLVM_INSTALL}/bin/llvm-config"
+export LD="${LLVM_INSTALL}/bin/ld.lld"
 
 # --- 7a: build bpftool from the same tree ---
 BPFTOOL_OUTPUT="${WORKDIR}/bpftool-output"
@@ -399,6 +400,7 @@ if [ ! -x "${VERISTAT_BIN}" ] || [ "${DO_UPDATE}" = "1" ] || [ "${REBUILD_SELFTE
         OUTPUT="${SELFTESTS_OUTPUT}/" \
         CLANG="${CLANG}" \
         LLC="${LLC}" \
+        LD="${LLVM_INSTALL}/bin/ld.lld" \
         BPFTOOL="${BPFTOOL_BIN}" \
         VMLINUX_BTF="${UML_BINARY}" \
         ARCH=x86_64 \
