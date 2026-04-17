@@ -334,26 +334,18 @@ fi
 [ -x "${VERISTAT_BIN}" ] || { echo "veristat build failed"; exit 1; }
 info "veristat: ${VERISTAT_BIN}"
 
-# Build the BPF selftest .bpf.o files so they are available as ready-made
-# inputs for uml-veristat.  This step is optional but highly recommended.
-info "Building BPF selftest object files..."
+# Build the BPF selftest .bpf.o files by building test_progs.
+# The .bpf.o files are prerequisites of test_progs and are placed in
+# OUTPUT/ (flat) and OUTPUT/no_alu32/ and OUTPUT/cpuv4/ subdirectories.
+# There is no standalone 'bpf_obj_files' target in the selftests Makefile.
+info "Building BPF selftest object files (via test_progs)..."
 make -C "${SELFTESTS_DIR}" \
     OUTPUT="${SELFTESTS_OUTPUT}/" \
     CLANG="${CLANG}" \
     LLC="${LLC}" \
     ARCH=x86_64 \
     -j"$(nproc)" \
-    bpf_obj_files 2>/dev/null \
-  || make -C "${SELFTESTS_DIR}" \
-        OUTPUT="${SELFTESTS_OUTPUT}/" \
-        CLANG="${CLANG}" \
-        LLC="${LLC}" \
-        ARCH=x86_64 \
-        -j"$(nproc)" \
-        $(ls "${SELFTESTS_DIR}"/*.bpf.c 2>/dev/null | \
-          sed 's|.*/||; s|\.bpf\.c|.bpf.o|' | \
-          sed "s|^|${SELFTESTS_OUTPUT}/|" | tr '\n' ' ') 2>/dev/null \
-  || info "Note: individual .bpf.o files can be built on demand with: make -C ${SELFTESTS_DIR} OUTPUT=... CLANG=... <name>.bpf.o"
+    test_progs 2>&1 | grep -v '^make\[' | tail -5 || true
 
 BPF_OBJ_COUNT=$(find "${SELFTESTS_OUTPUT}" -name "*.bpf.o" 2>/dev/null | wc -l)
 info "BPF object files built: ${BPF_OBJ_COUNT} files in ${SELFTESTS_OUTPUT}/"
@@ -385,10 +377,23 @@ info "  veristat   : ${INSTALL_DIR}/veristat"
 info "  Selftests  : ${INSTALL_DIR}/selftests/ (${BPF_OBJ_COUNT} .bpf.o files)"
 info "  Versions   : ${INSTALL_DIR}/version.txt"
 info ""
+# Pick a representative .bpf.o to show in the example
+EXAMPLE_BPF=$(find "${SELFTESTS_OUTPUT}" -maxdepth 1 -name "verifier_*.bpf.o" 2>/dev/null | head -1)
+[ -z "${EXAMPLE_BPF}" ] && EXAMPLE_BPF=$(find "${SELFTESTS_OUTPUT}" -maxdepth 1 -name "*.bpf.o" 2>/dev/null | head -1)
+[ -z "${EXAMPLE_BPF}" ] && EXAMPLE_BPF="${SELFTESTS_OUTPUT}/<prog>.bpf.o"
+
 info "Run uml-veristat to verify BPF programs:"
-info "  uml-veristat prog.bpf.o"
-info "  uml-veristat ~/.local/share/uml-veristat/selftests/test_progs.bpf.o"
-info "  uml-veristat -l 2 prog.bpf.o"
+info "  # Verify a single selftest program:"
+info "  uml-veristat ${EXAMPLE_BPF}"
+info ""
+info "  # Verify all selftest .bpf.o files at once:"
+info "  uml-veristat ${SELFTESTS_OUTPUT}/*.bpf.o"
+info ""
+info "  # Show verifier log on failure (log level 1 or 2):"
+info "  uml-veristat -l 1 ${EXAMPLE_BPF}"
+info ""
+info "  # Compare two versions of a program:"
+info "  uml-veristat -C old.bpf.o new.bpf.o"
 
 # ------------------------------------------------------------------------------
 # Optional: assemble distributable package (--package)
