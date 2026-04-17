@@ -77,14 +77,34 @@ warn() { echo -e "${YELLOW}[build]${NC}  $*"; }
 # ------------------------------------------------------------------------------
 DO_UPDATE=0
 DO_PACKAGE=0
+REBUILD_LLVM=0
+REBUILD_PAHOLE=0
+REBUILD_KERNEL=0
+REBUILD_BPFTOOL=0
+REBUILD_SELFTESTS=0
+
 for arg in "$@"; do
     case "${arg}" in
         --update)  DO_UPDATE=1 ;;
         --package) DO_PACKAGE=1 ;;
+        --rebuild-llvm)      REBUILD_LLVM=1 ;;
+        --rebuild-pahole)    REBUILD_PAHOLE=1 ;;
+        --rebuild-kernel)    REBUILD_KERNEL=1 ;;
+        --rebuild-bpftool)   REBUILD_BPFTOOL=1 ;;
+        --rebuild-selftests) REBUILD_SELFTESTS=1 ;;
         -h|--help)
-            echo "Usage: ./build.sh [--update] [--package]"
-            echo "  --update   Pull latest bpf-next and LLVM, then rebuild."
-            echo "  --package  After building, create a distributable tarball."
+            echo "Usage: ./build.sh [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --update             Pull latest bpf-next and LLVM, then rebuild."
+            echo "  --package            After building, create a distributable tarball."
+            echo ""
+            echo "Per-stage rebuild options (skips checking if already built):"
+            echo "  --rebuild-llvm       Rebuild LLVM/Clang"
+            echo "  --rebuild-pahole     Rebuild pahole"
+            echo "  --rebuild-kernel     Rebuild UML kernel"
+            echo "  --rebuild-bpftool    Rebuild bpftool"
+            echo "  --rebuild-selftests  Rebuild veristat and BPF selftests"
             exit 0 ;;
         *) echo "Unknown argument: ${arg}"; exit 1 ;;
     esac
@@ -167,7 +187,7 @@ fi
 LLVM_COMMIT=$(git -C "${LLVM_SRC}" rev-parse --short HEAD)
 info "LLVM HEAD: ${LLVM_COMMIT}"
 
-if [ ! -f "${CLANG}" ]; then
+if [ ! -f "${CLANG}" ] || [ "${REBUILD_LLVM}" = "1" ] || [ "${DO_UPDATE}" = "1" ]; then
     mkdir -p "${LLVM_BUILD}"
     cmake -S "${LLVM_SRC}/llvm" -B "${LLVM_BUILD}" \
         -G Ninja \
@@ -201,8 +221,8 @@ step "3/7  Building pahole ${PAHOLE_TAG}"
 if [ ! -d "${PAHOLE_SRC}/.git" ]; then
     git clone --depth=1 --branch "${PAHOLE_TAG}" "${PAHOLE_REPO}" "${PAHOLE_SRC}"
 fi
-if [ "${DO_UPDATE}" = "1" ]; then
-    # On --update, clear the old install so the new build is picked up.
+if [ "${DO_UPDATE}" = "1" ] || [ "${REBUILD_PAHOLE}" = "1" ]; then
+    # On --update or rebuild, clear the old install so the new build is picked up.
     rm -rf "${PAHOLE_BUILD}" "${PAHOLE_INSTALL}"
 fi
 if [ ! -f "${PAHOLE_BIN}" ]; then
@@ -285,9 +305,7 @@ info "Kernel configured: $(grep "^CONFIG_BPF_SYSCALL=y" .config && echo BPF_SYSC
 # ------------------------------------------------------------------------------
 step "6/7  Building UML kernel"
 
-make ARCH=um PAHOLE="${PAHOLE_BIN}" -j"$(nproc)"
-
-# The UML binary is named after the host architecture (e.g. linux, vmlinux)
+# Check if UML binary already exists, unless rebuilding or updating
 UML_BINARY=""
 for candidate in linux vmlinux; do
     if [ -x "${LINUX_DIR}/${candidate}" ]; then
@@ -295,6 +313,23 @@ for candidate in linux vmlinux; do
         break
     fi
 done
+
+if [ -z "${UML_BINARY}" ] || [ "${REBUILD_KERNEL}" = "1" ] || [ "${DO_UPDATE}" = "1" ]; then
+    info "Building UML kernel..."
+    make ARCH=um PAHOLE="${PAHOLE_BIN}" -j"$(nproc)"
+    
+    # Re-detect UML binary after build
+    UML_BINARY=""
+    for candidate in linux vmlinux; do
+        if [ -x "${LINUX_DIR}/${candidate}" ]; then
+            UML_BINARY="${LINUX_DIR}/${candidate}"
+            break
+        fi
+    done
+else
+    info "UML kernel already built — skipping. (Use --rebuild-kernel to rebuild.)"
+fi
+
 [ -n "${UML_BINARY}" ] || { echo "UML kernel binary not found after build"; exit 1; }
 info "UML kernel: ${UML_BINARY} ($(ls -lh "${UML_BINARY}" | awk '{print $5}'))"
 
@@ -329,7 +364,7 @@ BPFTOOL_OUTPUT="${WORKDIR}/bpftool-output"
 BPFTOOL_BIN="${BPFTOOL_OUTPUT}/bpftool"
 mkdir -p "${BPFTOOL_OUTPUT}"
 
-if [ ! -x "${BPFTOOL_BIN}" ] || [ "${DO_UPDATE}" = "1" ]; then
+if [ ! -x "${BPFTOOL_BIN}" ] || [ "${DO_UPDATE}" = "1" ] || [ "${REBUILD_BPFTOOL}" = "1" ]; then
     info "Building bpftool from ${LINUX_DIR}/tools/bpf/bpftool/..."
     # The bpftool Makefile's default target is 'all', which produces
     # $(OUTPUT)bpftool.  We pass:
@@ -358,7 +393,7 @@ info "bpftool: ${BPFTOOL_BIN}"
 #   CLANG / LLC  — our freshly built clang/llc
 VERISTAT_BIN="${SELFTESTS_OUTPUT}/veristat"
 
-if [ ! -x "${VERISTAT_BIN}" ] || [ "${DO_UPDATE}" = "1" ]; then
+if [ ! -x "${VERISTAT_BIN}" ] || [ "${DO_UPDATE}" = "1" ] || [ "${REBUILD_SELFTESTS}" = "1" ]; then
     info "Building all BPF selftests (veristat, test_progs, .bpf.o progs)..."
     make -C "${SELFTESTS_DIR}" \
         OUTPUT="${SELFTESTS_OUTPUT}/" \
