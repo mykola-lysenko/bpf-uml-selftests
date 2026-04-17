@@ -1,0 +1,176 @@
+#!/bin/bash
+# ==============================================================================
+# uml-veristat — run veristat against the latest bpf-next kernel in UML
+# ==============================================================================
+#
+# Usage:
+#   uml-veristat [veristat-options...] file1.bpf.o [file2.bpf.o ...]
+#
+# All arguments are passed verbatim to veristat running inside the UML guest.
+#
+# Environment variables (override auto-detection):
+#   UML_KERNEL   — path to the UML kernel binary
+#   VERISTAT     — path to the veristat binary
+#   UML_MEM      — UML guest memory (default: 512M)
+#   UML_VERBOSE  — set to 1 to see UML boot messages
+#
+# Exit codes mirror veristat's exit code.
+# ==============================================================================
+
+set -euo pipefail
+
+# ------------------------------------------------------------------------------
+# Locate the UML kernel binary
+# ------------------------------------------------------------------------------
+find_uml_kernel() {
+    # 1. Explicit env var
+    if [ -n "${UML_KERNEL:-}" ] && [ -x "${UML_KERNEL}" ]; then
+        echo "${UML_KERNEL}"; return 0
+    fi
+    # 2. ~/.local/share/uml-veristat/linux  (installed by build.sh)
+    local installed="${HOME}/.local/share/uml-veristat/linux"
+    if [ -x "${installed}" ]; then
+        echo "${installed}"; return 0
+    fi
+    # 3. Same directory as this script
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [ -x "${script_dir}/linux" ]; then
+        echo "${script_dir}/linux"; return 0
+    fi
+    return 1
+}
+
+# ------------------------------------------------------------------------------
+# Locate the veristat binary
+# ------------------------------------------------------------------------------
+find_veristat() {
+    # 1. Explicit env var
+    if [ -n "${VERISTAT:-}" ] && [ -x "${VERISTAT}" ]; then
+        echo "${VERISTAT}"; return 0
+    fi
+    # 2. ~/.local/share/uml-veristat/veristat  (installed by build.sh)
+    local installed="${HOME}/.local/share/uml-veristat/veristat"
+    if [ -x "${installed}" ]; then
+        echo "${installed}"; return 0
+    fi
+    # 3. Same directory as this script
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [ -x "${script_dir}/veristat" ]; then
+        echo "${script_dir}/veristat"; return 0
+    fi
+    # 4. System PATH
+    if command -v veristat >/dev/null 2>&1; then
+        command -v veristat; return 0
+    fi
+    return 1
+}
+
+# ------------------------------------------------------------------------------
+# Validate inputs
+# ------------------------------------------------------------------------------
+if [ $# -eq 0 ]; then
+    echo "Usage: uml-veristat [veristat-options...] file.bpf.o ..." >&2
+    echo "       uml-veristat --help" >&2
+    exit 1
+fi
+
+UML_BIN=$(find_uml_kernel) || {
+    echo "uml-veristat: UML kernel not found." >&2
+    echo "  Run: $(dirname "${BASH_SOURCE[0]}")/build.sh" >&2
+    echo "  Or set: export UML_KERNEL=/path/to/linux" >&2
+    exit 1
+}
+
+VERISTAT_BIN=$(find_veristat) || {
+    echo "uml-veristat: veristat binary not found." >&2
+    echo "  Run: $(dirname "${BASH_SOURCE[0]}")/build.sh" >&2
+    echo "  Or set: export VERISTAT=/path/to/veristat" >&2
+    exit 1
+}
+
+# ------------------------------------------------------------------------------
+# Resolve all .bpf.o paths to absolute (UML sees host fs via hostfs)
+# Build the argument list with absolute paths substituted
+# ------------------------------------------------------------------------------
+ARGS=()
+for arg in "$@"; do
+    if [ -f "${arg}" ]; then
+        ARGS+=("$(realpath "${arg}")")
+    else
+        ARGS+=("${arg}")
+    fi
+done
+
+# ------------------------------------------------------------------------------
+# Create a temporary init script that runs veristat then halts
+# ------------------------------------------------------------------------------
+TMPDIR_UML=$(mktemp -d /tmp/uml-veristat-XXXXXX)
+trap 'rm -rf "${TMPDIR_UML}"' EXIT
+
+INIT_SCRIPT="${TMPDIR_UML}/init"
+RESULT_FILE="${TMPDIR_UML}/result"
+OUTPUT_FILE="${TMPDIR_UML}/output"
+
+# Build the veristat command line as a single quoted string
+VERISTAT_CMD="${VERISTAT_BIN}"
+for a in "${ARGS[@]}"; do
+    VERISTAT_CMD="${VERISTAT_CMD} $(printf '%q' "${a}")"
+done
+
+cat > "${INIT_SCRIPT}" << INIT_EOF
+#!/bin/sh
+# Mount essential filesystems
+mount -t proc proc /proc 2>/dev/null || true
+mount -t sysfs sysfs /sys 2>/dev/null || true
+mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
+
+# Mount the host filesystem (read-only) so we can access .bpf.o files
+mkdir -p /host
+mount -t hostfs -o / /host 2>/dev/null || true
+
+# Run veristat; capture exit code
+${VERISTAT_CMD}
+echo \$? > ${RESULT_FILE}
+
+# Halt the UML guest
+halt -f 2>/dev/null || poweroff -f 2>/dev/null || echo o > /proc/sysrq-trigger
+INIT_EOF
+
+chmod +x "${INIT_SCRIPT}"
+
+# ------------------------------------------------------------------------------
+# Boot UML and capture output
+# ------------------------------------------------------------------------------
+MEM="${UML_MEM:-512M}"
+VERBOSE="${UML_VERBOSE:-0}"
+
+UML_ARGS=(
+    "mem=${MEM}"
+    "rootfstype=hostfs"
+    "hostfs=/"
+    "init=${INIT_SCRIPT}"
+    "con=null"          # suppress console output by default
+    "con0=fd:0,fd:1"    # but keep stdin/stdout for veristat output
+)
+
+if [ "${VERBOSE}" = "1" ]; then
+    # Show full boot log
+    "${UML_BIN}" "${UML_ARGS[@]}"
+else
+    # Suppress kernel boot noise; only show veristat output
+    # UML writes kernel messages to stderr, veristat output goes to stdout
+    "${UML_BIN}" "${UML_ARGS[@]}" 2>/dev/null
+fi
+
+# ------------------------------------------------------------------------------
+# Return veristat's exit code
+# ------------------------------------------------------------------------------
+if [ -f "${RESULT_FILE}" ]; then
+    exit "$(cat "${RESULT_FILE}")"
+else
+    # UML crashed or init didn't write result
+    echo "uml-veristat: UML guest did not complete normally." >&2
+    exit 1
+fi

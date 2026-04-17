@@ -10,6 +10,12 @@ User Mode Linux allows the Linux kernel to run as a normal user-space process on
 
 However, UML has architectural constraints that prevent a subset of the BPF selftests from compiling or running: there is no BPF JIT compiler, no kprobes/uprobes infrastructure, and no perf events subsystem. This repository contains a single self-contained script that applies all necessary patches to make the test suite compile and run gracefully within these limitations.
 
+## Tools Included
+
+- **[uml-veristat](uml-veristat/README.md)**: A drop-in CLI replacement for `veristat` that runs BPF verification inside a UML guest running the bleeding-edge `bpf-next` kernel.
+- **[gdb_demo](gdb_demo/GDB_DEMO_README.md)**: An interactive GDB debugging environment for the BPF verifier (`bpf_check()`).
+- **`run_bpf_uml.sh`**: The main reproducible build-and-run script for the BPF selftests.
+
 ## Quick Start
 
 ```bash
