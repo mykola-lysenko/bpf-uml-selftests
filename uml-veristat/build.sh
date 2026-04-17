@@ -322,17 +322,17 @@ mkdir -p "${BPFTOOL_OUTPUT}"
 
 if [ ! -x "${BPFTOOL_BIN}" ] || [ "${DO_UPDATE}" = "1" ]; then
     info "Building bpftool from ${LINUX_DIR}/tools/bpf/bpftool/..."
+    # The bpftool Makefile's default target is 'all', which produces
+    # $(OUTPUT)bpftool.  We pass:
+    #   OUTPUT      — directory where the binary (and intermediate objects) land
+    #   CLANG       — our freshly built clang (for clang-bpf-co-re feature test)
+    #   LLVM_CONFIG — our freshly built llvm-config (enables LLVM JIT disasm)
     make -C "${LINUX_DIR}/tools/bpf/bpftool" \
         OUTPUT="${BPFTOOL_OUTPUT}/" \
         CLANG="${CLANG}" \
-        LLC="${LLC}" \
+        LLVM_CONFIG="${LLVM_INSTALL}/bin/llvm-config" \
         -j"$(nproc)" \
-        bpftool
-    # bpftool Makefile puts the binary directly in the source dir by default;
-    # copy it to our output dir if needed.
-    if [ ! -x "${BPFTOOL_BIN}" ] && [ -x "${LINUX_DIR}/tools/bpf/bpftool/bpftool" ]; then
-        cp "${LINUX_DIR}/tools/bpf/bpftool/bpftool" "${BPFTOOL_BIN}"
-    fi
+        all
 else
     info "bpftool already built — skipping. (Use --update to rebuild.)"
 fi
