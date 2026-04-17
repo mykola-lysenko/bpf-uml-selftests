@@ -300,52 +300,71 @@ done
 info "UML kernel: ${UML_BINARY} ($(ls -lh "${UML_BINARY}" | awk '{print $5}'))"
 
 # ------------------------------------------------------------------------------
-# Build veristat and BPF selftests from the bpf-next tree
+# Build veristat and BPF selftests from the bpf-next tree.
 #
-# veristat lives at tools/testing/selftests/bpf/veristat.c and is built
-# as part of the BPF selftests.  Building the selftests also produces all
-# the .bpf.o object files that are the natural inputs for uml-veristat.
+# The selftests Makefile requires three things we must provide explicitly:
+#   CLANG       — our freshly built clang (for compiling .bpf.o files)
+#   BPFTOOL     — bpftool binary (used to generate vmlinux.h and skeletons)
+#   VMLINUX_BTF — the UML kernel binary (contains BTF, used by bpftool)
 #
-# The selftests Makefile inherits CLANG and LLC from
-# tools/scripts/Makefile.include (CLANG ?= clang, LLC ?= llc), so we
-# override them on the command line to point at our freshly built clang.
-# ARCH=x86_64 is required because the selftests must be built for the
-# host x86_64 ABI even when the kernel was configured with ARCH=um.
+# bpftool is built first from tools/bpf/bpftool/ in the same tree.
+# ARCH=x86_64 is required because selftests are host userspace binaries,
+# not UML guest code.
 # ------------------------------------------------------------------------------
-step "7/7  Building veristat and BPF selftests"
+step "7/7  Building bpftool, veristat and BPF selftests"
 
 mkdir -p "${SELFTESTS_OUTPUT}"
 
+# --- 7a: build bpftool from the same tree ---
+BPFTOOL_OUTPUT="${WORKDIR}/bpftool-output"
+BPFTOOL_BIN="${BPFTOOL_OUTPUT}/bpftool"
+mkdir -p "${BPFTOOL_OUTPUT}"
+
+if [ ! -x "${BPFTOOL_BIN}" ] || [ "${DO_UPDATE}" = "1" ]; then
+    info "Building bpftool from ${LINUX_DIR}/tools/bpf/bpftool/..."
+    make -C "${LINUX_DIR}/tools/bpf/bpftool" \
+        OUTPUT="${BPFTOOL_OUTPUT}/" \
+        CLANG="${CLANG}" \
+        LLC="${LLC}" \
+        -j"$(nproc)" \
+        bpftool
+    # bpftool Makefile puts the binary directly in the source dir by default;
+    # copy it to our output dir if needed.
+    if [ ! -x "${BPFTOOL_BIN}" ] && [ -x "${LINUX_DIR}/tools/bpf/bpftool/bpftool" ]; then
+        cp "${LINUX_DIR}/tools/bpf/bpftool/bpftool" "${BPFTOOL_BIN}"
+    fi
+else
+    info "bpftool already built — skipping. (Use --update to rebuild.)"
+fi
+
+[ -x "${BPFTOOL_BIN}" ] || { echo "bpftool build failed"; exit 1; }
+info "bpftool: ${BPFTOOL_BIN}"
+
+# --- 7b: build veristat and all .bpf.o selftest files ---
+# The selftests Makefile builds .bpf.o files as prerequisites of test_progs.
+# We pass:
+#   BPFTOOL      — our freshly built bpftool (avoids rebuilding it inside OUTPUT)
+#   VMLINUX_BTF  — the UML kernel binary (contains BTF for vmlinux.h generation)
+#   CLANG / LLC  — our freshly built clang/llc
 VERISTAT_BIN="${SELFTESTS_OUTPUT}/veristat"
 
 if [ ! -x "${VERISTAT_BIN}" ] || [ "${DO_UPDATE}" = "1" ]; then
-    info "Building veristat from ${SELFTESTS_DIR}..."
+    info "Building veristat and BPF selftest .bpf.o files..."
     make -C "${SELFTESTS_DIR}" \
         OUTPUT="${SELFTESTS_OUTPUT}/" \
         CLANG="${CLANG}" \
         LLC="${LLC}" \
+        BPFTOOL="${BPFTOOL_BIN}" \
+        VMLINUX_BTF="${UML_BINARY}" \
         ARCH=x86_64 \
         -j"$(nproc)" \
-        veristat
+        test_progs 2>&1 | grep -v '^make\[' | tail -5
 else
     info "veristat already built — skipping. (Use --update to rebuild.)"
 fi
 
 [ -x "${VERISTAT_BIN}" ] || { echo "veristat build failed"; exit 1; }
 info "veristat: ${VERISTAT_BIN}"
-
-# Build the BPF selftest .bpf.o files by building test_progs.
-# The .bpf.o files are prerequisites of test_progs and are placed in
-# OUTPUT/ (flat) and OUTPUT/no_alu32/ and OUTPUT/cpuv4/ subdirectories.
-# There is no standalone 'bpf_obj_files' target in the selftests Makefile.
-info "Building BPF selftest object files (via test_progs)..."
-make -C "${SELFTESTS_DIR}" \
-    OUTPUT="${SELFTESTS_OUTPUT}/" \
-    CLANG="${CLANG}" \
-    LLC="${LLC}" \
-    ARCH=x86_64 \
-    -j"$(nproc)" \
-    test_progs 2>&1 | grep -v '^make\[' | tail -5 || true
 
 BPF_OBJ_COUNT=$(find "${SELFTESTS_OUTPUT}" -name "*.bpf.o" 2>/dev/null | wc -l)
 info "BPF object files built: ${BPF_OBJ_COUNT} files in ${SELFTESTS_OUTPUT}/"
