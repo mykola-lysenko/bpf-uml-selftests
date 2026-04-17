@@ -51,6 +51,9 @@ PAHOLE_SRC="${WORKDIR}/dwarves"
 PAHOLE_BUILD="${WORKDIR}/pahole-build"
 PAHOLE_INSTALL="${WORKDIR}/pahole-install"
 LINUX_DIR="${WORKDIR}/bpf-next"
+VERISTAT_SRC="${WORKDIR}/veristat"
+VERISTAT_REPO="https://github.com/libbpf/veristat.git"
+VERISTAT_BRANCH="main"
 
 CLANG="${LLVM_INSTALL}/bin/clang"
 LLC="${LLVM_INSTALL}/bin/llc"
@@ -274,18 +277,39 @@ done
 info "UML kernel: ${UML_BINARY} ($(ls -lh "${UML_BINARY}" | awk '{print $5}'))"
 
 # ------------------------------------------------------------------------------
-# Build veristat
+# Build veristat (standalone mirror from libbpf/veristat)
+# veristat lives at tools/testing/selftests/bpf/veristat.c in the kernel tree
+# but the libbpf/veristat mirror is the canonical standalone build.
 # ------------------------------------------------------------------------------
 step "7/7  Building veristat"
 
-make -C "${LINUX_DIR}/tools/bpf/veristat" \
-    CLANG="${CLANG}" \
-    LLC="${LLC}" \
-    -j"$(nproc)"
+if [ ! -d "${VERISTAT_SRC}/.git" ]; then
+    info "Cloning libbpf/veristat (shallow)..."
+    git clone --depth=1 --branch "${VERISTAT_BRANCH}" --recurse-submodules \
+        "${VERISTAT_REPO}" "${VERISTAT_SRC}"
+elif [ "${DO_UPDATE}" = "1" ]; then
+    info "Updating veristat to latest ${VERISTAT_BRANCH}..."
+    git -C "${VERISTAT_SRC}" fetch --depth=1 origin "${VERISTAT_BRANCH}"
+    git -C "${VERISTAT_SRC}" reset --hard "origin/${VERISTAT_BRANCH}"
+    git -C "${VERISTAT_SRC}" submodule update --init --recursive
+fi
 
-VERISTAT_BIN="${LINUX_DIR}/tools/bpf/veristat/veristat"
+VERISTAT_BIN="${VERISTAT_SRC}/src/veristat"
+
+if [ ! -x "${VERISTAT_BIN}" ]; then
+    make -C "${VERISTAT_SRC}/src" \
+        CC="${LLVM_INSTALL}/bin/clang" \
+        EXTRA_CFLAGS="--sysroot=/" \
+        -j"$(nproc)"
+else
+    info "veristat already built — skipping. (Use --update to rebuild.)"
+fi
+
 [ -x "${VERISTAT_BIN}" ] || { echo "veristat build failed"; exit 1; }
-info "veristat: ${VERISTAT_BIN}"
+info "veristat: ${VERISTAT_BIN} ($(${VERISTAT_BIN} --version 2>&1 | head -1))"
+
+# Also record the veristat commit for the version manifest
+VERISTAT_COMMIT=$(git -C "${VERISTAT_SRC}" rev-parse --short HEAD)
 
 # ------------------------------------------------------------------------------
 # Install artifacts
@@ -301,6 +325,7 @@ Built: $(date -u +"%Y-%m-%d %H:%M UTC")
 bpf-next: ${KERNEL_COMMIT} (${KERNEL_VERSION})
 LLVM: ${LLVM_COMMIT}
 pahole: ${PAHOLE_TAG}
+veristat: ${VERISTAT_COMMIT}
 EOF
 
 echo ""
