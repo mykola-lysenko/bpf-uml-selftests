@@ -349,16 +349,17 @@ fi
 [ -x "${BPFTOOL_BIN}" ] || { echo "bpftool build failed"; exit 1; }
 info "bpftool: ${BPFTOOL_BIN}"
 
-# --- 7b: build veristat and all .bpf.o selftest files ---
-# The selftests Makefile builds .bpf.o files as prerequisites of test_progs.
+# --- 7b: build everything in the selftests directory ---
+# Running plain 'make' (no explicit target) builds all test binaries,
+# all BPF programs under progs/ (.bpf.o files), and all skeletons.
 # We pass:
-#   BPFTOOL      — our freshly built bpftool (avoids rebuilding it inside OUTPUT)
-#   VMLINUX_BTF  — the UML kernel binary (contains BTF for vmlinux.h generation)
+#   BPFTOOL      — our freshly built bpftool (for vmlinux.h + skeleton gen)
+#   VMLINUX_BTF  — the UML kernel binary (contains BTF for vmlinux.h)
 #   CLANG / LLC  — our freshly built clang/llc
 VERISTAT_BIN="${SELFTESTS_OUTPUT}/veristat"
 
 if [ ! -x "${VERISTAT_BIN}" ] || [ "${DO_UPDATE}" = "1" ]; then
-    info "Building veristat and BPF selftest .bpf.o files..."
+    info "Building all BPF selftests (veristat, test_progs, .bpf.o progs)..."
     make -C "${SELFTESTS_DIR}" \
         OUTPUT="${SELFTESTS_OUTPUT}/" \
         CLANG="${CLANG}" \
@@ -366,10 +367,9 @@ if [ ! -x "${VERISTAT_BIN}" ] || [ "${DO_UPDATE}" = "1" ]; then
         BPFTOOL="${BPFTOOL_BIN}" \
         VMLINUX_BTF="${UML_BINARY}" \
         ARCH=x86_64 \
-        -j"$(nproc)" \
-        test_progs 2>&1 | grep -v '^make\[' | tail -5
+        -j"$(nproc)"
 else
-    info "veristat already built — skipping. (Use --update to rebuild.)"
+    info "Selftests already built — skipping. (Use --update to rebuild.)"
 fi
 
 [ -x "${VERISTAT_BIN}" ] || { echo "veristat build failed"; exit 1; }
