@@ -190,11 +190,13 @@ fi
 # Build pahole from source
 # ------------------------------------------------------------------------------
 step "3/7  Building pahole ${PAHOLE_TAG}"
-
 if [ ! -d "${PAHOLE_SRC}/.git" ]; then
     git clone --depth=1 --branch "${PAHOLE_TAG}" "${PAHOLE_REPO}" "${PAHOLE_SRC}"
 fi
-
+if [ "${DO_UPDATE}" = "1" ]; then
+    # On --update, clear the old install so the new build is picked up.
+    rm -rf "${PAHOLE_BUILD}" "${PAHOLE_INSTALL}"
+fi
 if [ ! -f "${PAHOLE_BIN}" ]; then
     mkdir -p "${PAHOLE_BUILD}"
     cmake -S "${PAHOLE_SRC}" -B "${PAHOLE_BUILD}" \
@@ -202,7 +204,7 @@ if [ ! -f "${PAHOLE_BIN}" ]; then
         -DCMAKE_INSTALL_PREFIX="${PAHOLE_INSTALL}" \
         -DCMAKE_INSTALL_RPATH="${PAHOLE_INSTALL}/lib" \
         -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
-        -D__LIB=lib \
+        -DLIB_INSTALL_DIR=lib \
         -DLIBBPF_EMBEDDED=ON \
         2>&1 | tail -5
     make -C "${PAHOLE_BUILD}" -j"$(nproc)"
@@ -210,6 +212,14 @@ if [ ! -f "${PAHOLE_BIN}" ]; then
     info "pahole: $(${PAHOLE_BIN} --version)"
 else
     info "pahole already built — skipping."
+fi
+
+# Verify pahole works before proceeding — a broken pahole causes silent
+# kernel build failures (BTF disabled, PAHOLE_VERSION=0 warnings).
+if ! "${PAHOLE_BIN}" --version >/dev/null 2>&1; then
+    echo "ERROR: ${PAHOLE_BIN} failed to run. Shared library issue?"
+    echo "       Try removing ${PAHOLE_BUILD} and ${PAHOLE_INSTALL} and re-running."
+    exit 1
 fi
 
 # ------------------------------------------------------------------------------
@@ -238,23 +248,28 @@ step "5/7  Configuring UML kernel"
 cd "${LINUX_DIR}"
 make ARCH=um defconfig
 
-# Enable BPF, cgroups, and networking options required for veristat
-cat >> .config << 'KCONFIG'
-CONFIG_BPF=y
-CONFIG_BPF_SYSCALL=y
-CONFIG_BPF_JIT=y
-CONFIG_BPF_JIT_ALWAYS_ON=n
-CONFIG_CGROUPS=y
-CONFIG_CGROUP_BPF=y
-CONFIG_NET=y
-CONFIG_INET=y
-CONFIG_IPV6=n
-CONFIG_NETFILTER=n
-CONFIG_DEBUG_INFO=y
-CONFIG_DEBUG_INFO_BTF=y
-CONFIG_PAHOLE_HAS_SPLIT_BTF=y
-KCONFIG
+# Enable BPF, cgroups, and networking options required for veristat.
+# Use scripts/config to set options idempotently — this avoids the
+# "override: reassigning to symbol" warnings that occur when appending
+# to .config after defconfig has already set the same symbols.
+make ARCH=um PAHOLE="${PAHOLE_BIN}" olddefconfig
 
+scripts/config \
+    --enable  BPF \
+    --enable  BPF_SYSCALL \
+    --enable  BPF_JIT \
+    --disable BPF_JIT_ALWAYS_ON \
+    --enable  CGROUPS \
+    --enable  CGROUP_BPF \
+    --enable  NET \
+    --enable  INET \
+    --disable IPV6 \
+    --disable NETFILTER \
+    --enable  DEBUG_INFO \
+    --enable  DEBUG_INFO_BTF \
+    --enable  PAHOLE_HAS_SPLIT_BTF
+
+# Re-run olddefconfig to resolve any new dependencies introduced above.
 make ARCH=um PAHOLE="${PAHOLE_BIN}" olddefconfig
 info "Kernel configured: $(grep "^CONFIG_BPF_SYSCALL=y" .config && echo BPF_SYSCALL enabled)"
 
