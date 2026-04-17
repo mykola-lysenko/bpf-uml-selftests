@@ -104,14 +104,18 @@ for arg in "$@"; do
 done
 
 # ------------------------------------------------------------------------------
-# Create a temporary init script that runs veristat then halts
+# Create a temporary working directory on the host.
+#
+# UML is booted with hostfs=/ (the entire host filesystem mounted read-write
+# as the UML root).  The init script and result file therefore live directly
+# on the host filesystem and are visible inside UML at their normal absolute
+# paths — no separate /host mount point is needed.
 # ------------------------------------------------------------------------------
 TMPDIR_UML=$(mktemp -d /tmp/uml-veristat-XXXXXX)
 trap 'rm -rf "${TMPDIR_UML}"' EXIT
 
 INIT_SCRIPT="${TMPDIR_UML}/init"
 RESULT_FILE="${TMPDIR_UML}/result"
-OUTPUT_FILE="${TMPDIR_UML}/output"
 
 # Build the veristat command line as a single quoted string
 VERISTAT_CMD="${VERISTAT_BIN}"
@@ -119,16 +123,16 @@ for a in "${ARGS[@]}"; do
     VERISTAT_CMD="${VERISTAT_CMD} $(printf '%q' "${a}")"
 done
 
+# The init script runs inside the UML guest.  Because hostfs=/ is the root,
+# all host paths are directly accessible at the same absolute paths.
+# We write the veristat exit code to RESULT_FILE (a host path) so the wrapper
+# can read it after UML shuts down.
 cat > "${INIT_SCRIPT}" << INIT_EOF
 #!/bin/sh
-# Mount essential filesystems
+# Mount essential virtual filesystems
 mount -t proc proc /proc 2>/dev/null || true
 mount -t sysfs sysfs /sys 2>/dev/null || true
 mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
-
-# Mount the host filesystem (read-only) so we can access .bpf.o files
-mkdir -p /host
-mount -t hostfs -o / /host 2>/dev/null || true
 
 # Run veristat; capture exit code
 ${VERISTAT_CMD}
