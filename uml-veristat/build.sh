@@ -3,11 +3,12 @@
 # build.sh — one-time setup for uml-veristat
 # ==============================================================================
 #
-# Builds two artifacts from source and installs them to
+# Builds three artifacts from source and installs them to
 # ~/.local/share/uml-veristat/:
 #
 #   linux      — UML kernel binary (bpf-next master, with BPF enabled)
-#   veristat   — veristat binary (from the same bpf-next tree)
+#   veristat   — veristat binary (built from the same bpf-next tree)
+#   selftests/ — BPF selftest .bpf.o files (ready inputs for uml-veristat)
 #
 # Also builds LLVM/Clang from source (main branch, BPF+X86 backends only)
 # and pahole from source, since they are needed to build the kernel and
@@ -20,7 +21,7 @@
 #              Without this flag, existing builds are reused (idempotent).
 #
 # Requirements:
-#   ~30 GB free disk space, 8+ CPU cores recommended, sudo for package install.
+#   ~35 GB free disk space, 8+ CPU cores recommended, sudo for package install.
 # ==============================================================================
 
 set -euo pipefail
@@ -51,9 +52,8 @@ PAHOLE_SRC="${WORKDIR}/dwarves"
 PAHOLE_BUILD="${WORKDIR}/pahole-build"
 PAHOLE_INSTALL="${WORKDIR}/pahole-install"
 LINUX_DIR="${WORKDIR}/bpf-next"
-VERISTAT_SRC="${WORKDIR}/veristat"
-VERISTAT_REPO="https://github.com/libbpf/veristat.git"
-VERISTAT_BRANCH="main"
+SELFTESTS_DIR="${LINUX_DIR}/tools/testing/selftests/bpf"
+SELFTESTS_OUTPUT="${WORKDIR}/selftests-output"
 
 CLANG="${LLVM_INSTALL}/bin/clang"
 LLC="${LLVM_INSTALL}/bin/llc"
@@ -277,39 +277,63 @@ done
 info "UML kernel: ${UML_BINARY} ($(ls -lh "${UML_BINARY}" | awk '{print $5}'))"
 
 # ------------------------------------------------------------------------------
-# Build veristat (standalone mirror from libbpf/veristat)
-# veristat lives at tools/testing/selftests/bpf/veristat.c in the kernel tree
-# but the libbpf/veristat mirror is the canonical standalone build.
+# Build veristat and BPF selftests from the bpf-next tree
+#
+# veristat lives at tools/testing/selftests/bpf/veristat.c and is built
+# as part of the BPF selftests.  Building the selftests also produces all
+# the .bpf.o object files that are the natural inputs for uml-veristat.
+#
+# The selftests Makefile inherits CLANG and LLC from
+# tools/scripts/Makefile.include (CLANG ?= clang, LLC ?= llc), so we
+# override them on the command line to point at our freshly built clang.
+# ARCH=x86_64 is required because the selftests must be built for the
+# host x86_64 ABI even when the kernel was configured with ARCH=um.
 # ------------------------------------------------------------------------------
-step "7/7  Building veristat"
+step "7/7  Building veristat and BPF selftests"
 
-if [ ! -d "${VERISTAT_SRC}/.git" ]; then
-    info "Cloning libbpf/veristat (shallow)..."
-    git clone --depth=1 --branch "${VERISTAT_BRANCH}" --recurse-submodules \
-        "${VERISTAT_REPO}" "${VERISTAT_SRC}"
-elif [ "${DO_UPDATE}" = "1" ]; then
-    info "Updating veristat to latest ${VERISTAT_BRANCH}..."
-    git -C "${VERISTAT_SRC}" fetch --depth=1 origin "${VERISTAT_BRANCH}"
-    git -C "${VERISTAT_SRC}" reset --hard "origin/${VERISTAT_BRANCH}"
-    git -C "${VERISTAT_SRC}" submodule update --init --recursive
-fi
+mkdir -p "${SELFTESTS_OUTPUT}"
 
-VERISTAT_BIN="${VERISTAT_SRC}/src/veristat"
+VERISTAT_BIN="${SELFTESTS_OUTPUT}/veristat"
 
-if [ ! -x "${VERISTAT_BIN}" ]; then
-    make -C "${VERISTAT_SRC}/src" \
-        CC="${LLVM_INSTALL}/bin/clang" \
-        EXTRA_CFLAGS="--sysroot=/" \
-        -j"$(nproc)"
+if [ ! -x "${VERISTAT_BIN}" ] || [ "${DO_UPDATE}" = "1" ]; then
+    info "Building veristat from ${SELFTESTS_DIR}..."
+    make -C "${SELFTESTS_DIR}" \
+        OUTPUT="${SELFTESTS_OUTPUT}/" \
+        CLANG="${CLANG}" \
+        LLC="${LLC}" \
+        ARCH=x86_64 \
+        -j"$(nproc)" \
+        veristat
 else
     info "veristat already built — skipping. (Use --update to rebuild.)"
 fi
 
 [ -x "${VERISTAT_BIN}" ] || { echo "veristat build failed"; exit 1; }
-info "veristat: ${VERISTAT_BIN} ($(${VERISTAT_BIN} --version 2>&1 | head -1))"
+info "veristat: ${VERISTAT_BIN}"
 
-# Also record the veristat commit for the version manifest
-VERISTAT_COMMIT=$(git -C "${VERISTAT_SRC}" rev-parse --short HEAD)
+# Build the BPF selftest .bpf.o files so they are available as ready-made
+# inputs for uml-veristat.  This step is optional but highly recommended.
+info "Building BPF selftest object files..."
+make -C "${SELFTESTS_DIR}" \
+    OUTPUT="${SELFTESTS_OUTPUT}/" \
+    CLANG="${CLANG}" \
+    LLC="${LLC}" \
+    ARCH=x86_64 \
+    -j"$(nproc)" \
+    bpf_obj_files 2>/dev/null \
+  || make -C "${SELFTESTS_DIR}" \
+        OUTPUT="${SELFTESTS_OUTPUT}/" \
+        CLANG="${CLANG}" \
+        LLC="${LLC}" \
+        ARCH=x86_64 \
+        -j"$(nproc)" \
+        $(ls "${SELFTESTS_DIR}"/*.bpf.c 2>/dev/null | \
+          sed 's|.*/||; s|\.bpf\.c|.bpf.o|' | \
+          sed "s|^|${SELFTESTS_OUTPUT}/|" | tr '\n' ' ') 2>/dev/null \
+  || info "Note: individual .bpf.o files can be built on demand with: make -C ${SELFTESTS_DIR} OUTPUT=... CLANG=... <name>.bpf.o"
+
+BPF_OBJ_COUNT=$(find "${SELFTESTS_OUTPUT}" -name "*.bpf.o" 2>/dev/null | wc -l)
+info "BPF object files built: ${BPF_OBJ_COUNT} files in ${SELFTESTS_OUTPUT}/"
 
 # ------------------------------------------------------------------------------
 # Install artifacts
@@ -319,13 +343,15 @@ cp "${UML_BINARY}"    "${INSTALL_DIR}/linux"
 cp "${VERISTAT_BIN}"  "${INSTALL_DIR}/veristat"
 chmod +x "${INSTALL_DIR}/linux" "${INSTALL_DIR}/veristat"
 
+# Symlink the selftests output directory so uml-veristat can find .bpf.o files
+ln -sfn "${SELFTESTS_OUTPUT}" "${INSTALL_DIR}/selftests"
+
 # Write a version manifest for diagnostics
 cat > "${INSTALL_DIR}/version.txt" <<EOF
 Built: $(date -u +"%Y-%m-%d %H:%M UTC")
 bpf-next: ${KERNEL_COMMIT} (${KERNEL_VERSION})
 LLVM: ${LLVM_COMMIT}
 pahole: ${PAHOLE_TAG}
-veristat: ${VERISTAT_COMMIT}
 EOF
 
 echo ""
@@ -333,8 +359,10 @@ info "Build complete!"
 info ""
 info "  UML kernel : ${INSTALL_DIR}/linux"
 info "  veristat   : ${INSTALL_DIR}/veristat"
+info "  Selftests  : ${INSTALL_DIR}/selftests/ (${BPF_OBJ_COUNT} .bpf.o files)"
 info "  Versions   : ${INSTALL_DIR}/version.txt"
 info ""
 info "Run uml-veristat to verify BPF programs:"
 info "  uml-veristat prog.bpf.o"
+info "  uml-veristat ~/.local/share/uml-veristat/selftests/test_progs.bpf.o"
 info "  uml-veristat -l 2 prog.bpf.o"
