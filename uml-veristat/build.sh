@@ -15,10 +15,15 @@
 # the BPF selftests tools.
 #
 # Usage:
-#   ./build.sh [--update]
+#   ./build.sh [--update] [--package]
 #
 #   --update   Re-fetch bpf-next and LLVM to latest tip and rebuild.
 #              Without this flag, existing builds are reused (idempotent).
+#
+#   --package  After building, assemble a self-contained distributable
+#              package tarball: uml-veristat-<kernel-commit>-<arch>.tar.gz
+#              Contains: uml-veristat wrapper, linux binary, veristat binary,
+#              kernel .config, version.txt (full provenance), sha256sums, README.
 #
 # Requirements:
 #   ~35 GB free disk space, 8+ CPU cores recommended, sudo for package install.
@@ -71,12 +76,15 @@ warn() { echo -e "${YELLOW}[build]${NC}  $*"; }
 # Parse flags
 # ------------------------------------------------------------------------------
 DO_UPDATE=0
+DO_PACKAGE=0
 for arg in "$@"; do
     case "${arg}" in
-        --update) DO_UPDATE=1 ;;
+        --update)  DO_UPDATE=1 ;;
+        --package) DO_PACKAGE=1 ;;
         -h|--help)
-            echo "Usage: ./build.sh [--update]"
+            echo "Usage: ./build.sh [--update] [--package]"
             echo "  --update   Pull latest bpf-next and LLVM, then rebuild."
+            echo "  --package  After building, create a distributable tarball."
             exit 0 ;;
         *) echo "Unknown argument: ${arg}"; exit 1 ;;
     esac
@@ -381,3 +389,93 @@ info "Run uml-veristat to verify BPF programs:"
 info "  uml-veristat prog.bpf.o"
 info "  uml-veristat ~/.local/share/uml-veristat/selftests/test_progs.bpf.o"
 info "  uml-veristat -l 2 prog.bpf.o"
+
+# ------------------------------------------------------------------------------
+# Optional: assemble distributable package (--package)
+# ------------------------------------------------------------------------------
+if [ "${DO_PACKAGE}" = "1" ]; then
+    step "Packaging uml-veristat"
+
+    HOST_ARCH="$(uname -m)"
+    PKG_NAME="uml-veristat-${KERNEL_COMMIT}-${HOST_ARCH}"
+    PKG_DIR="${WORKDIR}/${PKG_NAME}"
+    PKG_TARBALL="${SCRIPT_DIR}/${PKG_NAME}.tar.gz"
+
+    info "Assembling package: ${PKG_NAME}"
+    rm -rf "${PKG_DIR}"
+    mkdir -p "${PKG_DIR}"
+
+    # --- Core binaries ---
+    cp "${UML_BINARY}"         "${PKG_DIR}/linux"
+    cp "${VERISTAT_BIN}"       "${PKG_DIR}/veristat"
+    chmod +x "${PKG_DIR}/linux" "${PKG_DIR}/veristat"
+
+    # --- Wrapper script ---
+    cp "${SCRIPT_DIR}/uml-veristat" "${PKG_DIR}/uml-veristat"
+    chmod +x "${PKG_DIR}/uml-veristat"
+
+    # --- Kernel config used for this build ---
+    cp "${LINUX_DIR}/.config" "${PKG_DIR}/kernel.config"
+
+    # --- Full provenance record ---
+    KERNEL_COMMIT_FULL=$(git -C "${LINUX_DIR}" rev-parse HEAD)
+    LLVM_COMMIT_FULL=$(git -C "${LLVM_SRC}" rev-parse HEAD)
+    cat > "${PKG_DIR}/version.txt" <<VEOF
+Built:        $(date -u +"%Y-%m-%d %H:%M UTC")
+Host arch:    ${HOST_ARCH}
+bpf-next:     ${KERNEL_COMMIT_FULL}
+bpf-next tag: ${KERNEL_VERSION}
+LLVM:         ${LLVM_COMMIT_FULL}
+pahole:       ${PAHOLE_TAG}
+VEOF
+
+    # --- Package README ---
+    cat > "${PKG_DIR}/README" <<'REOF'
+uml-veristat — portable BPF verifier tool
+==========================================
+
+This package contains a self-contained uml-veristat installation.
+It runs the BPF verifier from a specific bpf-next kernel commit
+inside User-Mode Linux (UML), with no host kernel dependency.
+
+Contents
+--------
+  uml-veristat   Wrapper script — the only file you need to run
+  linux          UML kernel binary (bpf-next, BPF enabled)
+  veristat       veristat binary (built from the same bpf-next tree)
+  kernel.config  Exact kernel config used for this build
+  version.txt    Full provenance: git hashes, build date, host arch
+  sha256sums     Integrity manifest for all included files
+
+Usage
+-----
+  # Verify a BPF object file:
+  ./uml-veristat prog.bpf.o
+
+  # Pass any veristat flags verbatim:
+  ./uml-veristat -l 2 prog.bpf.o
+  ./uml-veristat -C old.bpf.o new.bpf.o
+
+  # Use a custom kernel or veristat binary:
+  UML_KERNEL=/path/to/linux ./uml-veristat prog.bpf.o
+  VERISTAT=/path/to/veristat ./uml-veristat prog.bpf.o
+
+The wrapper script looks for linux and veristat in the same directory
+as itself first, then falls back to ~/.local/share/uml-veristat/.
+
+See version.txt for the exact bpf-next commit this was built from.
+To rebuild from source: https://github.com/mykola-lysenko/bpf-uml-selftests
+REOF
+
+    # --- SHA-256 integrity manifest ---
+    (cd "${PKG_DIR}" && sha256sum linux veristat uml-veristat kernel.config > sha256sums)
+
+    # --- Create tarball ---
+    tar -czf "${PKG_TARBALL}" -C "${WORKDIR}" "${PKG_NAME}"
+    PKG_SIZE=$(ls -lh "${PKG_TARBALL}" | awk '{print $5}')
+
+    info ""
+    info "Package created: ${PKG_TARBALL} (${PKG_SIZE})"
+    info "Contents:"
+    tar -tzf "${PKG_TARBALL}" | sed 's/^/  /'
+fi
