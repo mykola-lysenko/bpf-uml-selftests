@@ -154,6 +154,7 @@ UML_ARGS=(
     "mem=${MEM}"
     "rootfstype=hostfs"
     "hostfs=/"
+    "rw"                 # mount root read-write so init can write the result file
     "init=${INIT_SCRIPT}"
     "con=null"          # suppress console output by default
     "con0=fd:0,fd:1"    # but keep stdin/stdout for veristat output
