@@ -158,6 +158,7 @@ UML_ARGS=(
     "init=${INIT_SCRIPT}"
     "con=null"          # suppress console output by default
     "con0=fd:0,fd:1"    # but keep stdin/stdout for veristat output
+    "quiet loglevel=0"  # suppress kernel log messages; only veristat output is shown
 )
 
 if [ "${VERBOSE}" = "1" ]; then
