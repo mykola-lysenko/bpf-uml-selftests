@@ -116,6 +116,7 @@ trap 'rm -rf "${TMPDIR_UML}"' EXIT
 
 INIT_SCRIPT="${TMPDIR_UML}/init"
 RESULT_FILE="${TMPDIR_UML}/result"
+OUTPUT_FILE="${TMPDIR_UML}/output"
 
 # Build the veristat command line as a single quoted string
 VERISTAT_CMD="${VERISTAT_BIN}"
@@ -125,8 +126,10 @@ done
 
 # The init script runs inside the UML guest.  Because hostfs=/ is the root,
 # all host paths are directly accessible at the same absolute paths.
-# We write the veristat exit code to RESULT_FILE (a host path) so the wrapper
-# can read it after UML shuts down.
+# Veristat stdout+stderr are redirected to OUTPUT_FILE so they are completely
+# separated from kernel console messages (including 'sysrq: Power Off').
+# The wrapper cats OUTPUT_FILE after UML exits, preserving correct exit code
+# handling and clean terminal output.
 cat > "${INIT_SCRIPT}" << INIT_EOF
 #!/bin/sh
 # Mount essential virtual filesystems
@@ -134,9 +137,10 @@ mount -t proc proc /proc 2>/dev/null || true
 mount -t sysfs sysfs /sys 2>/dev/null || true
 mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
 
-# Run veristat; capture exit code
-${VERISTAT_CMD}
+# Run veristat; redirect all output to a host-visible file
+${VERISTAT_CMD} > ${OUTPUT_FILE} 2>&1
 echo \$? > ${RESULT_FILE}
+sync
 
 # Halt the UML guest
 halt -f 2>/dev/null || poweroff -f 2>/dev/null || echo o > /proc/sysrq-trigger
@@ -156,27 +160,32 @@ UML_ARGS=(
     "hostfs=/"
     "rw"                 # mount root read-write so init can write the result file
     "init=${INIT_SCRIPT}"
-    "con=null"          # suppress console output by default
-    "con0=fd:0,fd:1"    # but keep stdin/stdout for veristat output
-    "quiet loglevel=0"  # suppress kernel log messages; only veristat output is shown
+    "quiet"              # suppress most kernel log messages
+    "loglevel=0"         # only KERN_EMERG messages reach the console
+    "con=null"           # silence all UML virtual consoles
+    "con0=null"          # silence console 0 too — veristat output goes to OUTPUT_FILE
 )
 
 if [ "${VERBOSE}" = "1" ]; then
-    # Show full boot log
-    "${UML_BIN}" "${UML_ARGS[@]}"
+    # In verbose mode show the full boot log on stderr and veristat output on stdout
+    "${UML_BIN}" "${UML_ARGS[@]/#quiet/}" \
+        con=fd:1,fd:2 con0=fd:1,fd:2 2>&1 || true
 else
-    # Suppress kernel boot noise; only show veristat output
-    # UML writes kernel messages to stderr, veristat output goes to stdout
+    # All kernel console output is suppressed (con=null con0=null).
+    # veristat output was redirected to OUTPUT_FILE inside the guest.
     "${UML_BIN}" "${UML_ARGS[@]}" 2>/dev/null
 fi
 
 # ------------------------------------------------------------------------------
-# Return veristat's exit code
+# Print veristat output and return its exit code
 # ------------------------------------------------------------------------------
 if [ -f "${RESULT_FILE}" ]; then
+    # Replay veristat output (stdout+stderr) captured inside the guest
+    [ -f "${OUTPUT_FILE}" ] && cat "${OUTPUT_FILE}"
     exit "$(cat "${RESULT_FILE}")"
 else
-    # UML crashed or init didn't write result
+    # UML crashed or init didn't write result; show whatever output was captured
+    [ -f "${OUTPUT_FILE}" ] && cat "${OUTPUT_FILE}" >&2
     echo "uml-veristat: UML guest did not complete normally." >&2
     exit 1
 fi
