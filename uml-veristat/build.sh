@@ -10,15 +10,21 @@
 #   veristat   — veristat binary (built from the same bpf-next tree)
 #   selftests/ — BPF selftest .bpf.o files (ready inputs for uml-veristat)
 #
-# Also builds LLVM/Clang from source (main branch, BPF+X86 backends only)
-# and pahole from source, since they are needed to build the kernel and
-# the BPF selftests tools.
+# Also builds LLVM/Clang (either from source or as a pre-built nightly
+# download) and pahole from source, since they are needed to build the
+# kernel and the BPF selftests tools.
 #
 # Usage:
 #   ./build.sh [--update] [--package]
 #
-#   --update   Re-fetch bpf-next and LLVM to latest tip and rebuild.
-#              Without this flag, existing builds are reused (idempotent).
+#   --update        Re-fetch bpf-next and LLVM to latest tip and rebuild.
+#                  Without this flag, existing builds are reused (idempotent).
+#
+#   --llvm-nightly  Download the latest pre-built LLVM release from GitHub
+#                  instead of building LLVM from source.  Much faster (~5 min
+#                  download vs ~45 min build).  Requires ~2 GB free disk space
+#                  for the tarball.  The downloaded LLVM is stored in
+#                  .build/llvm-install/ alongside a source-built one.
 #
 #   --package  After building, assemble a self-contained distributable
 #              package tarball: uml-veristat-<kernel-commit>-<arch>.tar.gz
@@ -26,7 +32,8 @@
 #              kernel .config, version.txt (full provenance), sha256sums, README.
 #
 # Requirements:
-#   ~35 GB free disk space, 8+ CPU cores recommended, sudo for package install.
+#   ~35 GB free disk space (source build) or ~5 GB (--llvm-nightly),
+#   8+ CPU cores recommended, sudo for package install.
 # ==============================================================================
 
 set -euo pipefail
@@ -77,6 +84,7 @@ warn() { echo -e "${YELLOW}[build]${NC}  $*"; }
 # ------------------------------------------------------------------------------
 DO_UPDATE=0
 DO_PACKAGE=0
+LLVM_NIGHTLY=0
 REBUILD_LLVM=0
 REBUILD_PAHOLE=0
 REBUILD_KERNEL=0
@@ -85,8 +93,9 @@ REBUILD_SELFTESTS=0
 
 for arg in "$@"; do
     case "${arg}" in
-        --update)  DO_UPDATE=1 ;;
-        --package) DO_PACKAGE=1 ;;
+        --update)       DO_UPDATE=1 ;;
+        --package)      DO_PACKAGE=1 ;;
+        --llvm-nightly) LLVM_NIGHTLY=1 ;;
         --rebuild-llvm)      REBUILD_LLVM=1 ;;
         --rebuild-pahole)    REBUILD_PAHOLE=1 ;;
         --rebuild-kernel)    REBUILD_KERNEL=1 ;;
@@ -97,6 +106,7 @@ for arg in "$@"; do
             echo ""
             echo "Options:"
             echo "  --update             Pull latest bpf-next and LLVM, then rebuild."
+            echo "  --llvm-nightly       Download pre-built LLVM release instead of building from source."
             echo "  --package            After building, create a distributable tarball."
             echo ""
             echo "Per-stage rebuild options (skips checking if already built):"
@@ -169,49 +179,91 @@ case "${DISTRO_FAMILY}" in
 esac
 
 # ------------------------------------------------------------------------------
-# Build LLVM/Clang from source (BPF + X86 backends only)
+# Build or download LLVM/Clang
 # ------------------------------------------------------------------------------
-step "2/7  Building LLVM/Clang (${LLVM_BRANCH} branch, BPF+X86 only)"
-info "This is the longest step — ~25 min on 8 cores, ~45 min on 4 cores."
+if [ "${LLVM_NIGHTLY}" = "1" ]; then
+    step "2/7  Downloading pre-built LLVM release (--llvm-nightly)"
 
-if [ ! -d "${LLVM_SRC}/.git" ]; then
-    info "Cloning LLVM (shallow)..."
-    git clone --depth=1 --branch "${LLVM_BRANCH}" "${LLVM_REPO}" "${LLVM_SRC}"
-elif [ "${DO_UPDATE}" = "1" ]; then
-    info "Updating LLVM to latest ${LLVM_BRANCH}..."
-    git -C "${LLVM_SRC}" fetch --depth=1 origin "${LLVM_BRANCH}"
-    git -C "${LLVM_SRC}" reset --hard "origin/${LLVM_BRANCH}"
-    rm -rf "${LLVM_BUILD}" "${LLVM_INSTALL}"
-fi
+    # Fetch the latest release tag and tarball URL from the GitHub API
+    LLVM_RELEASE_JSON=$(curl -sf "https://api.github.com/repos/llvm/llvm-project/releases/latest")
+    LLVM_TAG=$(echo "${LLVM_RELEASE_JSON}" | python3 -c \
+        "import sys,json; print(json.load(sys.stdin)['tag_name'])")
+    LLVM_VERSION=$(echo "${LLVM_TAG}" | sed 's/llvmorg-//')
+    LLVM_TARBALL_URL=$(echo "${LLVM_RELEASE_JSON}" | python3 -c \
+        "import sys,json; r=json.load(sys.stdin); \
+         urls=[a['browser_download_url'] for a in r['assets'] \
+               if 'Linux-X64' in a['name'] and a['name'].endswith('.tar.xz')]; \
+         print(urls[0] if urls else '')")
 
-LLVM_COMMIT=$(git -C "${LLVM_SRC}" rev-parse --short HEAD)
-info "LLVM HEAD: ${LLVM_COMMIT}"
+    if [ -z "${LLVM_TARBALL_URL}" ]; then
+        echo "ERROR: Could not find Linux-X64 tarball in LLVM release ${LLVM_TAG}"
+        exit 1
+    fi
 
-if [ ! -f "${CLANG}" ] || [ "${REBUILD_LLVM}" = "1" ] || [ "${DO_UPDATE}" = "1" ]; then
-    mkdir -p "${LLVM_BUILD}"
-    cmake -S "${LLVM_SRC}/llvm" -B "${LLVM_BUILD}" \
-        -G Ninja \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_INSTALL_PREFIX="${LLVM_INSTALL}" \
-        -DLLVM_TARGETS_TO_BUILD="BPF;X86" \
-        -DLLVM_ENABLE_PROJECTS="clang;lld" \
-        -DLLVM_ENABLE_RUNTIMES="" \
-        -DLLVM_INCLUDE_TESTS=OFF \
-        -DLLVM_INCLUDE_EXAMPLES=OFF \
-        -DLLVM_INCLUDE_BENCHMARKS=OFF \
-        -DLLVM_INCLUDE_DOCS=OFF \
-        -DCLANG_INCLUDE_TESTS=OFF \
-        -DCLANG_INCLUDE_DOCS=OFF \
-        -DLLVM_ENABLE_ASSERTIONS=OFF \
-        -DLLVM_ENABLE_ZLIB=ON \
-        -DLLVM_ENABLE_TERMINFO=OFF \
-        -DLLVM_ENABLE_LIBXML2=OFF \
-        2>&1 | tail -5
-    ninja -C "${LLVM_BUILD}" -j"$(nproc)" clang llc lld llvm-strip llvm-objcopy
-    ninja -C "${LLVM_BUILD}" install
-    info "Clang: $(${CLANG} --version | head -1)"
+    LLVM_TARBALL="${WORKDIR}/$(basename "${LLVM_TARBALL_URL}")"
+    info "Latest LLVM release: ${LLVM_TAG} (${LLVM_VERSION})"
+    info "Tarball URL: ${LLVM_TARBALL_URL}"
+
+    if [ ! -f "${CLANG}" ] || [ "${REBUILD_LLVM}" = "1" ] || [ "${DO_UPDATE}" = "1" ]; then
+        if [ ! -f "${LLVM_TARBALL}" ]; then
+            info "Downloading LLVM tarball (~700 MB)..."
+            curl -L --progress-bar -o "${LLVM_TARBALL}" "${LLVM_TARBALL_URL}"
+        else
+            info "Tarball already downloaded: ${LLVM_TARBALL}"
+        fi
+        info "Extracting LLVM tarball..."
+        rm -rf "${LLVM_INSTALL}"
+        mkdir -p "${LLVM_INSTALL}"
+        tar -xf "${LLVM_TARBALL}" -C "${LLVM_INSTALL}" --strip-components=1
+        info "Clang: $(${CLANG} --version | head -1)"
+    else
+        info "LLVM already installed — skipping. (Use --rebuild-llvm to re-download.)"
+    fi
+
+    LLVM_COMMIT="nightly-${LLVM_VERSION}"
 else
-    info "Clang already built — skipping. (Use --update to rebuild.)"
+    step "2/7  Building LLVM/Clang (${LLVM_BRANCH} branch, BPF+X86 only)"
+    info "This is the longest step — ~25 min on 8 cores, ~45 min on 4 cores."
+
+    if [ ! -d "${LLVM_SRC}/.git" ]; then
+        info "Cloning LLVM (shallow)..."
+        git clone --depth=1 --branch "${LLVM_BRANCH}" "${LLVM_REPO}" "${LLVM_SRC}"
+    elif [ "${DO_UPDATE}" = "1" ]; then
+        info "Updating LLVM to latest ${LLVM_BRANCH}..."
+        git -C "${LLVM_SRC}" fetch --depth=1 origin "${LLVM_BRANCH}"
+        git -C "${LLVM_SRC}" reset --hard "origin/${LLVM_BRANCH}"
+        rm -rf "${LLVM_BUILD}" "${LLVM_INSTALL}"
+    fi
+
+    LLVM_COMMIT=$(git -C "${LLVM_SRC}" rev-parse --short HEAD)
+    info "LLVM HEAD: ${LLVM_COMMIT}"
+
+    if [ ! -f "${CLANG}" ] || [ "${REBUILD_LLVM}" = "1" ] || [ "${DO_UPDATE}" = "1" ]; then
+        mkdir -p "${LLVM_BUILD}"
+        cmake -S "${LLVM_SRC}/llvm" -B "${LLVM_BUILD}" \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="${LLVM_INSTALL}" \
+            -DLLVM_TARGETS_TO_BUILD="BPF;X86" \
+            -DLLVM_ENABLE_PROJECTS="clang;lld" \
+            -DLLVM_ENABLE_RUNTIMES="" \
+            -DLLVM_INCLUDE_TESTS=OFF \
+            -DLLVM_INCLUDE_EXAMPLES=OFF \
+            -DLLVM_INCLUDE_BENCHMARKS=OFF \
+            -DLLVM_INCLUDE_DOCS=OFF \
+            -DCLANG_INCLUDE_TESTS=OFF \
+            -DCLANG_INCLUDE_DOCS=OFF \
+            -DLLVM_ENABLE_ASSERTIONS=OFF \
+            -DLLVM_ENABLE_ZLIB=ON \
+            -DLLVM_ENABLE_TERMINFO=OFF \
+            -DLLVM_ENABLE_LIBXML2=OFF \
+            2>&1 | tail -5
+        ninja -C "${LLVM_BUILD}" -j"$(nproc)" clang llc lld llvm-strip llvm-objcopy
+        ninja -C "${LLVM_BUILD}" install
+        info "Clang: $(${CLANG} --version | head -1)"
+    else
+        info "Clang already built — skipping. (Use --update to rebuild.)"
+    fi
 fi
 
 # ------------------------------------------------------------------------------
