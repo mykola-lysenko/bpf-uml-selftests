@@ -154,26 +154,26 @@ chmod +x "${INIT_SCRIPT}"
 MEM="${UML_MEM:-512M}"
 VERBOSE="${UML_VERBOSE:-0}"
 
+# Base args shared by both modes
 UML_ARGS=(
     "mem=${MEM}"
     "rootfstype=hostfs"
     "hostfs=/"
     "rw"                 # mount root read-write so init can write the result file
     "init=${INIT_SCRIPT}"
-    "quiet"              # suppress most kernel log messages
-    "loglevel=0"         # only KERN_EMERG messages reach the console
-    "con=null"           # silence all UML virtual consoles
-    "con0=null"          # silence console 0 too — veristat output goes to OUTPUT_FILE
 )
 
 if [ "${VERBOSE}" = "1" ]; then
-    # In verbose mode show the full boot log on stderr and veristat output on stdout
-    "${UML_BIN}" "${UML_ARGS[@]/#quiet/}" \
-        con=fd:1,fd:2 con0=fd:1,fd:2 2>&1 || true
+    # Verbose: show full kernel boot log on stderr; veristat output still goes to
+    # OUTPUT_FILE (captured in init script) and is replayed cleanly after UML exits.
+    "${UML_BIN}" "${UML_ARGS[@]}" \
+        con=fd:2,fd:2 con0=fd:2,fd:2
 else
-    # All kernel console output is suppressed (con=null con0=null).
-    # veristat output was redirected to OUTPUT_FILE inside the guest.
-    "${UML_BIN}" "${UML_ARGS[@]}" 2>/dev/null
+    # Silent: suppress all kernel console output; veristat output goes to OUTPUT_FILE.
+    "${UML_BIN}" "${UML_ARGS[@]}" \
+        quiet loglevel=0 \
+        con=null con0=null \
+        2>/dev/null
 fi
 
 # ------------------------------------------------------------------------------
