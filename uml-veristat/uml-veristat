@@ -11,6 +11,9 @@
 # Environment variables (override auto-detection):
 #   UML_KERNEL   — path to the UML kernel binary
 #   VERISTAT     — path to the veristat binary
+#   UML_MODULES  — space-separated list of .ko files to insmod before veristat
+#                  Set to empty string "" to disable auto-loading of modules.
+#                  Example: UML_MODULES="/path/to/bpf_testmod.ko" uml-veristat ...
 #   UML_MEM      — UML guest memory (default: 512M)
 #   UML_VERBOSE  — set to 1 to see UML boot messages
 #
@@ -68,6 +71,35 @@ find_veristat() {
 }
 
 # ------------------------------------------------------------------------------
+# Resolve the list of kernel modules to load inside UML.
+#
+# Resolution order:
+#   1. UML_MODULES env var (if set, even to empty — disables auto-detection)
+#   2. ~/.local/share/uml-veristat/bpf_testmod.ko  (installed by build.sh)
+#   3. Same directory as this script
+#   4. Nothing (proceed without loading any module)
+# ------------------------------------------------------------------------------
+find_uml_modules() {
+    # If UML_MODULES is explicitly set (including to ""), honour it as-is.
+    if [ -v UML_MODULES ]; then
+        echo "${UML_MODULES}"
+        return 0
+    fi
+    # Auto-detect bpf_testmod.ko from well-known locations.
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local candidates=(
+        "${HOME}/.local/share/uml-veristat/bpf_testmod.ko"
+        "${script_dir}/bpf_testmod.ko"
+    )
+    local found=()
+    for f in "${candidates[@]}"; do
+        [ -f "${f}" ] && found+=("${f}")
+    done
+    echo "${found[*]:-}"
+}
+
+# ------------------------------------------------------------------------------
 # Validate inputs
 # ------------------------------------------------------------------------------
 if [ $# -eq 0 ]; then
@@ -89,6 +121,8 @@ VERISTAT_BIN=$(find_veristat) || {
     echo "  Or set: export VERISTAT=/path/to/veristat" >&2
     exit 1
 }
+
+MODULE_LIST=$(find_uml_modules)
 
 # ------------------------------------------------------------------------------
 # Resolve all .bpf.o paths to absolute (UML sees host fs via hostfs)
@@ -124,6 +158,19 @@ for a in "${ARGS[@]}"; do
     VERISTAT_CMD="${VERISTAT_CMD} $(printf '%q' "${a}")"
 done
 
+# Build the insmod section for the init script.
+# Each module path is already an absolute host path, visible inside UML via hostfs.
+# We use /usr/sbin/insmod (available on the host filesystem, therefore inside UML).
+# The || true ensures a failed insmod does not abort the init script — veristat
+# will still run and produce partial results, which is preferable to a hard crash.
+INSMOD_CMDS=""
+if [ -n "${MODULE_LIST}" ]; then
+    for mod in ${MODULE_LIST}; do
+        INSMOD_CMDS="${INSMOD_CMDS}/usr/sbin/insmod ${mod} 2>/dev/null || true
+"
+    done
+fi
+
 # The init script runs inside the UML guest.  Because hostfs=/ is the root,
 # all host paths are directly accessible at the same absolute paths.
 # Veristat stdout+stderr are redirected to OUTPUT_FILE so they are completely
@@ -137,6 +184,8 @@ mount -t proc proc /proc 2>/dev/null || true
 mount -t sysfs sysfs /sys 2>/dev/null || true
 mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
 
+# Load kernel modules before running veristat
+${INSMOD_CMDS}
 # Run veristat; redirect all output to a host-visible file
 ${VERISTAT_CMD} > ${OUTPUT_FILE} 2>&1
 echo \$? > ${RESULT_FILE}

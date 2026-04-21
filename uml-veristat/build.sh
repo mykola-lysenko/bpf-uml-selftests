@@ -3,12 +3,13 @@
 # build.sh — one-time setup for uml-veristat
 # ==============================================================================
 #
-# Builds three artifacts from source and installs them to
+# Builds four artifacts from source and installs them to
 # ~/.local/share/uml-veristat/:
 #
-#   linux      — UML kernel binary (bpf-next master, with BPF enabled)
-#   veristat   — veristat binary (built from the same bpf-next tree)
-#   selftests/ — BPF selftest .bpf.o files (ready inputs for uml-veristat)
+#   linux           — UML kernel binary (bpf-next master, with BPF enabled)
+#   veristat        — veristat binary (built from the same bpf-next tree)
+#   bpf_testmod.ko  — BPF test module (auto-loaded by uml-veristat via UML_MODULES)
+#   selftests/      — BPF selftest .bpf.o files (ready inputs for uml-veristat)
 #
 # Also builds LLVM/Clang (either from source or as a pre-built nightly
 # download) and pahole from source, since they are needed to build the
@@ -90,6 +91,7 @@ REBUILD_PAHOLE=0
 REBUILD_KERNEL=0
 REBUILD_BPFTOOL=0
 REBUILD_SELFTESTS=0
+REBUILD_TESTMOD=0
 
 for arg in "$@"; do
     case "${arg}" in
@@ -101,6 +103,7 @@ for arg in "$@"; do
         --rebuild-kernel)    REBUILD_KERNEL=1 ;;
         --rebuild-bpftool)   REBUILD_BPFTOOL=1 ;;
         --rebuild-selftests) REBUILD_SELFTESTS=1 ;;
+        --rebuild-testmod)   REBUILD_TESTMOD=1 ;;
         -h|--help)
             echo "Usage: ./build.sh [OPTIONS]"
             echo ""
@@ -115,6 +118,7 @@ for arg in "$@"; do
             echo "  --rebuild-kernel     Rebuild UML kernel"
             echo "  --rebuild-bpftool    Rebuild bpftool"
             echo "  --rebuild-selftests  Rebuild veristat and BPF selftests"
+            echo "  --rebuild-testmod    Rebuild bpf_testmod.ko"
             exit 0 ;;
         *) echo "Unknown argument: ${arg}"; exit 1 ;;
     esac
@@ -504,12 +508,41 @@ info "veristat: ${VERISTAT_BIN}"
 BPF_OBJ_COUNT=$(find "${SELFTESTS_OUTPUT}" -name "*.bpf.o" 2>/dev/null | wc -l)
 info "BPF object files built: ${BPF_OBJ_COUNT} files in ${SELFTESTS_OUTPUT}/"
 
+# --- 7c: build bpf_testmod.ko for the UML kernel ---
+# bpf_testmod.ko provides the bpf_testmod_ops struct_ops types and kfuncs that
+# many BPF selftest programs depend on.  It is built as an external module
+# against the UML kernel tree (ARCH=um) so it runs inside the UML guest.
+# uml-veristat auto-loads it via UML_MODULES before running veristat.
+#
+# Only bpf_testmod.ko is built here; the other test_kmods (bpf_test_rqspinlock,
+# etc.) require CONFIG_PERF_EVENTS which is not available on UML.
+TESTMOD_KO_SRC="${SELFTESTS_DIR}/test_kmods/bpf_testmod.ko"
+TESTMOD_KO_DST="${INSTALL_DIR}/bpf_testmod.ko"
+
+if [ ! -f "${TESTMOD_KO_SRC}" ] || [ "${REBUILD_TESTMOD}" = "1" ] || [ "${DO_UPDATE}" = "1" ]; then
+    info "Building bpf_testmod.ko for UML..."
+    # Ensure Module.symvers is up to date before building the module.
+    # A quick incremental 'make ARCH=um' (no sources changed) regenerates
+    # Module.symvers in ~30 seconds without recompiling anything.
+    make -C "${LINUX_DIR}" ARCH=um PAHOLE="${PAHOLE_BIN}" -j"$(nproc)" 2>&1 | tail -3
+    # Build only bpf_testmod.ko (not the full test_kmods set, which includes
+    # modules that require CONFIG_PERF_EVENTS unavailable on UML).
+    make -C "${LINUX_DIR}" ARCH=um PAHOLE="${PAHOLE_BIN}" \
+        M="${SELFTESTS_DIR}/test_kmods" bpf_testmod.ko 2>&1
+else
+    info "bpf_testmod.ko already built — skipping. (Use --rebuild-testmod to rebuild.)"
+fi
+
+[ -f "${TESTMOD_KO_SRC}" ] || { echo "bpf_testmod.ko build failed"; exit 1; }
+info "bpf_testmod.ko: ${TESTMOD_KO_SRC} ($(ls -lh "${TESTMOD_KO_SRC}" | awk '{print $5}'))"
+
 # ------------------------------------------------------------------------------
 # Install artifacts
 # ------------------------------------------------------------------------------
 info "Installing to ${INSTALL_DIR}/"
-cp "${UML_BINARY}"    "${INSTALL_DIR}/linux"
-cp "${VERISTAT_BIN}"  "${INSTALL_DIR}/veristat"
+cp "${UML_BINARY}"       "${INSTALL_DIR}/linux"
+cp "${VERISTAT_BIN}"     "${INSTALL_DIR}/veristat"
+cp "${TESTMOD_KO_SRC}"  "${INSTALL_DIR}/bpf_testmod.ko"
 chmod +x "${INSTALL_DIR}/linux" "${INSTALL_DIR}/veristat"
 
 # Symlink the selftests output directory so uml-veristat can find .bpf.o files
@@ -526,10 +559,11 @@ EOF
 echo ""
 info "Build complete!"
 info ""
-info "  UML kernel : ${INSTALL_DIR}/linux"
-info "  veristat   : ${INSTALL_DIR}/veristat"
-info "  Selftests  : ${INSTALL_DIR}/selftests/ (${BPF_OBJ_COUNT} .bpf.o files)"
-info "  Versions   : ${INSTALL_DIR}/version.txt"
+info "  UML kernel     : ${INSTALL_DIR}/linux"
+info "  veristat       : ${INSTALL_DIR}/veristat"
+info "  bpf_testmod.ko : ${INSTALL_DIR}/bpf_testmod.ko"
+info "  Selftests      : ${INSTALL_DIR}/selftests/ (${BPF_OBJ_COUNT} .bpf.o files)"
+info "  Versions       : ${INSTALL_DIR}/version.txt"
 info ""
 # Pick a representative .bpf.o to show in the example
 EXAMPLE_BPF=$(find "${SELFTESTS_OUTPUT}" -maxdepth 1 -name "verifier_*.bpf.o" 2>/dev/null | head -1)
@@ -548,6 +582,15 @@ info "  uml-veristat -l 1 ${EXAMPLE_BPF}"
 info ""
 info "  # Compare two versions of a program:"
 info "  uml-veristat -C old.bpf.o new.bpf.o"
+info ""
+info "  # Load bpf_testmod.ko before veristat (auto-detected from install dir):"
+info "  uml-veristat ${SELFTESTS_OUTPUT}/*.bpf.o"
+info ""
+info "  # Override module path explicitly:"
+info "  UML_MODULES=/path/to/bpf_testmod.ko uml-veristat ${SELFTESTS_OUTPUT}/*.bpf.o"
+info ""
+info "  # Disable module loading:"
+info "  UML_MODULES=\"\" uml-veristat ${SELFTESTS_OUTPUT}/*.bpf.o"
 
 # ------------------------------------------------------------------------------
 # Optional: assemble distributable package (--package)
@@ -567,6 +610,7 @@ if [ "${DO_PACKAGE}" = "1" ]; then
     # --- Core binaries ---
     cp "${UML_BINARY}"         "${PKG_DIR}/linux"
     cp "${VERISTAT_BIN}"       "${PKG_DIR}/veristat"
+    cp "${TESTMOD_KO_SRC}"    "${PKG_DIR}/bpf_testmod.ko"
     chmod +x "${PKG_DIR}/linux" "${PKG_DIR}/veristat"
 
     # --- Wrapper script ---
@@ -603,12 +647,13 @@ inside User-Mode Linux (UML), with no host kernel dependency.
 
 Contents
 --------
-  uml-veristat   Wrapper script — the only file you need to run
-  linux          UML kernel binary (bpf-next, BPF enabled)
-  veristat       veristat binary (built from the same bpf-next tree)
-  kernel.config  Exact kernel config used for this build
-  version.txt    Full provenance: git hashes, build date, host arch
-  sha256sums     Integrity manifest for all included files
+  uml-veristat    Wrapper script — the only file you need to run
+  linux           UML kernel binary (bpf-next, BPF enabled)
+  veristat        veristat binary (built from the same bpf-next tree)
+  bpf_testmod.ko  BPF test module (auto-loaded by uml-veristat)
+  kernel.config   Exact kernel config used for this build
+  version.txt     Full provenance: git hashes, build date, host arch
+  sha256sums      Integrity manifest for all included files
 
 Usage
 -----
@@ -631,7 +676,7 @@ To rebuild from source: https://github.com/mykola-lysenko/bpf-uml-selftests
 REOF
 
     # --- SHA-256 integrity manifest ---
-    (cd "${PKG_DIR}" && sha256sum linux veristat uml-veristat kernel.config > sha256sums)
+    (cd "${PKG_DIR}" && sha256sum linux veristat uml-veristat bpf_testmod.ko kernel.config > sha256sums)
 
     # --- Create tarball ---
     tar -czf "${PKG_TARBALL}" -C "${WORKDIR}" "${PKG_NAME}"

@@ -80,3 +80,32 @@ regular Linux process on an x86-64 host.
 **Files changed:**
 - `arch/um/kernel/skas/Makefile` (remove `-Wl,-n` from `STUB_EXE_LDFLAGS`)
 - `arch/x86/um/Kconfig` (add `select HAVE_EBPF_JIT if 64BIT`)
+
+---
+
+### 0004 — `selftests/bpf: fix bpf_testmod.c compilation on UML`
+
+**Problem:** `bpf_testmod.c` fails to compile as a kernel module when `ARCH=um`
+due to two architecture-guard issues:
+
+1. **`VSYSCALL_ADDR` undeclared** (line ~408): The surrounding code is guarded
+   by `#ifdef CONFIG_X86_64`, which is defined on UML x86-64. However, UML's
+   `asm/` include path goes through `arch/um/` rather than `arch/x86/`, so
+   `<asm/vsyscall.h>` is not available and `VSYSCALL_ADDR` is undefined.
+
+2. **`struct pt_regs` missing named fields** (lines ~607–617): The uprobe
+   handler is guarded by `#ifdef __x86_64__` (a compiler macro). Since UML
+   compiles as x86-64 userspace, `__x86_64__` is defined by GCC. But UML's
+   `struct pt_regs` wraps a `uml_pt_regs` with a `gp[]` array, not the named
+   fields `.cx`, `.ax`, `.r11` that the uprobe handler accesses.
+
+**Fix:** Change the two guards to also exclude UML:
+- `#if defined(CONFIG_X86_64) && !defined(CONFIG_UML)` for the vsyscall block
+- `#if defined(__x86_64__) && !defined(CONFIG_UML)` for the uprobe handler block
+
+The excluded code paths are non-functional on UML anyway (no vsyscall page, no
+uprobe hardware support), so excluding them has no effect on verification
+coverage.
+
+**Files changed:**
+- `tools/testing/selftests/bpf/test_kmods/bpf_testmod.c` (two guard changes)

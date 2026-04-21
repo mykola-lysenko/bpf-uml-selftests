@@ -1,0 +1,50 @@
+From c835765a819bed8794aae9947b644bf729fe2bf0 Mon Sep 17 00:00:00 2001
+From: uml-veristat build <uml-veristat@build>
+Date: Tue, 21 Apr 2026 14:18:09 -0400
+Subject: [PATCH] selftests/bpf: fix bpf_testmod.c compilation on UML
+
+UML on x86-64 defines __x86_64__ (compiler macro) and CONFIG_X86_64=y,
+but its struct pt_regs wraps a uml_pt_regs { unsigned long gp[]; } array
+and does not expose named register fields (.cx, .ax, .r11).  Likewise,
+UML's include path for asm/ headers goes through arch/um/ rather than
+arch/x86/, so VSYSCALL_ADDR from <asm/vsyscall.h> is not visible.
+
+Two guards in bpf_testmod.c incorrectly fire on UML:
+
+  #ifdef CONFIG_X86_64      -- true on UML, but VSYSCALL_ADDR undefined
+  #ifdef __x86_64__         -- true on UML, but pt_regs lacks .cx/.ax/.r11
+
+for the uprobe section already provides correct no-op stubs, so no
+functional change occurs on UML; the module now compiles cleanly.
+
+Signed-off-by: uml-veristat build <uml-veristat@build>
+---
+ tools/testing/selftests/bpf/test_kmods/bpf_testmod.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/tools/testing/selftests/bpf/test_kmods/bpf_testmod.c b/tools/testing/selftests/bpf/test_kmods/bpf_testmod.c
+index d876314a4..412b18a9a 100644
+--- a/tools/testing/selftests/bpf/test_kmods/bpf_testmod.c
++++ b/tools/testing/selftests/bpf/test_kmods/bpf_testmod.c
+@@ -404,7 +404,7 @@ __weak noinline struct file *bpf_testmod_return_ptr(int arg)
+ 	case 5: return (void *)~(1ull << 30);	/* trigger extable */
+ 	case 6: return &f;			/* valid addr */
+ 	case 7: return (void *)((long)&f | 1);	/* kernel tricks */
+-#ifdef CONFIG_X86_64
++#if defined(CONFIG_X86_64) && !defined(CONFIG_UML)
+ 	case 8: return (void *)VSYSCALL_ADDR;   /* vsyscall page address */
+ #endif
+ 	default: return NULL;
+@@ -599,8 +599,7 @@ static struct bin_attribute bin_attr_bpf_testmod_file __ro_after_init = {
+ /* bpf_testmod_uprobe sysfs attribute is so far enabled for x86_64 only,
+  * please see test_uretprobe_regs_change test
+  */
+-#ifdef __x86_64__
+-
++#if defined(__x86_64__) && !defined(CONFIG_UML)
+ static int
+ uprobe_handler(struct uprobe_consumer *self, struct pt_regs *regs, __u64 *data)
+ {
+-- 
+2.34.1
+
