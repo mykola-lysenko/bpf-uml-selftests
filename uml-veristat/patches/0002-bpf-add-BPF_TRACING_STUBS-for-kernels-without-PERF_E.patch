@@ -1,0 +1,201 @@
+From 5be565df453a432eae9ceddf1be58b0af670ec8c Mon Sep 17 00:00:00 2001
+From: uml-veristat build <uml-veristat@build>
+Date: Mon, 20 Apr 2026 18:58:49 -0400
+Subject: [PATCH 2/3] bpf: add BPF_TRACING_STUBS for kernels without
+ PERF_EVENTS (UML)
+
+On User Mode Linux (UML), CONFIG_PERF_EVENTS and CONFIG_BPF_EVENTS are
+unavailable because they depend on hardware performance counters and
+kprobes.  This means BPF_PROG_TYPE_KPROBE, TRACEPOINT, PERF_EVENT,
+RAW_TRACEPOINT, RAW_TRACEPOINT_WRITABLE, and TRACING are not registered,
+and BPF_PROG_LOAD returns -EINVAL for these types.
+
+For static verification purposes (veristat), we only need the BPF
+verifier to accept these program types -- the programs are never
+attached or executed.  Add a new Kconfig option BPF_TRACING_STUBS
+(default y when UML) that provides minimal bpf_verifier_ops and
+bpf_prog_ops for all six tracing program types.
+
+The stubs delegate to bpf_base_func_proto() for helper access and
+bpf_tracing_btf_ctx_access() for context type checking, both of which
+are available without BPF_EVENTS.
+
+bpf_types.h gains an #elif defined(CONFIG_BPF_TRACING_STUBS) branch
+after the existing #ifdef CONFIG_BPF_EVENTS block so the BPF_PROG_TYPE()
+macro expansions register the stub ops when BPF_EVENTS is absent.
+
+Signed-off-by: BPF UML veristat <bpf-uml@example.com>
+---
+ include/linux/bpf_types.h      | 26 +++++++++++
+ kernel/bpf/Kconfig             | 11 +++++
+ kernel/bpf/Makefile            |  1 +
+ kernel/bpf/bpf_tracing_stubs.c | 81 ++++++++++++++++++++++++++++++++++
+ 4 files changed, 119 insertions(+)
+ create mode 100644 kernel/bpf/bpf_tracing_stubs.c
+
+diff --git a/include/linux/bpf_types.h b/include/linux/bpf_types.h
+index b13de31e1..f470fe244 100644
+--- a/include/linux/bpf_types.h
++++ b/include/linux/bpf_types.h
+@@ -36,6 +36,19 @@ BPF_PROG_TYPE(BPF_PROG_TYPE_FLOW_DISSECTOR, flow_dissector,
+ 	      struct __sk_buff, struct bpf_flow_dissector)
+ #endif
+ #ifdef CONFIG_BPF_EVENTS
++BPF_PROG_TYPE(BPF_PROG_TYPE_KPROBE, kprobe,
++	      bpf_user_pt_regs_t, struct pt_regs)
++BPF_PROG_TYPE(BPF_PROG_TYPE_TRACEPOINT, tracepoint,
++	      __u64, u64)
++BPF_PROG_TYPE(BPF_PROG_TYPE_PERF_EVENT, perf_event,
++	      struct bpf_perf_event_data, struct bpf_perf_event_data_kern)
++BPF_PROG_TYPE(BPF_PROG_TYPE_RAW_TRACEPOINT, raw_tracepoint,
++	      struct bpf_raw_tracepoint_args, u64)
++BPF_PROG_TYPE(BPF_PROG_TYPE_RAW_TRACEPOINT_WRITABLE, raw_tracepoint_writable,
++	      struct bpf_raw_tracepoint_args, u64)
++BPF_PROG_TYPE(BPF_PROG_TYPE_TRACING, tracing,
++	      void *, void *)
++#elif defined(CONFIG_BPF_TRACING_STUBS)
+ BPF_PROG_TYPE(BPF_PROG_TYPE_KPROBE, kprobe,
+ 	      bpf_user_pt_regs_t, struct pt_regs)
+ BPF_PROG_TYPE(BPF_PROG_TYPE_TRACEPOINT, tracepoint,
+@@ -91,6 +104,19 @@ BPF_MAP_TYPE(BPF_MAP_TYPE_PERF_EVENT_ARRAY, perf_event_array_map_ops)
+ #ifdef CONFIG_CGROUPS
+ BPF_MAP_TYPE(BPF_MAP_TYPE_CGROUP_ARRAY, cgroup_array_map_ops)
+ BPF_MAP_TYPE(BPF_MAP_TYPE_CGRP_STORAGE, cgrp_storage_map_ops)
++#elif defined(CONFIG_BPF_TRACING_STUBS)
++BPF_PROG_TYPE(BPF_PROG_TYPE_KPROBE, kprobe,
++	      bpf_user_pt_regs_t, struct pt_regs)
++BPF_PROG_TYPE(BPF_PROG_TYPE_TRACEPOINT, tracepoint,
++	      __u64, u64)
++BPF_PROG_TYPE(BPF_PROG_TYPE_PERF_EVENT, perf_event,
++	      struct bpf_perf_event_data, struct bpf_perf_event_data_kern)
++BPF_PROG_TYPE(BPF_PROG_TYPE_RAW_TRACEPOINT, raw_tracepoint,
++	      struct bpf_raw_tracepoint_args, u64)
++BPF_PROG_TYPE(BPF_PROG_TYPE_RAW_TRACEPOINT_WRITABLE, raw_tracepoint_writable,
++	      struct bpf_raw_tracepoint_args, u64)
++BPF_PROG_TYPE(BPF_PROG_TYPE_TRACING, tracing,
++	      void *, void *)
+ #endif
+ #ifdef CONFIG_CGROUP_BPF
+ BPF_MAP_TYPE(BPF_MAP_TYPE_CGROUP_STORAGE, cgroup_storage_map_ops)
+diff --git a/kernel/bpf/Kconfig b/kernel/bpf/Kconfig
+index eb3de3573..dcbce556a 100644
+--- a/kernel/bpf/Kconfig
++++ b/kernel/bpf/Kconfig
+@@ -101,4 +101,15 @@ config BPF_LSM
+ 
+ 	  If you are unsure how to answer this question, answer N.
+ 
++config BPF_TRACING_STUBS
++	bool "BPF tracing program type stubs (for UML/no-PERF_EVENTS kernels)"
++	depends on BPF_SYSCALL
++	depends on !BPF_EVENTS
++	default y if UML
++	help
++	  Provides minimal verifier_ops/prog_ops for BPF_PROG_TYPE_TRACING,
++	  KPROBE, TRACEPOINT, PERF_EVENT, and RAW_TRACEPOINT without requiring
++	  CONFIG_BPF_EVENTS. Enables the BPF verifier to accept these program
++	  types for static analysis (veristat) on kernels without kprobes/perf.
++
+ endmenu # "BPF subsystem"
+diff --git a/kernel/bpf/Makefile b/kernel/bpf/Makefile
+index 399007b67..401c3c579 100644
+--- a/kernel/bpf/Makefile
++++ b/kernel/bpf/Makefile
+@@ -68,6 +68,7 @@ ifeq ($(CONFIG_DMA_SHARED_BUFFER),y)
+ obj-$(CONFIG_BPF_SYSCALL) += dmabuf_iter.o
+ endif
+ 
++obj-$(CONFIG_BPF_TRACING_STUBS) += bpf_tracing_stubs.o
+ CFLAGS_REMOVE_percpu_freelist.o = $(CC_FLAGS_FTRACE)
+ CFLAGS_REMOVE_bpf_lru_list.o = $(CC_FLAGS_FTRACE)
+ CFLAGS_REMOVE_queue_stack_maps.o = $(CC_FLAGS_FTRACE)
+diff --git a/kernel/bpf/bpf_tracing_stubs.c b/kernel/bpf/bpf_tracing_stubs.c
+new file mode 100644
+index 000000000..b63e93f6d
+--- /dev/null
++++ b/kernel/bpf/bpf_tracing_stubs.c
+@@ -0,0 +1,81 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * BPF tracing program type stubs for kernels without CONFIG_BPF_EVENTS
++ *
++ * CONFIG_BPF_EVENTS depends on PERF_EVENTS and KPROBE_EVENTS/UPROBE_EVENTS.
++ * On UML these hardware-dependent subsystems are unavailable, so the
++ * tracing program types (KPROBE, TRACEPOINT, PERF_EVENT, RAW_TRACEPOINT,
++ * TRACING) are not registered and BPF_PROG_LOAD returns -EINVAL for them.
++ *
++ * For BPF verification purposes (veristat) we only need the verifier to
++ * accept BPF_PROG_LOAD -- programs are never attached or executed.
++ * This file provides minimal verifier_ops/prog_ops for the tracing-family
++ * program types so the verifier can run normally.
++ */
++
++#include <linux/bpf.h>
++#include <linux/filter.h>
++
++extern const struct bpf_func_proto *
++bpf_base_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog);
++
++extern bool bpf_tracing_btf_ctx_access(int off, int size,
++enum bpf_access_type type,
++const struct bpf_prog *prog,
++struct bpf_insn_access_aux *info);
++
++static const struct bpf_func_proto *
++stub_tracing_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
++{
++return bpf_base_func_proto(func_id, prog);
++}
++
++static bool stub_tracing_is_valid_access(int off, int size,
++ enum bpf_access_type type,
++ const struct bpf_prog *prog,
++ struct bpf_insn_access_aux *info)
++{
++return bpf_tracing_btf_ctx_access(off, size, type, prog, info);
++}
++
++/* BPF_PROG_TYPE_TRACING */
++const struct bpf_verifier_ops tracing_verifier_ops = {
++.get_func_proto  = stub_tracing_func_proto,
++.is_valid_access = stub_tracing_is_valid_access,
++};
++const struct bpf_prog_ops tracing_prog_ops = {};
++
++/* BPF_PROG_TYPE_KPROBE */
++const struct bpf_verifier_ops kprobe_verifier_ops = {
++.get_func_proto  = stub_tracing_func_proto,
++.is_valid_access = stub_tracing_is_valid_access,
++};
++const struct bpf_prog_ops kprobe_prog_ops = {};
++
++/* BPF_PROG_TYPE_TRACEPOINT */
++const struct bpf_verifier_ops tracepoint_verifier_ops = {
++.get_func_proto  = stub_tracing_func_proto,
++.is_valid_access = stub_tracing_is_valid_access,
++};
++const struct bpf_prog_ops tracepoint_prog_ops = {};
++
++/* BPF_PROG_TYPE_PERF_EVENT */
++const struct bpf_verifier_ops perf_event_verifier_ops = {
++.get_func_proto  = stub_tracing_func_proto,
++.is_valid_access = stub_tracing_is_valid_access,
++};
++const struct bpf_prog_ops perf_event_prog_ops = {};
++
++/* BPF_PROG_TYPE_RAW_TRACEPOINT */
++const struct bpf_verifier_ops raw_tracepoint_verifier_ops = {
++.get_func_proto  = stub_tracing_func_proto,
++.is_valid_access = stub_tracing_is_valid_access,
++};
++const struct bpf_prog_ops raw_tracepoint_prog_ops = {};
++
++/* BPF_PROG_TYPE_RAW_TRACEPOINT_WRITABLE */
++const struct bpf_verifier_ops raw_tracepoint_writable_verifier_ops = {
++.get_func_proto  = stub_tracing_func_proto,
++.is_valid_access = stub_tracing_is_valid_access,
++};
++const struct bpf_prog_ops raw_tracepoint_writable_prog_ops = {};
+-- 
+2.34.1
+

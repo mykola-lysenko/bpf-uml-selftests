@@ -321,6 +321,33 @@ KERNEL_VERSION=$(make -C "${LINUX_DIR}" -s kernelversion 2>/dev/null || echo "un
 info "bpf-next: ${KERNEL_COMMIT}  (${KERNEL_VERSION})"
 
 # ------------------------------------------------------------------------------
+# Apply UML BPF compatibility patches
+# ------------------------------------------------------------------------------
+# Patches are stored in patches/ next to this script, in git format-patch
+# format.  They are applied with 'git am' after kernel checkout.  Already-
+# applied patches are detected by matching the commit subject line and skipped
+# (idempotent).
+PATCHES_DIR="${SCRIPT_DIR}/patches"
+if [ -d "${PATCHES_DIR}" ]; then
+    # Configure a git identity in the kernel tree if not already set
+    git -C "${LINUX_DIR}" config user.email "uml-veristat@build" 2>/dev/null || true
+    git -C "${LINUX_DIR}" config user.name  "uml-veristat build"  2>/dev/null || true
+
+    for patch in "${PATCHES_DIR}"/*.patch; do
+        [ -f "${patch}" ] || continue
+        # Extract the subject line from the patch (first non-empty Subject: line)
+        subject=$(grep -m1 '^Subject:' "${patch}" | sed 's/^Subject: //' | sed 's/^\[PATCH[^]]*\] //')
+        # Check if a commit with this subject already exists in the tree
+        if git -C "${LINUX_DIR}" log --oneline | grep -qF "${subject}"; then
+            info "Patch already applied — skipping: ${patch##*/}"
+        else
+            info "Applying patch: ${patch##*/}"
+            git -C "${LINUX_DIR}" am --whitespace=nowarn "${patch}"
+        fi
+    done
+fi
+
+# ------------------------------------------------------------------------------
 # Configure the UML kernel
 # ------------------------------------------------------------------------------
 step "5/7  Configuring UML kernel"
@@ -346,7 +373,11 @@ scripts/config \
     --disable NETFILTER \
     --enable  DEBUG_INFO \
     --enable  DEBUG_INFO_BTF \
-    --enable  PAHOLE_HAS_SPLIT_BTF
+    --enable  PAHOLE_HAS_SPLIT_BTF \
+    --enable  BPF_TRACING_STUBS \
+    --enable  TCP_CONG_ADVANCED \
+    --enable  TCP_CONG_CUBIC \
+    --enable  TCP_CONG_DCTCP
 
 # Re-run olddefconfig to resolve any new dependencies introduced above.
 make ARCH=um PAHOLE="${PAHOLE_BIN}" olddefconfig
@@ -547,7 +578,11 @@ if [ "${DO_PACKAGE}" = "1" ]; then
 
     # --- Full provenance record ---
     KERNEL_COMMIT_FULL=$(git -C "${LINUX_DIR}" rev-parse HEAD)
-    LLVM_COMMIT_FULL=$(git -C "${LLVM_SRC}" rev-parse HEAD)
+    if [ -d "${LLVM_SRC}/.git" ]; then
+        LLVM_COMMIT_FULL=$(git -C "${LLVM_SRC}" rev-parse HEAD)
+    else
+        LLVM_COMMIT_FULL="${LLVM_COMMIT}"  # nightly: already set to nightly-<version>
+    fi
     cat > "${PKG_DIR}/version.txt" <<VEOF
 Built:        $(date -u +"%Y-%m-%d %H:%M UTC")
 Host arch:    ${HOST_ARCH}
