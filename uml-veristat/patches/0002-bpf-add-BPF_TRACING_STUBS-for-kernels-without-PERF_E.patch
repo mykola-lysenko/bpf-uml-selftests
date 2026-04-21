@@ -1,7 +1,7 @@
 From 5be565df453a432eae9ceddf1be58b0af670ec8c Mon Sep 17 00:00:00 2001
 From: uml-veristat build <uml-veristat@build>
 Date: Mon, 20 Apr 2026 18:58:49 -0400
-Subject: [PATCH 2/3] bpf: add BPF_TRACING_STUBS for kernels without
+Subject: [PATCH 2/5] bpf: add BPF_TRACING_STUBS for kernels without
  PERF_EVENTS (UML)
 
 On User Mode Linux (UML), CONFIG_PERF_EVENTS and CONFIG_BPF_EVENTS are

@@ -109,3 +109,47 @@ coverage.
 
 **Files changed:**
 - `tools/testing/selftests/bpf/test_kmods/bpf_testmod.c` (two guard changes)
+
+---
+
+### 0005 — `bpf: extend BPF_TRACING_STUBS with STACK_TRACE map and callchain stubs`
+
+**Problem:** Without `CONFIG_PERF_EVENTS`, `BPF_MAP_TYPE_STACK_TRACE` is not registered
+and the `bpf_get_stackid()`/`bpf_get_stack()` helpers are unavailable. This caused
+veristat to fail with `-EINVAL` when processing programs that use stack trace maps
+(`pyperf*`, `strobemeta*`, `stacktrace_*` — 16 files). Additionally, `CONFIG_CGROUP_BPF`
+and `CONFIG_XDP_SOCKETS` were not enabled, causing `-EINVAL` for cgroup storage maps
+and XSK maps.
+
+**Fix:**
+
+1. `kernel/bpf/stackmap.c`: compile when `CONFIG_BPF_TRACING_STUBS` is set (in addition
+   to `CONFIG_PERF_EVENTS`). Wrap the perf_event-specific `bpf_get_stackid_pe` and
+   `bpf_get_stack_pe` functions in `#ifdef CONFIG_PERF_EVENTS` since they reference
+   `struct perf_event` internals.
+
+2. `kernel/bpf/bpf_tracing_stubs.c`: add stub implementations for the callchain buffer
+   API (`get_callchain_buffers`, `put_callchain_buffers`, `get_callchain_entry`,
+   `put_callchain_entry`, `get_perf_callchain`) and `sysctl_perf_event_max_stack`.
+   These are `WARN_ON_ONCE` stubs since veristat never executes programs.
+
+3. `include/linux/perf_event.h`: declare the stub symbols under
+   `#ifdef CONFIG_BPF_TRACING_STUBS` inside the `!CONFIG_PERF_EVENTS` block.
+
+4. `include/linux/bpf_types.h`: register `BPF_MAP_TYPE_STACK_TRACE` when
+   `CONFIG_BPF_TRACING_STUBS` is set, mirroring the `CONFIG_PERF_EVENTS` guard.
+
+Also enables `CONFIG_CGROUP_BPF=y` and `CONFIG_XDP_SOCKETS=y` in the UML defconfig to
+fix `-EINVAL` failures for cgroup storage maps (`cg_storage_multi_shared`,
+`cgroup_storage`, `lsm_cgroup`) and XSK maps (`xdp_hw_metadata`, `xdp_metadata`,
+`xsk_xdp_progs`).
+
+**Files changed:**
+- `kernel/bpf/bpf_tracing_stubs.c` (add callchain stubs)
+- `kernel/bpf/stackmap.c` (add `CONFIG_BPF_TRACING_STUBS` guard)
+- `kernel/bpf/Makefile` (compile stackmap.c when `CONFIG_BPF_TRACING_STUBS`)
+- `include/linux/perf_event.h` (add stub declarations)
+- `include/linux/bpf_types.h` (register `STACK_TRACE` under stubs)
+
+**Result:** veristat success rate improves from 1477 → 1597 programs (+120, +8.1%).
+25 files that previously failed with `-EINVAL` now process successfully.
