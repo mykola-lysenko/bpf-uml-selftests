@@ -73,14 +73,17 @@ The `patches/` directory contains 6 patches applied to the `bpf-next` kernel tre
 | 0005 | Fix `btf_relocate` multiple-candidates error for module BTF | +72 programs |
 | 0006 | Fix `relo_core` TYPE_ID_TARGET ambiguity on duplicate types | CO-RE relocation fixes |
 
-**Cumulative veristat coverage** (run against 860 BPF selftest `.bpf.o` files, bpf-next @ `9012cf249`, 2026-04-21):
+**Cumulative veristat coverage** (run against 870 BPF selftest `.bpf.o` files, bpf-next @ `4b9b6f90e`, 2026-04-22):
 
 | Round | Patches applied | Success | Failed-to-process files |
 |-------|----------------|---------|------------------------|
 | Baseline (unpatched) | none | ~1,200 | ~150 |
 | After 0001–0002 | syscall wrappers + tracing stubs + stack trace | 1,597 | 89 |
 | After 0003–0004 | UML boot fix + bpf_testmod fix | 1,597 | 89 |
-| After 0005 | btf_relocate fix | **1,769** | **54** |
+| After 0005 | btf_relocate fix | 1,769 | 54 |
+| After 0006* | relo_core TYPE_ID_TARGET fix | **1,664** | **32** |
+
+*Rows up to 0005 were measured on bpf-next `9012cf249` (860 files). Row 0006 was measured on `4b9b6f90e` (870 files); the success count change reflects the newer kernel tree, not a regression from the patch.
 
 See `patches/README.md` for detailed descriptions of each patch.
 
