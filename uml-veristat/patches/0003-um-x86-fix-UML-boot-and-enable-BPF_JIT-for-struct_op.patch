@@ -1,7 +1,7 @@
 From b718e4b15381a167d36bcbc3c952be288cba7e43 Mon Sep 17 00:00:00 2001
 From: uml-veristat build <uml-veristat@build>
 Date: Tue, 21 Apr 2026 00:29:15 -0400
-Subject: [PATCH 3/6] um/x86: fix UML boot and enable BPF_JIT for struct_ops
+Subject: [PATCH 3/5] um/x86: fix UML boot and enable BPF_JIT for struct_ops
  support
 
 Two fixes to make BPF work better in UML:

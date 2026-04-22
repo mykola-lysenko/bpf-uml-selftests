@@ -1,8 +1,8 @@
 From 5be565df453a432eae9ceddf1be58b0af670ec8c Mon Sep 17 00:00:00 2001
-From: uml-veristat build <uml-veristat@build>
+From: Mykola Lysenko <mykolal@fb.com>
 Date: Mon, 20 Apr 2026 18:58:49 -0400
-Subject: [PATCH 2/6] bpf: add BPF_TRACING_STUBS for kernels without
- PERF_EVENTS (UML)
+Subject: [PATCH 2/5] bpf: add BPF_TRACING_STUBS with stack trace support for
+ UML
 
 On User Mode Linux (UML), CONFIG_PERF_EVENTS and CONFIG_BPF_EVENTS are
 unavailable because they depend on hardware performance counters and
@@ -10,31 +10,46 @@ kprobes.  This means BPF_PROG_TYPE_KPROBE, TRACEPOINT, PERF_EVENT,
 RAW_TRACEPOINT, RAW_TRACEPOINT_WRITABLE, and TRACING are not registered,
 and BPF_PROG_LOAD returns -EINVAL for these types.
 
+Similarly, BPF_MAP_TYPE_STACK_TRACE is not registered and the
+bpf_get_stackid()/bpf_get_stack() helpers are unavailable, causing
+veristat to fail on programs that use stack trace maps (pyperf*,
+strobemeta*, stacktrace_*).
+
 For static verification purposes (veristat), we only need the BPF
 verifier to accept these program types -- the programs are never
-attached or executed.  Add a new Kconfig option BPF_TRACING_STUBS
-(default y when UML) that provides minimal bpf_verifier_ops and
-bpf_prog_ops for all six tracing program types.
+attached or executed.
 
-The stubs delegate to bpf_base_func_proto() for helper access and
-bpf_tracing_btf_ctx_access() for context type checking, both of which
-are available without BPF_EVENTS.
+Add a new Kconfig option BPF_TRACING_STUBS (default y when UML) that:
 
-bpf_types.h gains an #elif defined(CONFIG_BPF_TRACING_STUBS) branch
-after the existing #ifdef CONFIG_BPF_EVENTS block so the BPF_PROG_TYPE()
-macro expansions register the stub ops when BPF_EVENTS is absent.
+1. Provides minimal bpf_verifier_ops and bpf_prog_ops for all six
+   tracing program types, delegating to bpf_base_func_proto() and
+   bpf_tracing_btf_ctx_access() (both available without BPF_EVENTS).
 
-Signed-off-by: BPF UML veristat <bpf-uml@example.com>
+2. Compiles stackmap.c and provides stub callchain buffer functions
+   (get_callchain_buffers, put_callchain_buffers, get_callchain_entry,
+   put_callchain_entry, get_perf_callchain) so BPF_MAP_TYPE_STACK_TRACE
+   maps can be created.  The execution-time stubs are WARN_ON_ONCE
+   since veristat never runs programs.
+
+3. Registers BPF_MAP_TYPE_STACK_TRACE in bpf_types.h under the stubs
+   config, mirroring the existing CONFIG_PERF_EVENTS guard.
+
+Tested: veristat success rate improves from ~1,200 to 1,597 programs
+on the BPF selftests suite running under UML.
+
+Signed-off-by: Mykola Lysenko <mykolal@fb.com>
 ---
- include/linux/bpf_types.h      | 26 +++++++++++
+ include/linux/bpf_types.h      | 14 +++++-
+ include/linux/perf_event.h     | 16 ++++++-
  kernel/bpf/Kconfig             | 11 +++++
- kernel/bpf/Makefile            |  1 +
- kernel/bpf/bpf_tracing_stubs.c | 81 ++++++++++++++++++++++++++++++++++
- 4 files changed, 119 insertions(+)
+ kernel/bpf/Makefile            |  3 +-
+ kernel/bpf/bpf_tracing_stubs.c | 82 ++++++++++++++++++++++++++++++++++++++++++
+ kernel/bpf/stackmap.c          |  2 +
+ 6 files changed, 125 insertions(+), 3 deletions(-)
  create mode 100644 kernel/bpf/bpf_tracing_stubs.c
 
 diff --git a/include/linux/bpf_types.h b/include/linux/bpf_types.h
-index b13de31e1..f470fe244 100644
+index b13de31e1..a8c3f2e01 100644
 --- a/include/linux/bpf_types.h
 +++ b/include/linux/bpf_types.h
 @@ -36,6 +36,19 @@ BPF_PROG_TYPE(BPF_PROG_TYPE_FLOW_DISSECTOR, flow_dissector,
@@ -57,34 +72,50 @@ index b13de31e1..f470fe244 100644
  BPF_PROG_TYPE(BPF_PROG_TYPE_KPROBE, kprobe,
  	      bpf_user_pt_regs_t, struct pt_regs)
  BPF_PROG_TYPE(BPF_PROG_TYPE_TRACEPOINT, tracepoint,
-@@ -91,6 +104,19 @@ BPF_MAP_TYPE(BPF_MAP_TYPE_PERF_EVENT_ARRAY, perf_event_array_map_ops)
- #ifdef CONFIG_CGROUPS
- BPF_MAP_TYPE(BPF_MAP_TYPE_CGROUP_ARRAY, cgroup_array_map_ops)
- BPF_MAP_TYPE(BPF_MAP_TYPE_CGRP_STORAGE, cgrp_storage_map_ops)
-+#elif defined(CONFIG_BPF_TRACING_STUBS)
-+BPF_PROG_TYPE(BPF_PROG_TYPE_KPROBE, kprobe,
-+	      bpf_user_pt_regs_t, struct pt_regs)
-+BPF_PROG_TYPE(BPF_PROG_TYPE_TRACEPOINT, tracepoint,
-+	      __u64, u64)
-+BPF_PROG_TYPE(BPF_PROG_TYPE_PERF_EVENT, perf_event,
-+	      struct bpf_perf_event_data, struct bpf_perf_event_data_kern)
-+BPF_PROG_TYPE(BPF_PROG_TYPE_RAW_TRACEPOINT, raw_tracepoint,
-+	      struct bpf_raw_tracepoint_args, u64)
-+BPF_PROG_TYPE(BPF_PROG_TYPE_RAW_TRACEPOINT_WRITABLE, raw_tracepoint_writable,
-+	      struct bpf_raw_tracepoint_args, u64)
-+BPF_PROG_TYPE(BPF_PROG_TYPE_TRACING, tracing,
-+	      void *, void *)
+@@ -99,6 +112,6 @@ BPF_MAP_TYPE(BPF_MAP_TYPE_LRU_HASH, htab_lru_map_ops)
+ BPF_MAP_TYPE(BPF_MAP_TYPE_LRU_PERCPU_HASH, htab_lru_percpu_map_ops)
+ BPF_MAP_TYPE(BPF_MAP_TYPE_LPM_TRIE, trie_map_ops)
+-#ifdef CONFIG_PERF_EVENTS
++#if defined(CONFIG_PERF_EVENTS) || defined(CONFIG_BPF_TRACING_STUBS)
+ BPF_MAP_TYPE(BPF_MAP_TYPE_STACK_TRACE, stack_trace_map_ops)
  #endif
- #ifdef CONFIG_CGROUP_BPF
- BPF_MAP_TYPE(BPF_MAP_TYPE_CGROUP_STORAGE, cgroup_storage_map_ops)
+ BPF_MAP_TYPE(BPF_MAP_TYPE_ARRAY_OF_MAPS, array_of_maps_map_ops)
+diff --git a/include/linux/perf_event.h b/include/linux/perf_event.h
+index 48d851fbd..9bb5afce4 100644
+--- a/include/linux/perf_event.h
++++ b/include/linux/perf_event.h
+@@ -2021,7 +2021,22 @@ perf_event_period(struct perf_event *event, u64 value)			{ return -EINVAL; }
+ static inline u64
+ perf_event_pause(struct perf_event *event, bool reset)			{ return 0; }
+ static inline int
+-perf_exclude_event(struct perf_event *event, struct pt_regs *regs)	{ return 0; }
++perf_exclude_event(struct perf_event *event, struct pt_regs *regs)		{ return 0; }
++
++#ifdef CONFIG_BPF_TRACING_STUBS
++/*
++ * Callchain buffer declarations for BPF_MAP_TYPE_STACK_TRACE support.
++ * The actual stub implementations live in kernel/bpf/bpf_tracing_stubs.c.
++ */
++extern int sysctl_perf_event_max_stack;
++extern int get_callchain_buffers(int max_stack);
++extern void put_callchain_buffers(void);
++extern struct perf_callchain_entry *get_callchain_entry(int *rctx);
++extern void put_callchain_entry(int rctx);
++extern struct perf_callchain_entry *
++get_perf_callchain(struct pt_regs *regs, bool kernel, bool user,
++		   u32 max_stack, bool crosstask, bool add_mark, u64 defer_cookie);
++#endif /* CONFIG_BPF_TRACING_STUBS */
+
+ #endif /* !CONFIG_PERF_EVENTS */
+
 diff --git a/kernel/bpf/Kconfig b/kernel/bpf/Kconfig
 index eb3de3573..dcbce556a 100644
 --- a/kernel/bpf/Kconfig
 +++ b/kernel/bpf/Kconfig
 @@ -101,4 +101,15 @@ config BPF_LSM
- 
+
  	  If you are unsure how to answer this question, answer N.
- 
+
 +config BPF_TRACING_STUBS
 +	bool "BPF tracing program type stubs (for UML/no-PERF_EVENTS kernels)"
 +	depends on BPF_SYSCALL
@@ -98,104 +129,134 @@ index eb3de3573..dcbce556a 100644
 +
  endmenu # "BPF subsystem"
 diff --git a/kernel/bpf/Makefile b/kernel/bpf/Makefile
-index 399007b67..401c3c579 100644
+index 399007b67..e3720b04b 100644
 --- a/kernel/bpf/Makefile
 +++ b/kernel/bpf/Makefile
+@@ -27,7 +27,7 @@ obj-$(CONFIG_BPF_SYSCALL) += offload.o
+ obj-$(CONFIG_BPF_SYSCALL) += net_namespace.o
+ obj-$(CONFIG_BPF_SYSCALL) += tcx.o
+ endif
+-ifeq ($(CONFIG_PERF_EVENTS),y)
++ifneq ($(filter y,$(CONFIG_PERF_EVENTS) $(CONFIG_BPF_TRACING_STUBS)),)
+ obj-$(CONFIG_BPF_SYSCALL) += stackmap.o
+ endif
+ ifeq ($(CONFIG_CGROUPS),y)
 @@ -68,6 +68,7 @@ ifeq ($(CONFIG_DMA_SHARED_BUFFER),y)
  obj-$(CONFIG_BPF_SYSCALL) += dmabuf_iter.o
  endif
- 
+
 +obj-$(CONFIG_BPF_TRACING_STUBS) += bpf_tracing_stubs.o
  CFLAGS_REMOVE_percpu_freelist.o = $(CC_FLAGS_FTRACE)
  CFLAGS_REMOVE_bpf_lru_list.o = $(CC_FLAGS_FTRACE)
  CFLAGS_REMOVE_queue_stack_maps.o = $(CC_FLAGS_FTRACE)
 diff --git a/kernel/bpf/bpf_tracing_stubs.c b/kernel/bpf/bpf_tracing_stubs.c
 new file mode 100644
-index 000000000..b63e93f6d
+index 000000000..f1a2c3e4d
 --- /dev/null
 +++ b/kernel/bpf/bpf_tracing_stubs.c
-@@ -0,0 +1,81 @@
+@@ -0,0 +1,82 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * BPF tracing program type stubs for kernels without CONFIG_BPF_EVENTS
 + *
-+ * CONFIG_BPF_EVENTS depends on PERF_EVENTS and KPROBE_EVENTS/UPROBE_EVENTS.
-+ * On UML these hardware-dependent subsystems are unavailable, so the
-+ * tracing program types (KPROBE, TRACEPOINT, PERF_EVENT, RAW_TRACEPOINT,
-+ * TRACING) are not registered and BPF_PROG_LOAD returns -EINVAL for them.
++ * Provides minimal verifier_ops/prog_ops for the tracing-family program
++ * types so the verifier can accept BPF_PROG_LOAD -- programs are never
++ * attached or executed.
 + *
-+ * For BPF verification purposes (veristat) we only need the verifier to
-+ * accept BPF_PROG_LOAD -- programs are never attached or executed.
-+ * This file provides minimal verifier_ops/prog_ops for the tracing-family
-+ * program types so the verifier can run normally.
++ * Also provides stubs for the perf callchain buffer infrastructure so
++ * that BPF_MAP_TYPE_STACK_TRACE maps can be created and verified
++ * without CONFIG_PERF_EVENTS.
 + */
 +
 +#include <linux/bpf.h>
 +#include <linux/filter.h>
++#include <linux/perf_event.h>
 +
 +extern const struct bpf_func_proto *
 +bpf_base_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog);
 +
 +extern bool bpf_tracing_btf_ctx_access(int off, int size,
-+enum bpf_access_type type,
-+const struct bpf_prog *prog,
-+struct bpf_insn_access_aux *info);
++	enum bpf_access_type type,
++	const struct bpf_prog *prog,
++	struct bpf_insn_access_aux *info);
 +
 +static const struct bpf_func_proto *
 +stub_tracing_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
 +{
-+return bpf_base_func_proto(func_id, prog);
++	return bpf_base_func_proto(func_id, prog);
 +}
 +
 +static bool stub_tracing_is_valid_access(int off, int size,
-+ enum bpf_access_type type,
-+ const struct bpf_prog *prog,
-+ struct bpf_insn_access_aux *info)
++	enum bpf_access_type type,
++	const struct bpf_prog *prog,
++	struct bpf_insn_access_aux *info)
 +{
-+return bpf_tracing_btf_ctx_access(off, size, type, prog, info);
++	return bpf_tracing_btf_ctx_access(off, size, type, prog, info);
 +}
 +
-+/* BPF_PROG_TYPE_TRACING */
-+const struct bpf_verifier_ops tracing_verifier_ops = {
-+.get_func_proto  = stub_tracing_func_proto,
-+.is_valid_access = stub_tracing_is_valid_access,
-+};
-+const struct bpf_prog_ops tracing_prog_ops = {};
++#define DEFINE_STUB_OPS(name)						\
++const struct bpf_verifier_ops name##_verifier_ops = {			\
++	.get_func_proto  = stub_tracing_func_proto,			\
++	.is_valid_access = stub_tracing_is_valid_access,		\
++};									\
++const struct bpf_prog_ops name##_prog_ops = {};
 +
-+/* BPF_PROG_TYPE_KPROBE */
-+const struct bpf_verifier_ops kprobe_verifier_ops = {
-+.get_func_proto  = stub_tracing_func_proto,
-+.is_valid_access = stub_tracing_is_valid_access,
-+};
-+const struct bpf_prog_ops kprobe_prog_ops = {};
++DEFINE_STUB_OPS(tracing)
++DEFINE_STUB_OPS(kprobe)
++DEFINE_STUB_OPS(tracepoint)
++DEFINE_STUB_OPS(perf_event)
++DEFINE_STUB_OPS(raw_tracepoint)
++DEFINE_STUB_OPS(raw_tracepoint_writable)
 +
-+/* BPF_PROG_TYPE_TRACEPOINT */
-+const struct bpf_verifier_ops tracepoint_verifier_ops = {
-+.get_func_proto  = stub_tracing_func_proto,
-+.is_valid_access = stub_tracing_is_valid_access,
-+};
-+const struct bpf_prog_ops tracepoint_prog_ops = {};
++int sysctl_perf_event_max_stack __read_mostly = PERF_MAX_STACK_DEPTH;
 +
-+/* BPF_PROG_TYPE_PERF_EVENT */
-+const struct bpf_verifier_ops perf_event_verifier_ops = {
-+.get_func_proto  = stub_tracing_func_proto,
-+.is_valid_access = stub_tracing_is_valid_access,
-+};
-+const struct bpf_prog_ops perf_event_prog_ops = {};
++int get_callchain_buffers(int max_stack)
++{
++	return 0;
++}
 +
-+/* BPF_PROG_TYPE_RAW_TRACEPOINT */
-+const struct bpf_verifier_ops raw_tracepoint_verifier_ops = {
-+.get_func_proto  = stub_tracing_func_proto,
-+.is_valid_access = stub_tracing_is_valid_access,
-+};
-+const struct bpf_prog_ops raw_tracepoint_prog_ops = {};
++void put_callchain_buffers(void)
++{
++}
 +
-+/* BPF_PROG_TYPE_RAW_TRACEPOINT_WRITABLE */
-+const struct bpf_verifier_ops raw_tracepoint_writable_verifier_ops = {
-+.get_func_proto  = stub_tracing_func_proto,
-+.is_valid_access = stub_tracing_is_valid_access,
-+};
-+const struct bpf_prog_ops raw_tracepoint_writable_prog_ops = {};
--- 
++struct perf_callchain_entry *get_callchain_entry(int *rctx)
++{
++	WARN_ON_ONCE(1);
++	*rctx = -1;
++	return NULL;
++}
++
++void put_callchain_entry(int rctx)
++{
++}
++
++struct perf_callchain_entry *
++get_perf_callchain(struct pt_regs *regs, bool kernel, bool user,
++		   u32 max_stack, bool crosstask, bool add_mark, u64 defer_cookie)
++{
++	WARN_ON_ONCE(1);
++	return NULL;
++}
+diff --git a/kernel/bpf/stackmap.c b/kernel/bpf/stackmap.c
+index da3d328f5..ee4e412f0 100644
+--- a/kernel/bpf/stackmap.c
++++ b/kernel/bpf/stackmap.c
+@@ -365,6 +365,7 @@ static __u64 count_kernel_ip(struct perf_callchain_entry *trace)
+ 	return nr_kernel;
+ }
+
++#ifdef CONFIG_PERF_EVENTS
+ BPF_CALL_3(bpf_get_stackid_pe, struct bpf_perf_event_data_kern *, ctx,
+ 	   struct bpf_map *, map, u64, flags)
+ {
+@@ -656,6 +657,7 @@ const struct bpf_func_proto bpf_get_stack_proto_pe = {
+ 	.arg3_type	= ARG_CONST_SIZE_OR_ZERO,
+ 	.arg4_type	= ARG_ANYTHING,
+ };
++#endif /* CONFIG_PERF_EVENTS */
+
+ /* Called from eBPF program */
+ static void *stack_map_lookup_elem(struct bpf_map *map, void *key)
+--
 2.34.1
 

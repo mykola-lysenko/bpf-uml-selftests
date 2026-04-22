@@ -28,7 +28,7 @@ cd uml-veristat
 2. Builds LLVM/Clang (main branch, BPF+X86 backends only) from source.
 3. Builds `pahole` (v1.31) from source.
 4. Clones the latest `bpf-next` kernel tree.
-5. Applies 6 patches to enable full BPF verification on UML (see `patches/`).
+5. Applies 5 patches to enable full BPF verification on UML (see `patches/`).
 6. Builds the UML kernel (`linux`) with BPF and BTF enabled.
 7. Builds the `veristat` binary.
 8. Installs the artifacts to `~/.local/share/uml-veristat/`.
@@ -62,26 +62,24 @@ You can override the paths to the kernel and veristat binaries using environment
 
 ## Kernel Patches
 
-The `patches/` directory contains 6 patches applied to the `bpf-next` kernel tree to enable full BPF verification on UML:
+The `patches/` directory contains 5 patches applied to the `bpf-next` kernel tree to enable full BPF verification on UML:
 
 | Patch | Description | Programs fixed |
 |-------|-------------|----------------|
 | 0001 | Add `__x64_sys_*` wrappers for BPF selftest compatibility | fentry/kprobe attach targets |
-| 0002 | Add `BPF_TRACING_STUBS` for kernels without `PERF_EVENTS` | tracing program types |
+| 0002 | Add `BPF_TRACING_STUBS` with stack trace support | tracing types + stack trace maps |
 | 0003 | Fix UML boot and enable `BPF_JIT` for struct_ops support | struct_ops programs |
 | 0004 | Fix `bpf_testmod.c` compilation on UML | bpf_testmod module |
-| 0005 | Extend `BPF_TRACING_STUBS` with STACK_TRACE map and callchain stubs | +120 programs |
-| 0006 | Fix `btf_relocate` multiple-candidates error for module BTF | +72 programs |
+| 0005 | Fix `btf_relocate` multiple-candidates error for module BTF | +72 programs |
 
 **Cumulative veristat coverage** (run against all 861 BPF selftest `.bpf.o` files):
 
 | Round | Patches applied | Success | Failed-to-process files |
 |-------|----------------|---------|------------------------|
 | Baseline (unpatched) | none | ~1,200 | ~150 |
-| After 0001–0002 | syscall wrappers + tracing stubs | 1,477 | ~100 |
-| After 0003–0004 | UML boot fix + bpf_testmod fix | 1,477 | ~100 |
-| After 0005 | stack trace stubs | 1,597 | 89 |
-| After 0006 | btf_relocate fix | **1,669** | **37** |
+| After 0001–0002 | syscall wrappers + tracing stubs + stack trace | 1,597 | 89 |
+| After 0003–0004 | UML boot fix + bpf_testmod fix | 1,597 | 89 |
+| After 0005 | btf_relocate fix | **1,669** | **37** |
 
 See `patches/README.md` for detailed descriptions of each patch.
 

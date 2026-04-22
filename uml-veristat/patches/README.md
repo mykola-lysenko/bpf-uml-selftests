@@ -30,7 +30,7 @@ are extracted using `UPT_SYSCALL_ARGn()` macros.
 
 ---
 
-### 0002 — `bpf: add BPF_TRACING_STUBS for kernels without PERF_EVENTS (UML)`
+### 0002 — `bpf: add BPF_TRACING_STUBS with stack trace support for UML`
 
 **Problem:** `CONFIG_BPF_EVENTS` depends on `PERF_EVENTS` and
 `KPROBE_EVENTS`/`UPROBE_EVENTS`. On UML these hardware-dependent subsystems are
@@ -39,18 +39,36 @@ unavailable, so `BPF_PROG_TYPE_KPROBE`, `TRACEPOINT`, `PERF_EVENT`,
 `BPF_PROG_LOAD` returns `-EINVAL` for these types, causing veristat to report
 failures for all tracing-type BPF programs.
 
+Similarly, `BPF_MAP_TYPE_STACK_TRACE` is not registered and the
+`bpf_get_stackid()`/`bpf_get_stack()` helpers are unavailable, causing veristat
+to fail on programs that use stack trace maps (`pyperf*`, `strobemeta*`,
+`stacktrace_*`).
+
 **Fix:** Add a new Kconfig option `CONFIG_BPF_TRACING_STUBS` (default `y` when
-`UML`) that provides minimal `bpf_verifier_ops` and `bpf_prog_ops` for all six
-tracing program types. The stubs delegate to `bpf_base_func_proto()` for helper
-access and `bpf_tracing_btf_ctx_access()` for context type checking — both
-available without `BPF_EVENTS`. Programs using these stubs can be verified but
-not attached or executed.
+`UML`) that:
+
+1. Provides minimal `bpf_verifier_ops` and `bpf_prog_ops` for all six tracing
+   program types, using a `DEFINE_STUB_OPS()` macro to eliminate boilerplate.
+   The stubs delegate to `bpf_base_func_proto()` for helper access and
+   `bpf_tracing_btf_ctx_access()` for context type checking.
+
+2. Compiles `stackmap.c` and provides stub callchain buffer functions so
+   `BPF_MAP_TYPE_STACK_TRACE` maps can be created. The execution-time stubs
+   use `WARN_ON_ONCE` since veristat never runs programs.
+
+3. Registers `BPF_MAP_TYPE_STACK_TRACE` in `bpf_types.h` under the stubs
+   config, mirroring the existing `CONFIG_PERF_EVENTS` guard.
 
 **Files changed:**
-- `kernel/bpf/bpf_tracing_stubs.c` (new)
+- `kernel/bpf/bpf_tracing_stubs.c` (new — stub ops + callchain stubs)
 - `kernel/bpf/Kconfig` (add `CONFIG_BPF_TRACING_STUBS`)
-- `kernel/bpf/Makefile` (add `bpf_tracing_stubs.o`)
-- `include/linux/bpf_types.h` (add `#elif CONFIG_BPF_TRACING_STUBS` branch)
+- `kernel/bpf/Makefile` (add `bpf_tracing_stubs.o`, compile `stackmap.o`)
+- `kernel/bpf/stackmap.c` (guard perf_event-specific functions)
+- `include/linux/bpf_types.h` (add `#elif CONFIG_BPF_TRACING_STUBS` branch,
+  register `STACK_TRACE` map type)
+- `include/linux/perf_event.h` (declare callchain stub symbols)
+
+**Result:** veristat success rate improves from ~1,200 to 1,597 programs.
 
 ---
 
@@ -93,7 +111,7 @@ due to two architecture-guard issues:
    `asm/` include path goes through `arch/um/` rather than `arch/x86/`, so
    `<asm/vsyscall.h>` is not available and `VSYSCALL_ADDR` is undefined.
 
-2. **`struct pt_regs` missing named fields** (lines ~607–617): The uprobe
+2. **`struct pt_regs` missing named fields** (lines ~607-617): The uprobe
    handler is guarded by `#ifdef __x86_64__` (a compiler macro). Since UML
    compiles as x86-64 userspace, `__x86_64__` is defined by GCC. But UML's
    `struct pt_regs` wraps a `uml_pt_regs` with a `gp[]` array, not the named
@@ -112,51 +130,7 @@ coverage.
 
 ---
 
-### 0005 — `bpf: extend BPF_TRACING_STUBS with STACK_TRACE map and callchain stubs`
-
-**Problem:** Without `CONFIG_PERF_EVENTS`, `BPF_MAP_TYPE_STACK_TRACE` is not registered
-and the `bpf_get_stackid()`/`bpf_get_stack()` helpers are unavailable. This caused
-veristat to fail with `-EINVAL` when processing programs that use stack trace maps
-(`pyperf*`, `strobemeta*`, `stacktrace_*` — 16 files). Additionally, `CONFIG_CGROUP_BPF`
-and `CONFIG_XDP_SOCKETS` were not enabled, causing `-EINVAL` for cgroup storage maps
-and XSK maps.
-
-**Fix:**
-
-1. `kernel/bpf/stackmap.c`: compile when `CONFIG_BPF_TRACING_STUBS` is set (in addition
-   to `CONFIG_PERF_EVENTS`). Wrap the perf_event-specific `bpf_get_stackid_pe` and
-   `bpf_get_stack_pe` functions in `#ifdef CONFIG_PERF_EVENTS` since they reference
-   `struct perf_event` internals.
-
-2. `kernel/bpf/bpf_tracing_stubs.c`: add stub implementations for the callchain buffer
-   API (`get_callchain_buffers`, `put_callchain_buffers`, `get_callchain_entry`,
-   `put_callchain_entry`, `get_perf_callchain`) and `sysctl_perf_event_max_stack`.
-   These are `WARN_ON_ONCE` stubs since veristat never executes programs.
-
-3. `include/linux/perf_event.h`: declare the stub symbols under
-   `#ifdef CONFIG_BPF_TRACING_STUBS` inside the `!CONFIG_PERF_EVENTS` block.
-
-4. `include/linux/bpf_types.h`: register `BPF_MAP_TYPE_STACK_TRACE` when
-   `CONFIG_BPF_TRACING_STUBS` is set, mirroring the `CONFIG_PERF_EVENTS` guard.
-
-Also enables `CONFIG_CGROUP_BPF=y` and `CONFIG_XDP_SOCKETS=y` in the UML defconfig to
-fix `-EINVAL` failures for cgroup storage maps (`cg_storage_multi_shared`,
-`cgroup_storage`, `lsm_cgroup`) and XSK maps (`xdp_hw_metadata`, `xdp_metadata`,
-`xsk_xdp_progs`).
-
-**Files changed:**
-- `kernel/bpf/bpf_tracing_stubs.c` (add callchain stubs)
-- `kernel/bpf/stackmap.c` (add `CONFIG_BPF_TRACING_STUBS` guard)
-- `kernel/bpf/Makefile` (compile stackmap.c when `CONFIG_BPF_TRACING_STUBS`)
-- `include/linux/perf_event.h` (add stub declarations)
-- `include/linux/bpf_types.h` (register `STACK_TRACE` under stubs)
-
-**Result:** veristat success rate improves from 1477 → 1597 programs (+120, +8.1%).
-25 files that previously failed with `-EINVAL` now process successfully.
-
----
-
-### 0006 — `bpf: btf_relocate: keep first match on multiple same-size candidates`
+### 0005 — `bpf: btf_relocate: keep first match on multiple same-size candidates`
 
 **Problem:** On UML, glibc headers included by UML driver files (`arch/um/drivers/`)
 produce duplicate BTF types in vmlinux with structurally equivalent but differently-named
@@ -178,7 +152,7 @@ type, which is the correct choice.
 **Files changed:**
 - `tools/lib/bpf/btf_relocate.c` (change error to debug+continue for multiple candidates)
 
-**Result:** veristat success rate improves from 1597 → 1669 programs (+72, +4.5%).
+**Result:** veristat success rate improves from 1597 to 1669 programs (+72, +4.5%).
 52 files that previously failed with `-3 ESRCH` (module BTF not found) now process
 successfully, including all `struct_ops_*`, `kfunc_call_*`, `iters_testmod*`,
 `kprobe_multi*`, and `epilogue_*` files.

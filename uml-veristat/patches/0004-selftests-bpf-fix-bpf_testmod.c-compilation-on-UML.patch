@@ -1,7 +1,7 @@
 From c835765a819bed8794aae9947b644bf729fe2bf0 Mon Sep 17 00:00:00 2001
 From: uml-veristat build <uml-veristat@build>
 Date: Tue, 21 Apr 2026 14:18:09 -0400
-Subject: [PATCH 4/6] selftests/bpf: fix bpf_testmod.c compilation on UML
+Subject: [PATCH 4/5] selftests/bpf: fix bpf_testmod.c compilation on UML
 
 UML on x86-64 defines __x86_64__ (compiler macro) and CONFIG_X86_64=y,
 but its struct pt_regs wraps a uml_pt_regs { unsigned long gp[]; } array
