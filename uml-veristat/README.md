@@ -72,14 +72,14 @@ The `patches/` directory contains 5 patches applied to the `bpf-next` kernel tre
 | 0004 | Fix `bpf_testmod.c` compilation on UML | bpf_testmod module |
 | 0005 | Fix `btf_relocate` multiple-candidates error for module BTF | +72 programs |
 
-**Cumulative veristat coverage** (run against all 861 BPF selftest `.bpf.o` files):
+**Cumulative veristat coverage** (run against 860 BPF selftest `.bpf.o` files, bpf-next @ `9012cf249`, 2026-04-21):
 
 | Round | Patches applied | Success | Failed-to-process files |
 |-------|----------------|---------|------------------------|
 | Baseline (unpatched) | none | ~1,200 | ~150 |
 | After 0001–0002 | syscall wrappers + tracing stubs + stack trace | 1,597 | 89 |
 | After 0003–0004 | UML boot fix + bpf_testmod fix | 1,597 | 89 |
-| After 0005 | btf_relocate fix | **1,669** | **37** |
+| After 0005 | btf_relocate fix | **1,769** | **54** |
 
 See `patches/README.md` for detailed descriptions of each patch.
 
