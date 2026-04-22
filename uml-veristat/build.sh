@@ -591,9 +591,13 @@ info "  Selftests      : ${INSTALL_DIR}/selftests/ (${BPF_OBJ_COUNT} .bpf.o file
 info "  Versions       : ${INSTALL_DIR}/version.txt"
 info ""
 # Pick a representative .bpf.o to show in the example
-EXAMPLE_BPF=$(find "${SELFTESTS_OUTPUT}" -maxdepth 1 -name "verifier_*.bpf.o" 2>/dev/null | head -1)
-[ -z "${EXAMPLE_BPF}" ] && EXAMPLE_BPF=$(find "${SELFTESTS_OUTPUT}" -maxdepth 1 -name "*.bpf.o" 2>/dev/null | head -1)
-[ -z "${EXAMPLE_BPF}" ] && EXAMPLE_BPF="${SELFTESTS_OUTPUT}/<prog>.bpf.o"
+EXAMPLE_BPF=$(find "${SELFTESTS_OUTPUT}" -maxdepth 1 -name "verifier_*.bpf.o" 2>/dev/null | head -1 || true)
+if [ -z "${EXAMPLE_BPF}" ]; then
+    EXAMPLE_BPF=$(find "${SELFTESTS_OUTPUT}" -maxdepth 1 -name "*.bpf.o" 2>/dev/null | head -1 || true)
+fi
+if [ -z "${EXAMPLE_BPF}" ]; then
+    EXAMPLE_BPF="${SELFTESTS_OUTPUT}/<prog>.bpf.o"
+fi
 
 info "Run uml-veristat to verify BPF programs:"
 info "  # Verify a single selftest program:"
