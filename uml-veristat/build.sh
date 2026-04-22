@@ -405,6 +405,7 @@ scripts/config \
     --enable  TCP_CONG_CUBIC \
     --enable  TCP_CONG_DCTCP \
     --enable  SMP \
+    --set-val NR_CPUS 8 \
     --enable  KALLSYMS_ALL \
     --enable  XDP_SOCKETS
 
