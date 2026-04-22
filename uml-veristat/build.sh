@@ -407,6 +407,8 @@ scripts/config \
     --enable  BPF_TRACING_STUBS \
     --enable  SECURITY \
     --enable  BPF_LSM_STUBS \
+    --enable  KEYS \
+    --enable  CRYPTO \
     --enable  TCP_CONG_ADVANCED \
     --enable  TCP_CONG_CUBIC \
     --enable  TCP_CONG_DCTCP \
