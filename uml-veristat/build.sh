@@ -396,7 +396,11 @@ scripts/config \
     --enable  NET \
     --enable  INET \
     --disable IPV6 \
-    --disable NETFILTER \
+    --enable  NETFILTER \
+    --enable  NETFILTER_INGRESS \
+    --enable  NF_CONNTRACK \
+    --enable  NF_TABLES \
+    --enable  NF_FLOW_TABLE \
     --enable  DEBUG_INFO \
     --enable  DEBUG_INFO_BTF \
     --enable  PAHOLE_HAS_SPLIT_BTF \
