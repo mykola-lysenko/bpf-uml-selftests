@@ -1,7 +1,7 @@
 From 2f291554a13f03efdfeca84b0897936eeb644b12 Mon Sep 17 00:00:00 2001
 From: uml-veristat build <uml-veristat@build>
 Date: Tue, 21 Apr 2026 19:01:27 -0400
-Subject: [PATCH 5/5] bpf: extend BPF_TRACING_STUBS with STACK_TRACE map and
+Subject: [PATCH 5/6] bpf: extend BPF_TRACING_STUBS with STACK_TRACE map and
  callchain stubs
 
 Without CONFIG_PERF_EVENTS, BPF_MAP_TYPE_STACK_TRACE is not registered

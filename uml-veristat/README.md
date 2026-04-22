@@ -28,9 +28,10 @@ cd uml-veristat
 2. Builds LLVM/Clang (main branch, BPF+X86 backends only) from source.
 3. Builds `pahole` (v1.31) from source.
 4. Clones the latest `bpf-next` kernel tree.
-5. Builds the UML kernel (`linux`) with BPF enabled.
-6. Builds the `veristat` binary.
-7. Installs the artifacts to `~/.local/share/uml-veristat/`.
+5. Applies 6 patches to enable full BPF verification on UML (see `patches/`).
+6. Builds the UML kernel (`linux`) with BPF and BTF enabled.
+7. Builds the `veristat` binary.
+8. Installs the artifacts to `~/.local/share/uml-veristat/`.
 
 *Note: The initial build takes about 30–45 minutes depending on your CPU. Subsequent builds (e.g. `./build.sh --update`) are much faster.*
 
@@ -57,6 +58,32 @@ You can override the paths to the kernel and veristat binaries using environment
 - `VERISTAT`: Path to the veristat binary (default: `~/.local/share/uml-veristat/veristat`)
 - `UML_MEM`: Memory to allocate to the UML guest (default: `512M`)
 - `UML_VERBOSE`: Set to `1` to see the full UML kernel boot log (useful for debugging kernel panics)
+- `UML_MODULES`: Path to a kernel module (`.ko`) to load before running veristat (e.g. `bpf_testmod.ko`)
+
+## Kernel Patches
+
+The `patches/` directory contains 6 patches applied to the `bpf-next` kernel tree to enable full BPF verification on UML:
+
+| Patch | Description | Programs fixed |
+|-------|-------------|----------------|
+| 0001 | Add `__x64_sys_*` wrappers for BPF selftest compatibility | fentry/kprobe attach targets |
+| 0002 | Add `BPF_TRACING_STUBS` for kernels without `PERF_EVENTS` | tracing program types |
+| 0003 | Fix UML boot and enable `BPF_JIT` for struct_ops support | struct_ops programs |
+| 0004 | Fix `bpf_testmod.c` compilation on UML | bpf_testmod module |
+| 0005 | Extend `BPF_TRACING_STUBS` with STACK_TRACE map and callchain stubs | +120 programs |
+| 0006 | Fix `btf_relocate` multiple-candidates error for module BTF | +72 programs |
+
+**Cumulative veristat coverage** (run against all 861 BPF selftest `.bpf.o` files):
+
+| Round | Patches applied | Success | Failed-to-process files |
+|-------|----------------|---------|------------------------|
+| Baseline (unpatched) | none | ~1,200 | ~150 |
+| After 0001–0002 | syscall wrappers + tracing stubs | 1,477 | ~100 |
+| After 0003–0004 | UML boot fix + bpf_testmod fix | 1,477 | ~100 |
+| After 0005 | stack trace stubs | 1,597 | 89 |
+| After 0006 | btf_relocate fix | **1,669** | **37** |
+
+See `patches/README.md` for detailed descriptions of each patch.
 
 ## Limitations
 

@@ -153,3 +153,32 @@ fix `-EINVAL` failures for cgroup storage maps (`cg_storage_multi_shared`,
 
 **Result:** veristat success rate improves from 1477 → 1597 programs (+120, +8.1%).
 25 files that previously failed with `-EINVAL` now process successfully.
+
+---
+
+### 0006 — `bpf: btf_relocate: keep first match on multiple same-size candidates`
+
+**Problem:** On UML, glibc headers included by UML driver files (`arch/um/drivers/`)
+produce duplicate BTF types in vmlinux with structurally equivalent but differently-named
+members (e.g. `struct in6_addr` with `in6_u` vs `__in6_u`). When `bpf_testmod.ko` is
+loaded, `btf_relocate()` validates the module BTF against vmlinux BTF and encounters
+these duplicate candidates. The existing code treats multiple candidates as an error
+(`-EINVAL`), which prevents `bpf_testmod.ko`'s BTF from being registered in
+`/sys/kernel/btf/bpf_testmod`.
+
+Without `/sys/kernel/btf/bpf_testmod`, libbpf cannot find the module BTF when loading
+any BPF program that references types from `bpf_testmod` (struct_ops, kfuncs, etc.),
+and veristat fails with `-3 ESRCH` at the file level for all such programs.
+
+**Fix:** Change the multiple-candidates error path to a `pr_debug` message and keep the
+first match. Both candidates are structurally equivalent (same size, same layout), so
+either is a valid relocation target. The first match is the one from the canonical kernel
+type, which is the correct choice.
+
+**Files changed:**
+- `tools/lib/bpf/btf_relocate.c` (change error to debug+continue for multiple candidates)
+
+**Result:** veristat success rate improves from 1597 → 1669 programs (+72, +4.5%).
+52 files that previously failed with `-3 ESRCH` (module BTF not found) now process
+successfully, including all `struct_ops_*`, `kfunc_call_*`, `iters_testmod*`,
+`kprobe_multi*`, and `epilogue_*` files.
