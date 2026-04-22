@@ -405,7 +405,8 @@ scripts/config \
     --enable  TCP_CONG_CUBIC \
     --enable  TCP_CONG_DCTCP \
     --enable  SMP \
-    --enable  KALLSYMS_ALL
+    --enable  KALLSYMS_ALL \
+    --enable  XDP_SOCKETS
 
 # Re-run olddefconfig to resolve any new dependencies introduced above.
 make ARCH=um PAHOLE="${PAHOLE_BIN}" olddefconfig
