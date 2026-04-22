@@ -1,0 +1,58 @@
+From 5e18e8239ca6615bdd876f871b7292edc90e0c9a Mon Sep 17 00:00:00 2001
+From: uml-veristat build <uml-veristat@build>
+Date: Wed, 22 Apr 2026 15:04:38 -0700
+Subject: [PATCH] selftests/bpf: veristat: fix up zero key_size and value_size
+ in maps
+
+Benchmark programs like bloom_filter_bench, bpf_hashmap_lookup, and
+htab_mem_bench define maps with zero key_size and/or value_size,
+expecting the benchmark harness to fill these in at runtime via
+bpf_map__set_key_size() / bpf_map__set_value_size().
+
+When veristat processes these files, fixup_obj_maps() already handles
+max_entries == 0 by setting it to 1, but does not fix up zero key_size
+or value_size.  This causes bpf_object__prepare() to fail with EINVAL
+(-22) from the kernel's map_create path.
+
+Add fixups for value_size and key_size in the same default case that
+already handles max_entries.  Bloom filters, queues, and stacks are
+excluded from the key_size fixup since they use key_size == 0 by design.
+
+Ringbuf and user_ringbuf maps require key_size == 0 and value_size == 0,
+so they are handled in a separate case that only fixes up max_entries
+to a page-aligned value (4096) when unset.
+
+Signed-off-by: Mykola Lysenko <mykolal@meta.com>
+---
+ tools/testing/selftests/bpf/veristat.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/tools/testing/selftests/bpf/veristat.c b/tools/testing/selftests/bpf/veristat.c
+index 5c82950e6..b95e4d691 100644
+--- a/tools/testing/selftests/bpf/veristat.c
++++ b/tools/testing/selftests/bpf/veristat.c
+@@ -1253,9 +1253,21 @@ static void fixup_obj_maps(struct bpf_object *obj)
+ 		case BPF_MAP_TYPE_CGRP_STORAGE:
+ 		case BPF_MAP_TYPE_STRUCT_OPS:
+ 			break;
++		case BPF_MAP_TYPE_RINGBUF:
++		case BPF_MAP_TYPE_USER_RINGBUF:
++			if (bpf_map__max_entries(map) == 0)
++				bpf_map__set_max_entries(map, 4096);
++			break;
+ 		default:
+ 			if (bpf_map__max_entries(map) == 0)
+ 				bpf_map__set_max_entries(map, 1);
++			if (bpf_map__value_size(map) == 0)
++				bpf_map__set_value_size(map, 1);
++			if (bpf_map__key_size(map) == 0 &&
++			    bpf_map__type(map) != BPF_MAP_TYPE_BLOOM_FILTER &&
++			    bpf_map__type(map) != BPF_MAP_TYPE_QUEUE &&
++			    bpf_map__type(map) != BPF_MAP_TYPE_STACK)
++				bpf_map__set_key_size(map, 4);
+ 		}
+ 	}
+ }
+-- 
+2.52.0
+

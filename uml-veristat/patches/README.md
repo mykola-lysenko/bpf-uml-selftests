@@ -176,3 +176,26 @@ first (lower) BTF ID and skip the duplicate. This mirrors the approach in
 
 **Impact:** Fixes `getsockname_unix_prog.bpf.o`, `netif_receive_skb.bpf.o`,
 `htab_mem_bench.bpf.o`, `stream.bpf.o` (4 files, -22 EINVAL).
+
+---
+
+## Patch 0007 — selftests/bpf: veristat: fix up zero key_size and value_size in maps
+
+**File:** `tools/testing/selftests/bpf/veristat.c`
+
+**Problem:** Benchmark programs (`bloom_filter_bench`, `bpf_hashmap_lookup`,
+`htab_mem_bench`) define maps with zero `key_size` and/or `value_size`, expecting
+the benchmark harness to fill these at runtime. Veristat's `fixup_obj_maps()`
+already handles `max_entries == 0` but does not fix up zero `key_size` or
+`value_size`, causing `bpf_object__prepare()` to fail with `-EINVAL` from the
+kernel's `map_create` path.
+
+**Fix:** Extend `fixup_obj_maps()` to set `value_size = 1` and `key_size = 4`
+when they are zero.  Map types that require zero by design are excluded:
+- Bloom filters, queues, and stacks: `key_size == 0` is valid
+- Ringbuf and user_ringbuf: both `key_size == 0` and `value_size == 0` are
+  required; these maps get a separate `max_entries = 4096` fixup (page-aligned
+  power-of-2) instead
+
+**Impact:** Fixes `bloom_filter_bench.bpf.o`, `bpf_hashmap_lookup.bpf.o`,
+`htab_mem_bench.bpf.o` (3 files, -22 EINVAL).
