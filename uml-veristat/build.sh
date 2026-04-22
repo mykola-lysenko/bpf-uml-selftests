@@ -21,11 +21,9 @@
 #   --update        Re-fetch bpf-next and LLVM to latest tip and rebuild.
 #                  Without this flag, existing builds are reused (idempotent).
 #
-#   --llvm-nightly  Download the latest pre-built LLVM release from GitHub
-#                  instead of building LLVM from source.  Much faster (~5 min
-#                  download vs ~45 min build).  Requires ~2 GB free disk space
-#                  for the tarball.  The downloaded LLVM is stored in
-#                  .build/llvm-install/ alongside a source-built one.
+#   --llvm-source   Build LLVM/Clang from source instead of downloading a
+#                  pre-built release.  Requires GCC 12+ or a previous clang
+#                  install for self-hosting.  Takes ~25-45 min vs ~5 min.
 #
 #   --package  After building, assemble a self-contained distributable
 #              package tarball: uml-veristat-<kernel-commit>-<arch>.tar.gz
@@ -33,7 +31,7 @@
 #              kernel .config, version.txt (full provenance), sha256sums, README.
 #
 # Requirements:
-#   ~35 GB free disk space (source build) or ~5 GB (--llvm-nightly),
+#   ~5 GB free disk space (~35 GB with --llvm-source),
 #   8+ CPU cores recommended, sudo for package install.
 # ==============================================================================
 
@@ -85,7 +83,7 @@ warn() { echo -e "${YELLOW}[build]${NC}  $*"; }
 # ------------------------------------------------------------------------------
 DO_UPDATE=0
 DO_PACKAGE=0
-LLVM_NIGHTLY=0
+LLVM_NIGHTLY=1
 REBUILD_LLVM=0
 REBUILD_PAHOLE=0
 REBUILD_KERNEL=0
@@ -97,7 +95,7 @@ for arg in "$@"; do
     case "${arg}" in
         --update)       DO_UPDATE=1 ;;
         --package)      DO_PACKAGE=1 ;;
-        --llvm-nightly) LLVM_NIGHTLY=1 ;;
+        --llvm-source)  LLVM_NIGHTLY=0 ;;
         --rebuild-llvm)      REBUILD_LLVM=1 ;;
         --rebuild-pahole)    REBUILD_PAHOLE=1 ;;
         --rebuild-kernel)    REBUILD_KERNEL=1 ;;
@@ -109,7 +107,7 @@ for arg in "$@"; do
             echo ""
             echo "Options:"
             echo "  --update             Pull latest bpf-next and LLVM, then rebuild."
-            echo "  --llvm-nightly       Download pre-built LLVM release instead of building from source."
+            echo "  --llvm-source        Build LLVM from source instead of downloading pre-built release."
             echo "  --package            After building, create a distributable tarball."
             echo ""
             echo "Per-stage rebuild options (skips checking if already built):"
@@ -186,29 +184,35 @@ esac
 # Build or download LLVM/Clang
 # ------------------------------------------------------------------------------
 if [ "${LLVM_NIGHTLY}" = "1" ]; then
-    step "2/7  Downloading pre-built LLVM release (--llvm-nightly)"
+    step "2/7  Downloading pre-built LLVM release"
 
-    # Fetch the latest release tag and tarball URL from the GitHub API
-    LLVM_RELEASE_JSON=$(curl -sf "https://api.github.com/repos/llvm/llvm-project/releases/latest")
-    LLVM_TAG=$(echo "${LLVM_RELEASE_JSON}" | python3 -c \
-        "import sys,json; print(json.load(sys.stdin)['tag_name'])")
-    LLVM_VERSION=$(echo "${LLVM_TAG}" | sed 's/llvmorg-//')
-    LLVM_TARBALL_URL=$(echo "${LLVM_RELEASE_JSON}" | python3 -c \
-        "import sys,json; r=json.load(sys.stdin); \
-         urls=[a['browser_download_url'] for a in r['assets'] \
-               if 'Linux-X64' in a['name'] and a['name'].endswith('.tar.xz')]; \
-         print(urls[0] if urls else '')")
+    if [ -f "${CLANG}" ] && [ "${REBUILD_LLVM}" != "1" ] && [ "${DO_UPDATE}" != "1" ]; then
+        info "LLVM already installed — skipping. (Use --rebuild-llvm to re-download.)"
+        LLVM_COMMIT="nightly-$(${CLANG} --version | head -1 | grep -oP '\d+\.\d+\.\d+' | head -1)"
+    else
+        # Fetch the latest release tag and tarball URL from the GitHub API
+        LLVM_RELEASE_JSON=$(curl -sf "https://api.github.com/repos/llvm/llvm-project/releases/latest") || {
+            echo "ERROR: Could not fetch LLVM release info from GitHub API"
+            exit 1
+        }
+        LLVM_TAG=$(echo "${LLVM_RELEASE_JSON}" | python3 -c \
+            "import sys,json; print(json.load(sys.stdin)['tag_name'])")
+        LLVM_VERSION=$(echo "${LLVM_TAG}" | sed 's/llvmorg-//')
+        LLVM_TARBALL_URL=$(echo "${LLVM_RELEASE_JSON}" | python3 -c \
+            "import sys,json; r=json.load(sys.stdin); \
+             urls=[a['browser_download_url'] for a in r['assets'] \
+                   if 'Linux-X64' in a['name'] and a['name'].endswith('.tar.xz')]; \
+             print(urls[0] if urls else '')")
 
-    if [ -z "${LLVM_TARBALL_URL}" ]; then
-        echo "ERROR: Could not find Linux-X64 tarball in LLVM release ${LLVM_TAG}"
-        exit 1
-    fi
+        if [ -z "${LLVM_TARBALL_URL}" ]; then
+            echo "ERROR: Could not find Linux-X64 tarball in LLVM release ${LLVM_TAG}"
+            exit 1
+        fi
 
-    LLVM_TARBALL="${WORKDIR}/$(basename "${LLVM_TARBALL_URL}")"
-    info "Latest LLVM release: ${LLVM_TAG} (${LLVM_VERSION})"
-    info "Tarball URL: ${LLVM_TARBALL_URL}"
+        LLVM_TARBALL="${WORKDIR}/$(basename "${LLVM_TARBALL_URL}")"
+        info "Latest LLVM release: ${LLVM_TAG} (${LLVM_VERSION})"
+        info "Tarball URL: ${LLVM_TARBALL_URL}"
 
-    if [ ! -f "${CLANG}" ] || [ "${REBUILD_LLVM}" = "1" ] || [ "${DO_UPDATE}" = "1" ]; then
         if [ ! -f "${LLVM_TARBALL}" ]; then
             info "Downloading LLVM tarball (~700 MB)..."
             curl -L --progress-bar -o "${LLVM_TARBALL}" "${LLVM_TARBALL_URL}"
@@ -220,11 +224,8 @@ if [ "${LLVM_NIGHTLY}" = "1" ]; then
         mkdir -p "${LLVM_INSTALL}"
         tar -xf "${LLVM_TARBALL}" -C "${LLVM_INSTALL}" --strip-components=1
         info "Clang: $(${CLANG} --version | head -1)"
-    else
-        info "LLVM already installed — skipping. (Use --rebuild-llvm to re-download.)"
+        LLVM_COMMIT="nightly-${LLVM_VERSION}"
     fi
-
-    LLVM_COMMIT="nightly-${LLVM_VERSION}"
 else
     step "2/7  Building LLVM/Clang (${LLVM_BRANCH} branch, BPF+X86 only)"
     info "This is the longest step — ~25 min on 8 cores, ~45 min on 4 cores."
@@ -236,18 +237,42 @@ else
         info "Updating LLVM to latest ${LLVM_BRANCH}..."
         git -C "${LLVM_SRC}" fetch --depth=1 origin "${LLVM_BRANCH}"
         git -C "${LLVM_SRC}" reset --hard "origin/${LLVM_BRANCH}"
-        rm -rf "${LLVM_BUILD}" "${LLVM_INSTALL}"
     fi
 
     LLVM_COMMIT=$(git -C "${LLVM_SRC}" rev-parse --short HEAD)
     info "LLVM HEAD: ${LLVM_COMMIT}"
 
     if [ ! -f "${CLANG}" ] || [ "${REBUILD_LLVM}" = "1" ] || [ "${DO_UPDATE}" = "1" ]; then
+        # Use the previously built clang as the host compiler if available.
+        # LLVM main requires GCC 12+; self-hosting avoids that dependency.
+        LLVM_HOST_CC=()
+        if [ -x "${CLANG}" ]; then
+            info "Using previously built clang for self-hosted rebuild"
+            LLVM_HOST_CC=(
+                -DCMAKE_C_COMPILER="${CLANG}"
+                -DCMAKE_CXX_COMPILER="${LLVM_INSTALL}/bin/clang++"
+            )
+            # Wipe build dir if the cached compiler differs (GCC → clang switch)
+            if [ -f "${LLVM_BUILD}/CMakeCache.txt" ]; then
+                CACHED_CC=$(grep "^CMAKE_C_COMPILER:" "${LLVM_BUILD}/CMakeCache.txt" | cut -d= -f2)
+                if [ -n "${CACHED_CC}" ] && [ "${CACHED_CC}" != "${CLANG}" ]; then
+                    info "Host compiler changed (${CACHED_CC} -> clang), wiping build dir..."
+                    rm -rf "${LLVM_BUILD}"
+                fi
+            fi
+        fi
+
+        if [ "${REBUILD_LLVM}" = "1" ]; then
+            rm -rf "${LLVM_BUILD}"
+        fi
+
         mkdir -p "${LLVM_BUILD}"
+
         cmake -S "${LLVM_SRC}/llvm" -B "${LLVM_BUILD}" \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="${LLVM_INSTALL}" \
+            "${LLVM_HOST_CC[@]}" \
             -DLLVM_TARGETS_TO_BUILD="BPF;X86" \
             -DLLVM_ENABLE_PROJECTS="clang;lld" \
             -DLLVM_ENABLE_RUNTIMES="" \
@@ -277,8 +302,7 @@ step "3/7  Building pahole ${PAHOLE_TAG}"
 if [ ! -d "${PAHOLE_SRC}/.git" ]; then
     git clone --depth=1 --branch "${PAHOLE_TAG}" "${PAHOLE_REPO}" "${PAHOLE_SRC}"
 fi
-if [ "${DO_UPDATE}" = "1" ] || [ "${REBUILD_PAHOLE}" = "1" ]; then
-    # On --update or rebuild, clear the old install so the new build is picked up.
+if [ "${REBUILD_PAHOLE}" = "1" ]; then
     rm -rf "${PAHOLE_BUILD}" "${PAHOLE_INSTALL}"
 fi
 if [ ! -f "${PAHOLE_BIN}" ]; then
@@ -357,13 +381,11 @@ fi
 step "5/7  Configuring UML kernel"
 
 cd "${LINUX_DIR}"
-make ARCH=um defconfig
 
-# Enable BPF, cgroups, and networking options required for veristat.
-# Use scripts/config to set options idempotently — this avoids the
-# "override: reassigning to symbol" warnings that occur when appending
-# to .config after defconfig has already set the same symbols.
-# Note: no olddefconfig here — we run it once after scripts/config below.
+if [ ! -f .config ]; then
+    make ARCH=um defconfig
+fi
+
 scripts/config \
     --enable  BPF \
     --enable  BPF_SYSCALL \

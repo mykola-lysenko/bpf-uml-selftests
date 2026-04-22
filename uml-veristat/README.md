@@ -25,7 +25,7 @@ cd uml-veristat
 
 ### What `build.sh` does
 1. Installs host build dependencies (`apt`, `dnf`, `zypper`, or `pacman`).
-2. Builds LLVM/Clang (main branch, BPF+X86 backends only) from source.
+2. Downloads a pre-built LLVM/Clang release from GitHub (or builds from source with `--llvm-source`).
 3. Builds `pahole` (v1.31) from source.
 4. Clones the latest `bpf-next` kernel tree.
 5. Applies 6 patches to enable full BPF verification on UML (see `patches/`).
@@ -33,7 +33,7 @@ cd uml-veristat
 7. Builds the `veristat` binary.
 8. Installs the artifacts to `~/.local/share/uml-veristat/`.
 
-*Note: The initial build takes about 30–45 minutes depending on your CPU. Subsequent builds (e.g. `./build.sh --update`) are much faster.*
+*Note: The initial build takes about 15–20 minutes depending on your CPU and network speed. Subsequent builds (e.g. `./build.sh --update`) are incremental and much faster.*
 
 ## Usage
 
