@@ -28,7 +28,7 @@ cd uml-veristat
 2. Builds LLVM/Clang (main branch, BPF+X86 backends only) from source.
 3. Builds `pahole` (v1.31) from source.
 4. Clones the latest `bpf-next` kernel tree.
-5. Applies 5 patches to enable full BPF verification on UML (see `patches/`).
+5. Applies 6 patches to enable full BPF verification on UML (see `patches/`).
 6. Builds the UML kernel (`linux`) with BPF and BTF enabled.
 7. Builds the `veristat` binary.
 8. Installs the artifacts to `~/.local/share/uml-veristat/`.
@@ -62,7 +62,7 @@ You can override the paths to the kernel and veristat binaries using environment
 
 ## Kernel Patches
 
-The `patches/` directory contains 5 patches applied to the `bpf-next` kernel tree to enable full BPF verification on UML:
+The `patches/` directory contains 6 patches applied to the `bpf-next` kernel tree to enable full BPF verification on UML:
 
 | Patch | Description | Programs fixed |
 |-------|-------------|----------------|
@@ -71,6 +71,7 @@ The `patches/` directory contains 5 patches applied to the `bpf-next` kernel tre
 | 0003 | Fix UML boot and enable `BPF_JIT` for struct_ops support | struct_ops programs |
 | 0004 | Fix `bpf_testmod.c` compilation on UML | bpf_testmod module |
 | 0005 | Fix `btf_relocate` multiple-candidates error for module BTF | +72 programs |
+| 0006 | Fix `relo_core` TYPE_ID_TARGET ambiguity on duplicate types | CO-RE relocation fixes |
 
 **Cumulative veristat coverage** (run against 860 BPF selftest `.bpf.o` files, bpf-next @ `9012cf249`, 2026-04-21):
 

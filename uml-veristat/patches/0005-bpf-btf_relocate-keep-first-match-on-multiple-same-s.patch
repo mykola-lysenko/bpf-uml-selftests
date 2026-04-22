@@ -1,7 +1,7 @@
 From ea062850c82e73b39bad98de0c1134b0636c8050 Mon Sep 17 00:00:00 2001
 From: uml-veristat build <uml-veristat@build>
 Date: Tue, 21 Apr 2026 21:33:59 -0400
-Subject: [PATCH 5/5] bpf: btf_relocate: keep first match on multiple same-size
+Subject: [PATCH 5/6] bpf: btf_relocate: keep first match on multiple same-size
  candidates
 
 On UML, glibc headers included by UML driver files (arch/um/drivers/)

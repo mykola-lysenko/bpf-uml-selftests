@@ -1,7 +1,7 @@
 From 5be565df453a432eae9ceddf1be58b0af670ec8c Mon Sep 17 00:00:00 2001
 From: Mykola Lysenko <mykolal@fb.com>
 Date: Mon, 20 Apr 2026 18:58:49 -0400
-Subject: [PATCH 2/5] bpf: add BPF_TRACING_STUBS with stack trace support for
+Subject: [PATCH 2/6] bpf: add BPF_TRACING_STUBS with stack trace support for
  UML
 
 On User Mode Linux (UML), CONFIG_PERF_EVENTS and CONFIG_BPF_EVENTS are
