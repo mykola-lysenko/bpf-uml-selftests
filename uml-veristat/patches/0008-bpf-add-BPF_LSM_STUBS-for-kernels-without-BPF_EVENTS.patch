@@ -1,0 +1,405 @@
+From 4726ceebb69269caf24f902416fd76b07f48ae0b Mon Sep 17 00:00:00 2001
+From: uml-veristat build <uml-veristat@build>
+Date: Wed, 22 Apr 2026 16:02:16 -0700
+Subject: [PATCH] bpf: add BPF_LSM_STUBS for kernels without BPF_EVENTS
+
+CONFIG_BPF_LSM depends on BPF_EVENTS which requires PERF_EVENTS,
+making it impossible to enable on UML.  Add CONFIG_BPF_LSM_STUBS
+(default y on UML) that provides minimal verifier_ops/prog_ops for
+BPF_PROG_TYPE_LSM and enables BPF_MAP_TYPE_INODE_STORAGE without
+requiring PERF_EVENTS.
+
+The stub file provides:
+- Weak noinline bpf_lsm_* nop functions as BTF attach targets
+- BTF ID sets for hook validation (bpf_lsm_hooks, sleepable, etc.)
+- bpf_lsm_verify_prog(), is_sleepable_hook(), is_trusted(),
+  get_retval_range() implementations
+- Minimal lsm_verifier_ops using btf_ctx_access
+
+bpf_inode_storage.c and fs/bpf_fs_kfuncs.c are compiled under
+either CONFIG_BPF_LSM or CONFIG_BPF_LSM_STUBS, providing
+INODE_STORAGE maps and FS kfuncs (bpf_get_file_xattr, etc.).
+
+Signed-off-by: Mykola Lysenko <mykolal@meta.com>
+---
+ fs/Makefile                |   4 +-
+ include/linux/bpf_lsm.h    |   6 +-
+ include/linux/bpf_types.h  |   6 +-
+ kernel/bpf/Kconfig         |  13 ++
+ kernel/bpf/Makefile        |   5 +-
+ kernel/bpf/bpf_lsm_stubs.c | 249 +++++++++++++++++++++++++++++++++++++
+ 6 files changed, 275 insertions(+), 8 deletions(-)
+ create mode 100644 kernel/bpf/bpf_lsm_stubs.c
+
+diff --git a/fs/Makefile b/fs/Makefile
+index ae1b07f9c..4cb11cbaa 100644
+--- a/fs/Makefile
++++ b/fs/Makefile
+@@ -128,5 +128,7 @@ obj-$(CONFIG_EFIVAR_FS)		+= efivarfs/
+ obj-$(CONFIG_EROFS_FS)		+= erofs/
+ obj-$(CONFIG_VBOXSF_FS)		+= vboxsf/
+ obj-$(CONFIG_ZONEFS_FS)		+= zonefs/
+-obj-$(CONFIG_BPF_LSM)		+= bpf_fs_kfuncs.o
++ifneq ($(filter y,$(CONFIG_BPF_LSM) $(CONFIG_BPF_LSM_STUBS)),)
++obj-y				+= bpf_fs_kfuncs.o
++endif
+ obj-$(CONFIG_RESCTRL_FS)	+= resctrl/
+diff --git a/include/linux/bpf_lsm.h b/include/linux/bpf_lsm.h
+index 643809cc7..326f99d59 100644
+--- a/include/linux/bpf_lsm.h
++++ b/include/linux/bpf_lsm.h
+@@ -12,7 +12,7 @@
+ #include <linux/bpf_verifier.h>
+ #include <linux/lsm_hooks.h>
+ 
+-#ifdef CONFIG_BPF_LSM
++#if defined(CONFIG_BPF_LSM) || defined(CONFIG_BPF_LSM_STUBS)
+ 
+ #define LSM_HOOK(RET, DEFAULT, NAME, ...) \
+ 	RET bpf_lsm_##NAME(__VA_ARGS__);
+@@ -53,7 +53,7 @@ int bpf_set_dentry_xattr_locked(struct dentry *dentry, const char *name__str,
+ int bpf_remove_dentry_xattr_locked(struct dentry *dentry, const char *name__str);
+ bool bpf_lsm_has_d_inode_locked(const struct bpf_prog *prog);
+ 
+-#else /* !CONFIG_BPF_LSM */
++#else /* !CONFIG_BPF_LSM && !CONFIG_BPF_LSM_STUBS */
+ 
+ static inline bool bpf_lsm_is_sleepable_hook(u32 btf_id)
+ {
+@@ -104,6 +104,6 @@ static inline bool bpf_lsm_has_d_inode_locked(const struct bpf_prog *prog)
+ {
+ 	return false;
+ }
+-#endif /* CONFIG_BPF_LSM */
++#endif /* CONFIG_BPF_LSM || CONFIG_BPF_LSM_STUBS */
+ 
+ #endif /* _LINUX_BPF_LSM_H */
+diff --git a/include/linux/bpf_types.h b/include/linux/bpf_types.h
+index e170a0683..36736690d 100644
+--- a/include/linux/bpf_types.h
++++ b/include/linux/bpf_types.h
+@@ -85,10 +85,10 @@ BPF_PROG_TYPE(BPF_PROG_TYPE_STRUCT_OPS, bpf_struct_ops,
+ 	      void *, void *)
+ BPF_PROG_TYPE(BPF_PROG_TYPE_EXT, bpf_extension,
+ 	      void *, void *)
+-#ifdef CONFIG_BPF_LSM
++#if defined(CONFIG_BPF_LSM) || defined(CONFIG_BPF_LSM_STUBS)
+ BPF_PROG_TYPE(BPF_PROG_TYPE_LSM, lsm,
+ 	       void *, void *)
+-#endif /* CONFIG_BPF_LSM */
++#endif
+ #endif
+ BPF_PROG_TYPE(BPF_PROG_TYPE_SYSCALL, bpf_syscall,
+ 	      void *, void *)
+@@ -119,7 +119,7 @@ BPF_MAP_TYPE(BPF_MAP_TYPE_STACK_TRACE, stack_trace_map_ops)
+ #endif
+ BPF_MAP_TYPE(BPF_MAP_TYPE_ARRAY_OF_MAPS, array_of_maps_map_ops)
+ BPF_MAP_TYPE(BPF_MAP_TYPE_HASH_OF_MAPS, htab_of_maps_map_ops)
+-#ifdef CONFIG_BPF_LSM
++#if defined(CONFIG_BPF_LSM) || defined(CONFIG_BPF_LSM_STUBS)
+ BPF_MAP_TYPE(BPF_MAP_TYPE_INODE_STORAGE, inode_storage_map_ops)
+ #endif
+ BPF_MAP_TYPE(BPF_MAP_TYPE_TASK_STORAGE, task_storage_map_ops)
+diff --git a/kernel/bpf/Kconfig b/kernel/bpf/Kconfig
+index dcbce556a..781bdb375 100644
+--- a/kernel/bpf/Kconfig
++++ b/kernel/bpf/Kconfig
+@@ -112,4 +112,17 @@ config BPF_TRACING_STUBS
+ 	  CONFIG_BPF_EVENTS. Enables the BPF verifier to accept these program
+ 	  types for static analysis (veristat) on kernels without kprobes/perf.
+ 
++config BPF_LSM_STUBS
++	bool "BPF LSM program type stubs (for UML/no-BPF_EVENTS kernels)"
++	depends on BPF_SYSCALL
++	depends on BPF_JIT
++	depends on SECURITY
++	depends on !BPF_LSM
++	default y if UML
++	help
++	  Provides minimal verifier_ops/prog_ops for BPF_PROG_TYPE_LSM and
++	  BPF_MAP_TYPE_INODE_STORAGE without requiring CONFIG_BPF_EVENTS.
++	  Enables the BPF verifier to accept LSM programs for static analysis
++	  (veristat) on kernels that have CONFIG_SECURITY but lack perf events.
++
+ endmenu # "BPF subsystem"
+diff --git a/kernel/bpf/Makefile b/kernel/bpf/Makefile
+index 3b80c1900..bd43b2e11 100644
+--- a/kernel/bpf/Makefile
++++ b/kernel/bpf/Makefile
+@@ -12,7 +12,9 @@ obj-$(CONFIG_BPF_SYSCALL) += hashtab.o arraymap.o percpu_freelist.o bpf_lru_list
+ obj-$(CONFIG_BPF_SYSCALL) += local_storage.o queue_stack_maps.o ringbuf.o bpf_insn_array.o
+ obj-$(CONFIG_BPF_SYSCALL) += bpf_local_storage.o bpf_task_storage.o
+ obj-$(CONFIG_BPF_SYSCALL) += fixups.o cfg.o states.o backtrack.o check_btf.o
+-obj-${CONFIG_BPF_LSM}	  += bpf_inode_storage.o
++ifneq ($(filter y,$(CONFIG_BPF_LSM) $(CONFIG_BPF_LSM_STUBS)),)
++obj-$(CONFIG_BPF_SYSCALL) += bpf_inode_storage.o
++endif
+ obj-$(CONFIG_BPF_SYSCALL) += disasm.o mprog.o
+ obj-$(CONFIG_BPF_JIT) += trampoline.o
+ obj-$(CONFIG_BPF_SYSCALL) += btf.o memalloc.o rqspinlock.o stream.o
+@@ -69,6 +71,7 @@ obj-$(CONFIG_BPF_SYSCALL) += dmabuf_iter.o
+ endif
+ 
+ obj-$(CONFIG_BPF_TRACING_STUBS) += bpf_tracing_stubs.o
++obj-$(CONFIG_BPF_LSM_STUBS) += bpf_lsm_stubs.o
+ CFLAGS_REMOVE_percpu_freelist.o = $(CC_FLAGS_FTRACE)
+ CFLAGS_REMOVE_bpf_lru_list.o = $(CC_FLAGS_FTRACE)
+ CFLAGS_REMOVE_queue_stack_maps.o = $(CC_FLAGS_FTRACE)
+diff --git a/kernel/bpf/bpf_lsm_stubs.c b/kernel/bpf/bpf_lsm_stubs.c
+new file mode 100644
+index 000000000..c08567741
+--- /dev/null
++++ b/kernel/bpf/bpf_lsm_stubs.c
+@@ -0,0 +1,249 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * BPF LSM program type stubs for kernels without CONFIG_BPF_EVENTS
++ *
++ * Provides minimal verifier_ops/prog_ops and the bpf_lsm_* nop functions
++ * so the BPF verifier can accept BPF_PROG_TYPE_LSM programs and
++ * BPF_MAP_TYPE_INODE_STORAGE maps for static analysis (veristat) on
++ * kernels that have CONFIG_SECURITY but lack CONFIG_PERF_EVENTS.
++ *
++ * Programs are never attached or executed.
++ */
++
++#include <linux/bpf.h>
++#include <linux/btf.h>
++#include <linux/filter.h>
++#include <linux/bpf_lsm.h>
++#include <linux/btf_ids.h>
++
++/* Generate weak nop bpf_lsm_* functions — these become BTF attach targets */
++#define LSM_HOOK(RET, DEFAULT, NAME, ...)	\
++__weak noinline RET bpf_lsm_##NAME(__VA_ARGS__)	\
++{						\
++	return DEFAULT;				\
++}
++
++#include <linux/lsm_hook_defs.h>
++#undef LSM_HOOK
++
++/* BTF ID sets — copied from bpf_lsm.c to enable bpf_lsm_verify_prog() */
++
++#define LSM_HOOK(RET, DEFAULT, NAME, ...) BTF_ID(func, bpf_lsm_##NAME)
++BTF_SET_START(bpf_lsm_hooks)
++#include <linux/lsm_hook_defs.h>
++#undef LSM_HOOK
++BTF_SET_END(bpf_lsm_hooks)
++
++BTF_SET_START(bpf_lsm_disabled_hooks)
++BTF_ID(func, bpf_lsm_vm_enough_memory)
++BTF_ID(func, bpf_lsm_inode_need_killpriv)
++BTF_ID(func, bpf_lsm_inode_getsecurity)
++BTF_ID(func, bpf_lsm_inode_listsecurity)
++BTF_ID(func, bpf_lsm_inode_copy_up_xattr)
++BTF_ID(func, bpf_lsm_getselfattr)
++BTF_ID(func, bpf_lsm_getprocattr)
++BTF_ID(func, bpf_lsm_setprocattr)
++#ifdef CONFIG_KEYS
++BTF_ID(func, bpf_lsm_key_getsecurity)
++#endif
++#ifdef CONFIG_AUDIT
++BTF_ID(func, bpf_lsm_audit_rule_match)
++#endif
++BTF_ID(func, bpf_lsm_ismaclabel)
++BTF_ID(func, bpf_lsm_file_alloc_security)
++BTF_SET_END(bpf_lsm_disabled_hooks)
++
++BTF_SET_START(sleepable_lsm_hooks)
++BTF_ID(func, bpf_lsm_bpf)
++BTF_ID(func, bpf_lsm_bpf_map)
++BTF_ID(func, bpf_lsm_bpf_map_create)
++BTF_ID(func, bpf_lsm_bpf_map_free)
++BTF_ID(func, bpf_lsm_bpf_prog)
++BTF_ID(func, bpf_lsm_bpf_prog_load)
++BTF_ID(func, bpf_lsm_bpf_prog_free)
++BTF_ID(func, bpf_lsm_bpf_token_create)
++BTF_ID(func, bpf_lsm_bpf_token_free)
++BTF_ID(func, bpf_lsm_bpf_token_cmd)
++BTF_ID(func, bpf_lsm_bpf_token_capable)
++BTF_ID(func, bpf_lsm_bprm_check_security)
++BTF_ID(func, bpf_lsm_bprm_committed_creds)
++BTF_ID(func, bpf_lsm_bprm_committing_creds)
++BTF_ID(func, bpf_lsm_bprm_creds_for_exec)
++BTF_ID(func, bpf_lsm_bprm_creds_from_file)
++BTF_ID(func, bpf_lsm_capget)
++BTF_ID(func, bpf_lsm_capset)
++BTF_ID(func, bpf_lsm_cred_prepare)
++BTF_ID(func, bpf_lsm_file_ioctl)
++BTF_ID(func, bpf_lsm_file_lock)
++BTF_ID(func, bpf_lsm_file_open)
++BTF_ID(func, bpf_lsm_file_post_open)
++BTF_ID(func, bpf_lsm_file_receive)
++BTF_ID(func, bpf_lsm_inode_create)
++BTF_ID(func, bpf_lsm_inode_free_security)
++BTF_ID(func, bpf_lsm_inode_getattr)
++BTF_ID(func, bpf_lsm_inode_getxattr)
++BTF_ID(func, bpf_lsm_inode_mknod)
++BTF_ID(func, bpf_lsm_inode_need_killpriv)
++BTF_ID(func, bpf_lsm_inode_post_setxattr)
++BTF_ID(func, bpf_lsm_inode_post_removexattr)
++BTF_ID(func, bpf_lsm_inode_readlink)
++BTF_ID(func, bpf_lsm_inode_removexattr)
++BTF_ID(func, bpf_lsm_inode_rename)
++BTF_ID(func, bpf_lsm_inode_rmdir)
++BTF_ID(func, bpf_lsm_inode_setattr)
++BTF_ID(func, bpf_lsm_inode_setxattr)
++BTF_ID(func, bpf_lsm_inode_symlink)
++BTF_ID(func, bpf_lsm_inode_unlink)
++BTF_ID(func, bpf_lsm_kernel_module_request)
++BTF_ID(func, bpf_lsm_kernel_read_file)
++BTF_ID(func, bpf_lsm_kernfs_init_security)
++#ifdef CONFIG_SECURITY_PATH
++BTF_ID(func, bpf_lsm_path_unlink)
++BTF_ID(func, bpf_lsm_path_mkdir)
++BTF_ID(func, bpf_lsm_path_rmdir)
++BTF_ID(func, bpf_lsm_path_truncate)
++BTF_ID(func, bpf_lsm_path_symlink)
++BTF_ID(func, bpf_lsm_path_link)
++BTF_ID(func, bpf_lsm_path_rename)
++BTF_ID(func, bpf_lsm_path_chmod)
++BTF_ID(func, bpf_lsm_path_chown)
++#endif
++BTF_ID(func, bpf_lsm_mmap_file)
++BTF_ID(func, bpf_lsm_netlink_send)
++BTF_ID(func, bpf_lsm_path_notify)
++BTF_ID(func, bpf_lsm_release_secctx)
++BTF_ID(func, bpf_lsm_sb_alloc_security)
++BTF_ID(func, bpf_lsm_sb_eat_lsm_opts)
++BTF_ID(func, bpf_lsm_sb_kern_mount)
++BTF_ID(func, bpf_lsm_sb_mount)
++BTF_ID(func, bpf_lsm_sb_remount)
++BTF_ID(func, bpf_lsm_sb_set_mnt_opts)
++BTF_ID(func, bpf_lsm_sb_show_options)
++BTF_ID(func, bpf_lsm_sb_statfs)
++BTF_ID(func, bpf_lsm_sb_umount)
++BTF_ID(func, bpf_lsm_settime)
++#ifdef CONFIG_SECURITY_NETWORK
++BTF_ID(func, bpf_lsm_socket_accept)
++BTF_ID(func, bpf_lsm_socket_bind)
++BTF_ID(func, bpf_lsm_socket_connect)
++BTF_ID(func, bpf_lsm_socket_create)
++BTF_ID(func, bpf_lsm_socket_getpeername)
++BTF_ID(func, bpf_lsm_socket_getpeersec_dgram)
++BTF_ID(func, bpf_lsm_socket_getsockname)
++BTF_ID(func, bpf_lsm_socket_getsockopt)
++BTF_ID(func, bpf_lsm_socket_listen)
++BTF_ID(func, bpf_lsm_socket_post_create)
++BTF_ID(func, bpf_lsm_socket_recvmsg)
++BTF_ID(func, bpf_lsm_socket_sendmsg)
++BTF_ID(func, bpf_lsm_socket_shutdown)
++BTF_ID(func, bpf_lsm_socket_socketpair)
++#endif
++BTF_ID(func, bpf_lsm_syslog)
++BTF_ID(func, bpf_lsm_task_alloc)
++BTF_ID(func, bpf_lsm_task_prctl)
++BTF_ID(func, bpf_lsm_task_setscheduler)
++BTF_ID(func, bpf_lsm_userns_create)
++BTF_ID(func, bpf_lsm_bdev_alloc_security)
++BTF_ID(func, bpf_lsm_bdev_setintegrity)
++BTF_SET_END(sleepable_lsm_hooks)
++
++BTF_SET_START(untrusted_lsm_hooks)
++BTF_ID(func, bpf_lsm_bpf_map_free)
++BTF_ID(func, bpf_lsm_bpf_prog_free)
++BTF_ID(func, bpf_lsm_file_alloc_security)
++BTF_ID(func, bpf_lsm_file_free_security)
++#ifdef CONFIG_SECURITY_NETWORK
++BTF_ID(func, bpf_lsm_sk_alloc_security)
++BTF_ID(func, bpf_lsm_sk_free_security)
++#endif
++BTF_ID(func, bpf_lsm_task_free)
++BTF_ID(func, bpf_lsm_bdev_alloc_security)
++BTF_ID(func, bpf_lsm_bdev_free_security)
++BTF_SET_END(untrusted_lsm_hooks)
++
++BTF_SET_START(bool_lsm_hooks)
++#ifdef CONFIG_SECURITY_NETWORK_XFRM
++BTF_ID(func, bpf_lsm_xfrm_state_pol_flow_match)
++#endif
++#ifdef CONFIG_AUDIT
++BTF_ID(func, bpf_lsm_audit_rule_known)
++#endif
++BTF_ID(func, bpf_lsm_inode_xattr_skipcap)
++BTF_SET_END(bool_lsm_hooks)
++
++int bpf_lsm_verify_prog(struct bpf_verifier_log *vlog,
++			const struct bpf_prog *prog)
++{
++	u32 btf_id = prog->aux->attach_btf_id;
++	const char *func_name = prog->aux->attach_func_name;
++
++	if (!prog->gpl_compatible) {
++		bpf_log(vlog,
++			"LSM programs must have a GPL compatible license\n");
++		return -EINVAL;
++	}
++
++	if (btf_id_set_contains(&bpf_lsm_disabled_hooks, btf_id)) {
++		bpf_log(vlog, "attach_btf_id %u points to disabled hook %s\n",
++			btf_id, func_name);
++		return -EINVAL;
++	}
++
++	if (!btf_id_set_contains(&bpf_lsm_hooks, btf_id)) {
++		bpf_log(vlog, "attach_btf_id %u points to wrong type name %s\n",
++			btf_id, func_name);
++		return -EINVAL;
++	}
++
++	return 0;
++}
++
++bool bpf_lsm_is_sleepable_hook(u32 btf_id)
++{
++	return btf_id_set_contains(&sleepable_lsm_hooks, btf_id);
++}
++
++bool bpf_lsm_is_trusted(const struct bpf_prog *prog)
++{
++	return !btf_id_set_contains(&untrusted_lsm_hooks, prog->aux->attach_btf_id);
++}
++
++int bpf_lsm_get_retval_range(const struct bpf_prog *prog,
++			     struct bpf_retval_range *retval_range)
++{
++	if (!prog->aux->attach_func_proto->type)
++		return -EINVAL;
++
++	if (btf_id_set_contains(&bool_lsm_hooks, prog->aux->attach_btf_id)) {
++		retval_range->minval = 0;
++		retval_range->maxval = 1;
++	} else {
++		retval_range->minval = -MAX_ERRNO;
++		retval_range->maxval = 0;
++	}
++	return 0;
++}
++
++struct lsm_blob_sizes bpf_lsm_blob_sizes __ro_after_init;
++
++void bpf_lsm_find_cgroup_shim(const struct bpf_prog *prog, bpf_func_t *bpf_func)
++{
++}
++
++
++extern const struct bpf_func_proto *
++bpf_base_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog);
++
++static const struct bpf_func_proto *
++stub_lsm_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
++{
++	return bpf_base_func_proto(func_id, prog);
++}
++
++const struct bpf_prog_ops lsm_prog_ops = {
++};
++
++const struct bpf_verifier_ops lsm_verifier_ops = {
++	.get_func_proto = stub_lsm_func_proto,
++	.is_valid_access = btf_ctx_access,
++};
+-- 
+2.52.0
+

@@ -199,3 +199,33 @@ when they are zero.  Map types that require zero by design are excluded:
 
 **Impact:** Fixes `bloom_filter_bench.bpf.o`, `bpf_hashmap_lookup.bpf.o`,
 `htab_mem_bench.bpf.o` (3 files, -22 EINVAL).
+
+---
+
+## Patch 0008 — bpf: add BPF_LSM_STUBS for kernels without BPF_EVENTS
+
+**Files:** `kernel/bpf/bpf_lsm_stubs.c` (new), `kernel/bpf/Kconfig`,
+`kernel/bpf/Makefile`, `include/linux/bpf_types.h`, `include/linux/bpf_lsm.h`,
+`fs/Makefile`
+
+**Problem:** `CONFIG_BPF_LSM` depends on `BPF_EVENTS` which requires
+`PERF_EVENTS`, making it impossible to enable on UML. Without `BPF_LSM`,
+`BPF_PROG_TYPE_LSM` is not registered so LSM programs (`SEC("lsm/...")`)
+fail to load. `BPF_MAP_TYPE_INODE_STORAGE` is also unavailable, and the
+FS kfuncs (`bpf_get_file_xattr`, `bpf_get_dentry_xattr`) are not compiled.
+
+**Fix:** Add `CONFIG_BPF_LSM_STUBS` (default `y` on UML) that depends on
+`BPF_SYSCALL`, `BPF_JIT`, and `SECURITY` but not `BPF_EVENTS`. The stub
+provides:
+- Weak noinline `bpf_lsm_*` nop functions (BTF attach targets via `LSM_HOOK`)
+- BTF ID sets for hook validation (`bpf_lsm_hooks`, `sleepable_lsm_hooks`, etc.)
+- `bpf_lsm_verify_prog()`, `bpf_lsm_is_sleepable_hook()`, `bpf_lsm_is_trusted()`,
+  `bpf_lsm_get_retval_range()`
+- Minimal `lsm_verifier_ops` using `btf_ctx_access`
+
+`bpf_inode_storage.c` and `fs/bpf_fs_kfuncs.c` are compiled under either
+`CONFIG_BPF_LSM` or `CONFIG_BPF_LSM_STUBS`.
+
+**Impact:** Fixes `local_storage`, `map_kptr`, `map_ptr_kern`, `test_get_xattr`,
+`test_map_in_map`, `verifier_vfs_reject`, `xfrm_info` (7 files). Total
+failed-to-process files drops from 23 to 18.

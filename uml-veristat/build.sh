@@ -405,6 +405,8 @@ scripts/config \
     --enable  DEBUG_INFO_BTF \
     --enable  PAHOLE_HAS_SPLIT_BTF \
     --enable  BPF_TRACING_STUBS \
+    --enable  SECURITY \
+    --enable  BPF_LSM_STUBS \
     --enable  TCP_CONG_ADVANCED \
     --enable  TCP_CONG_CUBIC \
     --enable  TCP_CONG_DCTCP \
