@@ -342,7 +342,7 @@ if [ -d "${PATCHES_DIR}" ]; then
         # Extract the subject line from the patch (first non-empty Subject: line)
         subject=$(grep -m1 '^Subject:' "${patch}" | sed 's/^Subject: //' | sed 's/^\[PATCH[^]]*\] //')
         # Check if a commit with this subject already exists in the tree
-        if git -C "${LINUX_DIR}" log --oneline | grep -qF "${subject}"; then
+        if git -C "${LINUX_DIR}" log --oneline | grep -cF "${subject}" > /dev/null; then
             info "Patch already applied — skipping: ${patch##*/}"
         else
             info "Applying patch: ${patch##*/}"
