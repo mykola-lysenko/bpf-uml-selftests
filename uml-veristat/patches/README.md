@@ -156,3 +156,23 @@ type, which is the correct choice.
 52 files that previously failed with `-3 ESRCH` (module BTF not found) now process
 successfully, including all `struct_ops_*`, `kfunc_call_*`, `iters_testmod*`,
 `kprobe_multi*`, and `epilogue_*` files.
+
+## Patch 0006 — libbpf: relo_core: keep first TYPE_ID_TARGET candidate on duplicate types
+
+**File:** `tools/lib/bpf/relo_core.c`
+
+**Problem:** On UML, vmlinux BTF contains structurally-equivalent duplicate types
+(e.g. `struct sockaddr_un` appears twice — once from the kernel, once from glibc
+headers included during the build). When libbpf performs a `BPF_CORE_TYPE_ID_TARGET`
+CO-RE relocation, it finds two matching candidates with different BTF type IDs.
+The existing ambiguity check treats this as a fatal error (`-EINVAL`), causing
+`getsockname_unix_prog.bpf.o`, `netif_receive_skb.bpf.o`, and similar programs
+to fail with "relocation decision ambiguity".
+
+**Fix:** When two candidates both succeed for a `BPF_CORE_TYPE_ID_TARGET`
+relocation but produce different `new_val` (different BTF type IDs), keep the
+first (lower) BTF ID and skip the duplicate. This mirrors the approach in
+`btf_relocate.c` (patch 0005).
+
+**Impact:** Fixes `getsockname_unix_prog.bpf.o`, `netif_receive_skb.bpf.o`,
+`htab_mem_bench.bpf.o`, `stream.bpf.o` (4 files, -22 EINVAL).

@@ -381,7 +381,9 @@ scripts/config \
     --enable  BPF_TRACING_STUBS \
     --enable  TCP_CONG_ADVANCED \
     --enable  TCP_CONG_CUBIC \
-    --enable  TCP_CONG_DCTCP
+    --enable  TCP_CONG_DCTCP \
+    --enable  SMP \
+    --enable  KALLSYMS_ALL
 
 # Re-run olddefconfig to resolve any new dependencies introduced above.
 make ARCH=um PAHOLE="${PAHOLE_BIN}" olddefconfig

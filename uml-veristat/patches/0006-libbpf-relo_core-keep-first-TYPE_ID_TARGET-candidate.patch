@@ -1,0 +1,67 @@
+From 479ab34354a6e328995b722d6b255cb710b53442 Mon Sep 17 00:00:00 2001
+From: uml-veristat build <uml-veristat@build>
+Date: Wed, 22 Apr 2026 00:15:29 -0400
+Subject: [PATCH 7/7] libbpf: relo_core: keep first TYPE_ID_TARGET candidate on
+ duplicate types
+
+On UML, vmlinux BTF can contain structurally-equivalent duplicate types
+because glibc headers are included alongside kernel headers during the
+build.  For example, struct sockaddr_un appears twice with different BTF
+IDs.
+
+When bpf_core_calc_field_relos() encounters two matching candidates for
+a BPF_CORE_TYPE_ID_TARGET relocation, both succeed but with different
+new_val (the kernel BTF type ID).  The existing ambiguity check treats
+this as a fatal error and returns -EINVAL.
+
+For BPF_CORE_TYPE_ID_TARGET specifically, new_val is the BTF type ID of
+the target type.  When two candidates are structurally equivalent
+duplicates (same name, same layout -- they both passed bpf_core_spec_match),
+the difference in new_val is purely an artifact of the duplicate type
+registration.  It is safe to keep the first (lower) BTF ID, which
+corresponds to the canonical kernel definition.
+
+This mirrors the approach taken in btf_relocate.c for the same class of
+duplicates.
+
+Fixes: BPF CO-RE relocation failures on UML for programs using
+bpf_core_cast() or other TYPE_ID_TARGET relocations against types that
+appear as duplicates in vmlinux BTF (e.g. getsockname_unix_prog.bpf.o,
+netif_receive_skb.bpf.o).
+
+Signed-off-by: BPF UML CI <bpf-uml-ci@example.com>
+---
+ tools/lib/bpf/relo_core.c | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+
+diff --git a/tools/lib/bpf/relo_core.c b/tools/lib/bpf/relo_core.c
+index 0ccc8f548..189a97f29 100644
+--- a/tools/lib/bpf/relo_core.c
++++ b/tools/lib/bpf/relo_core.c
+@@ -1385,6 +1385,23 @@ int bpf_core_calc_relo_insn(const char *prog_name,
+ 			return -EINVAL;
+ 		} else if (cand_res.poison != targ_res->poison ||
+ 			   cand_res.new_val != targ_res->new_val) {
++			/* For BPF_CORE_TYPE_ID_TARGET, new_val is the kernel BTF
++			 * type ID of the candidate.  On UML, vmlinux BTF can
++			 * contain structurally-equivalent duplicate types (e.g.
++			 * struct sockaddr_un appears twice because glibc headers
++			 * are included alongside kernel headers during the build).
++			 * Both candidates match and succeed, but with different
++			 * BTF IDs.  Keep the first (lower) ID -- it is the
++			 * canonical kernel definition -- and skip the duplicate.
++			 */
++			if (relo->kind == BPF_CORE_TYPE_ID_TARGET &&
++			    !cand_res.poison && !targ_res->poison) {
++				pr_debug("prog '%s': relo #%d: TYPE_ID_TARGET ambiguity: keeping first candidate (id %llu), skipping duplicate (id %llu)\n",
++					 prog_name, relo_idx,
++					 (unsigned long long)targ_res->new_val,
++					 (unsigned long long)cand_res.new_val);
++				continue;
++			}
+ 			/* all candidates should result in the same relocation
+ 			 * decision and value, otherwise it's dangerous to
+ 			 * proceed due to ambiguity
+-- 
+2.34.1
+
