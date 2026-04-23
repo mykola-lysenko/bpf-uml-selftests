@@ -74,14 +74,58 @@ The `patches/` directory contains 7 patches applied to the `bpf-next` kernel tre
 | 0005 | Handle duplicate BTF types in CO-RE relocations | btf_relocate + relo_core |
 | 0007 | Fix veristat map fixup for zero key_size/value_size | bench + cgroup maps |
 
-**Cumulative veristat coverage** (run against 879 BPF selftest `.bpf.o` files, bpf-next @ `4b9b6f90e`, 2026-04-22):
+## Reproducible Coverage
 
-| Milestone | Success | Failed-to-process |
-|-----------|---------|-------------------|
-| Baseline (unpatched) | ~1,200 | ~150 |
-| All patches + configs | **1,850** | **12** |
+Coverage numbers should be generated from the installed artifacts, not edited by
+hand. Use:
 
-*12 remaining failures: 10 arena (unfixable — needs arch JIT), 1 bpf_testmod struct_ops, 1 missing kfunc (BPF_EVENTS).*
+```bash
+cd uml-veristat
+python3 scripts/report_coverage.py
+```
+
+The script runs two sweeps over the top-level installed selftest corpus:
+
+- default `uml-veristat` output for file-level counts
+- `uml-veristat -o csv` for per-program verdict counts
+
+Current reproducible output for the top-level corpus (`879` `.bpf.o` files) is:
+
+| Metric | Value |
+|--------|-------|
+| Processed files | `869` |
+| Skipped files | `10` |
+| Processed programs | `4345` |
+| Successful CSV rows | `1742` |
+| Failing CSV rows | `2603` |
+| Failed-to-process files | `12` |
+| Failed-to-open files | `8` |
+
+The `12` failed-to-process files are:
+
+- `arena_atomics.bpf.o`
+- `arena_htab.bpf.o`
+- `arena_htab_asm.bpf.o`
+- `arena_list.bpf.o`
+- `arena_spin_lock.bpf.o`
+- `arena_strsearch.bpf.o`
+- `bad_struct_ops.bpf.o`
+- `struct_ops_autocreate.bpf.o`
+- `test_send_signal_kern.bpf.o`
+- `verifier_arena.bpf.o`
+- `verifier_arena_globals1.bpf.o`
+- `verifier_arena_globals2.bpf.o`
+
+The separate failed-to-open files are:
+
+- `linked_funcs1.bpf.o`
+- `linked_maps1.bpf.o`
+- `linked_maps2.bpf.o`
+- `linked_vars1.bpf.o`
+- `linked_vars2.bpf.o`
+- `test_pinning_invalid.bpf.o`
+- `test_sk_assign.bpf.o`
+- `test_subskeleton_lib.bpf.o`
 
 See `patches/README.md` for detailed descriptions of each patch.
 
