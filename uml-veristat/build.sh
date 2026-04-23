@@ -404,9 +404,8 @@ scripts/config \
     --enable  DEBUG_INFO \
     --enable  DEBUG_INFO_BTF \
     --enable  PAHOLE_HAS_SPLIT_BTF \
-    --enable  BPF_TRACING_STUBS \
+    --enable  BPF_VERIFICATION_STUBS \
     --enable  SECURITY \
-    --enable  BPF_LSM_STUBS \
     --enable  KEYS \
     --enable  CRYPTO \
     --enable  FS_VERITY \

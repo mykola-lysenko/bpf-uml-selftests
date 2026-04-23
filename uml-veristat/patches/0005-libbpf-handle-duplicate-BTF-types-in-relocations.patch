@@ -1,0 +1,99 @@
+From a9189a078000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Mykola Lysenko <mykolal@meta.com>
+Date: Tue, 21 Apr 2026 21:33:59 -0400
+Subject: [PATCH] libbpf: handle duplicate BTF types in CO-RE relocations
+
+On UML, glibc headers included by UML driver files (arch/um/drivers/)
+produce duplicate BTF types in vmlinux.  These are structurally
+equivalent types with the same name and size but different BTF IDs
+(e.g. struct in6_addr with member 'in6_u' vs '__in6_u', or
+struct sockaddr_un appearing twice).
+
+This causes two failures:
+
+1. btf_relocate: when loading bpf_testmod.ko, btf_relocate() validates
+   the module BTF against vmlinux BTF.  Multiple base types with the
+   same name and size are treated as a fatal error (-EINVAL), preventing
+   bpf_testmod's BTF from being registered in /sys/kernel/btf/.  Without
+   module BTF, veristat fails with -ESRCH for all programs referencing
+   bpf_testmod types.
+
+2. relo_core: when libbpf performs BPF_CORE_TYPE_ID_TARGET relocations,
+   two matching candidates with different BTF type IDs trigger the
+   ambiguity check, returning -EINVAL.
+
+In both cases the duplicates are structurally equivalent — they passed
+the same matching criteria.  The difference in BTF ID or member name is
+an artifact of duplicate type registration, not a real ambiguity.
+
+Fix both by keeping the first (canonical) match and skipping subsequent
+duplicates with a debug message.
+
+Signed-off-by: Mykola Lysenko <mykolal@meta.com>
+---
+ tools/lib/bpf/btf_relocate.c | 24 ++++++++++++------------
+ tools/lib/bpf/relo_core.c    | 12 ++++++++++++
+ 2 files changed, 24 insertions(+), 12 deletions(-)
+
+diff --git a/tools/lib/bpf/btf_relocate.c b/tools/lib/bpf/btf_relocate.c
+index 53d1f3541..32b27bb52 100644
+--- a/tools/lib/bpf/btf_relocate.c
++++ b/tools/lib/bpf/btf_relocate.c
+@@ -341,19 +341,19 @@ static int btf_relocate_map_distilled_base(struct btf_relocate *r)
+ 			}
+ 			if (r->id_map[dist_info->id] &&
+ 			    r->id_map[dist_info->id] != BTF_IS_EMBEDDED) {
+-				/* we already have a match; this tells us that
+-				 * multiple base types of the same name
+-				 * have the same size, since for cases where
+-				 * multiple types have the same name we match
+-				 * on name and size.  In this case, we have
+-				 * no way of determining which to relocate
+-				 * to in base BTF, so error out.
++				/* We already have a match; multiple base types
++				 * of the same name have the same size.  This
++				 * can happen on UML where glibc headers are
++				 * included alongside kernel headers, producing
++				 * structurally equivalent but differently-named
++				 * duplicates (e.g. struct in6_addr with member
++				 * 'in6_u' vs '__in6_u').  Keep the first match
++				 * and skip subsequent candidates.
+ 				 */
+-				pr_warn("distilled base BTF type '%s' [%u], size %u has multiple candidates of the same size (ids [%u, %u]) in base BTF\n",
+-					base_info.name, dist_info->id,
+-					base_t->size, id, r->id_map[dist_info->id]);
+-				err = -EINVAL;
+-				goto done;
++				pr_debug("distilled base BTF type '%s' [%u], size %u has multiple candidates (ids [%u, %u]); keeping first\n",
++					 base_info.name, dist_info->id,
++					 base_t->size, id, r->id_map[dist_info->id]);
++				continue;
+ 			}
+ 			/* map id and name */
+ 			r->id_map[dist_info->id] = id;
+diff --git a/tools/lib/bpf/relo_core.c b/tools/lib/bpf/relo_core.c
+index 6ae3f2a15..9de6cfec0 100644
+--- a/tools/lib/bpf/relo_core.c
++++ b/tools/lib/bpf/relo_core.c
+@@ -1385,6 +1385,18 @@ int bpf_core_calc_relo_insn(const char *prog_name,
+ 			return -EINVAL;
+ 		} else if (cand_res.poison != targ_res->poison ||
+ 			   cand_res.new_val != targ_res->new_val) {
++			/* TYPE_ID_TARGET: duplicate types with different BTF IDs
++			 * are safe to resolve to the first (canonical) match.
++			 * See btf_relocate.c for the same approach.
++			 */
++			if (relo->kind == BPF_CORE_TYPE_ID_TARGET &&
++			    !cand_res.poison && !targ_res->poison) {
++				pr_debug("prog '%s': relo #%d: TYPE_ID_TARGET ambiguity: keeping first candidate (id %llu), skipping duplicate (id %llu)\n",
++					 prog_name, relo_idx,
++					 (unsigned long long)targ_res->new_val,
++					 (unsigned long long)cand_res.new_val);
++				continue;
++			}
+ 			/* all candidates should result in the same relocation
+ 			 * decision and value, otherwise it's dangerous to
+ 			 * proceed due to ambiguity
+-- 
+2.34.1
+

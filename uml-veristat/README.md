@@ -62,33 +62,26 @@ You can override the paths to the kernel and veristat binaries using environment
 
 ## Kernel Patches
 
-The `patches/` directory contains 9 patches applied to the `bpf-next` kernel tree to enable full BPF verification on UML:
+The `patches/` directory contains 7 patches applied to the `bpf-next` kernel tree to enable full BPF verification on UML:
 
 | Patch | Description | Programs fixed |
 |-------|-------------|----------------|
 | 0001 | Add `__x64_sys_*` wrappers for BPF selftest compatibility | fentry/kprobe attach targets |
-| 0002 | Add `BPF_TRACING_STUBS` with stack trace support | tracing types + stack trace maps |
+| 0002 | Add `BPF_VERIFICATION_STUBS` (tracing + LSM + stack trace) | tracing/LSM types + maps |
 | 0003 | Fix UML stub page alignment (`-Wl,-n` removal) | UML boot fix |
 | 0003b | Select `HAVE_EBPF_JIT` for UML x86-64 | struct_ops programs |
 | 0004 | Fix `bpf_testmod.c` compilation on UML | bpf_testmod module |
-| 0005 | Fix `btf_relocate` multiple-candidates error for module BTF | +72 programs |
-| 0006 | Fix `relo_core` TYPE_ID_TARGET ambiguity on duplicate types | CO-RE relocation fixes |
-| 0007 | Fix veristat map fixup for zero key_size/value_size | bench program maps |
-| 0008 | Add `BPF_LSM_STUBS` for LSM program type + inode storage | LSM programs + FS kfuncs |
+| 0005 | Handle duplicate BTF types in CO-RE relocations | btf_relocate + relo_core |
+| 0007 | Fix veristat map fixup for zero key_size/value_size | bench + cgroup maps |
 
-**Cumulative veristat coverage** (run against 876 BPF selftest `.bpf.o` files, bpf-next @ `4b9b6f90e`, 2026-04-22):
+**Cumulative veristat coverage** (run against 879 BPF selftest `.bpf.o` files, bpf-next @ `4b9b6f90e`, 2026-04-22):
 
-| Round | Patches applied | Success | Failed-to-process files |
-|-------|----------------|---------|------------------------|
-| Baseline (unpatched) | none | ~1,200 | ~150 |
-| After 0001–0002 | syscall wrappers + tracing stubs + stack trace | 1,597 | 89 |
-| After 0003–0004 | UML boot fix + bpf_testmod fix | 1,597 | 89 |
-| After 0005 | btf_relocate fix | 1,769 | 54 |
-| After 0006* | relo_core TYPE_ID_TARGET fix | 1,664 | 32 |
-| After 0007 + configs | veristat map fixup + NR_CPUS + NETFILTER | 1,816 | 23 |
-| After 0008 + SECURITY | BPF_LSM_STUBS + CONFIG_SECURITY | **1,837** | **18** |
+| Milestone | Success | Failed-to-process |
+|-----------|---------|-------------------|
+| Baseline (unpatched) | ~1,200 | ~150 |
+| All patches + configs | **1,850** | **12** |
 
-*Rows up to 0005 were measured on bpf-next `9012cf249` (860 files). Rows 0006+ were measured on `4b9b6f90e` (876 files after SECURITY/NETFILTER rebuild); success count changes between rows reflect both patches and the newer kernel tree.
+*12 remaining failures: 10 arena (unfixable — needs arch JIT), 1 bpf_testmod struct_ops, 1 missing kfunc (BPF_EVENTS).*
 
 See `patches/README.md` for detailed descriptions of each patch.
 
