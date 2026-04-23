@@ -1,5 +1,5 @@
 From c835765a819bed8794aae9947b644bf729fe2bf0 Mon Sep 17 00:00:00 2001
-From: uml-veristat build <uml-veristat@build>
+From: Mykola Lysenko <mykolal@meta.com>
 Date: Tue, 21 Apr 2026 14:18:09 -0400
 Subject: [PATCH 4/6] selftests/bpf: fix bpf_testmod.c compilation on UML
 
@@ -17,7 +17,7 @@ Two guards in bpf_testmod.c incorrectly fire on UML:
 for the uprobe section already provides correct no-op stubs, so no
 functional change occurs on UML; the module now compiles cleanly.
 
-Signed-off-by: uml-veristat build <uml-veristat@build>
+Signed-off-by: Mykola Lysenko <mykolal@meta.com>
 ---
  tools/testing/selftests/bpf/test_kmods/bpf_testmod.c | 5 ++---
  1 file changed, 2 insertions(+), 3 deletions(-)

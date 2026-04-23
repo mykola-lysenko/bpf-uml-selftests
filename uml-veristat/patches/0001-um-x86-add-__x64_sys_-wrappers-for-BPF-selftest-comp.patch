@@ -1,5 +1,5 @@
 From 845aae3020e0c15cff388dfee7548679f4e2329b Mon Sep 17 00:00:00 2001
-From: uml-veristat build <uml-veristat@build>
+From: Mykola Lysenko <mykolal@meta.com>
 Date: Mon, 20 Apr 2026 18:52:41 -0400
 Subject: [PATCH 1/6] um/x86: add __x64_sys_* wrappers for BPF selftest
  compatibility
@@ -20,7 +20,7 @@ prlimit64, and setdomainname. Each wrapper has the canonical x86-64
 syscall wrapper signature so pahole emits the correct BTF_KIND_FUNC
 entry. Arguments are extracted using UPT_SYSCALL_ARGn() macros.
 
-Signed-off-by: BPF UML veristat <bpf-uml@example.com>
+Signed-off-by: Mykola Lysenko <mykolal@meta.com>
 ---
  arch/x86/um/Makefile               |  2 +-
  arch/x86/um/x64_syscall_wrappers.c | 66 ++++++++++++++++++++++++++++++

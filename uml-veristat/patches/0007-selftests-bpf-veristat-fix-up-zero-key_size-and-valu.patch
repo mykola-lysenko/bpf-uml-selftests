@@ -1,5 +1,5 @@
 From 5e18e8239ca6615bdd876f871b7292edc90e0c9a Mon Sep 17 00:00:00 2001
-From: uml-veristat build <uml-veristat@build>
+From: Mykola Lysenko <mykolal@meta.com>
 Date: Wed, 22 Apr 2026 15:04:38 -0700
 Subject: [PATCH] selftests/bpf: veristat: fix up zero key_size and value_size
  in maps
