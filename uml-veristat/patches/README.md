@@ -72,31 +72,36 @@ to fail on programs that use stack trace maps (`pyperf*`, `strobemeta*`,
 
 ---
 
-### 0003 — `um/x86: fix UML boot and enable BPF_JIT for struct_ops support`
+### 0003 — `um: fix stub binary page alignment by removing -Wl,-n`
 
-**Problem 1 (UML boot):** The UML stub binary was built with `-Wl,-n` in
-`STUB_EXE_LDFLAGS`, which creates a non-demand-paged ELF output. This causes
-the stub's LOAD segments to have `Align=0x8` instead of the required
-`Align=0x1000` (page size). UML's `map_stub_pages()` requires page-aligned
-segments and fails to boot with `mmap stub_exe` errors when the alignment is
-wrong.
+**Problem:** The UML stub binary was built with `-Wl,-n` in
+`STUB_EXE_LDFLAGS`, which creates a non-demand-paged (OMAGIC) ELF output.
+This causes the stub's LOAD segments to have `Align=0x8` instead of the
+required `Align=0x1000` (page size). UML's `map_stub_pages()` requires
+page-aligned LOAD segments and fails to boot with `mmap stub_exe` errors
+when the alignment is wrong.
 
-**Problem 2 (struct_ops):** `CONFIG_BPF_JIT` cannot be enabled on UML x86-64
-because `HAVE_EBPF_JIT` was not selected for the architecture. Without
-`CONFIG_BPF_JIT=y`, `register_bpf_struct_ops()` returns `-EOPNOTSUPP`
-immediately, so all struct_ops BPF programs (tcp congestion control, etc.) fail
-to load. UML x86-64 can in fact use the x86-64 BPF JIT since it runs as a
-regular Linux process on an x86-64 host.
-
-**Fix:**
-1. Remove `-Wl,-n` from `STUB_EXE_LDFLAGS` in `arch/um/kernel/skas/Makefile`
-   so the stub binary has page-aligned LOAD segments.
-2. Add `select HAVE_EBPF_JIT if 64BIT` to the `UML_X86` config block in
-   `arch/x86/um/Kconfig` so that `CONFIG_BPF_JIT=y` can be selected and
-   struct_ops programs can be verified.
+**Fix:** Remove `-Wl,-n` from `STUB_EXE_LDFLAGS` so the stub binary gets
+page-aligned LOAD segments.
 
 **Files changed:**
 - `arch/um/kernel/skas/Makefile` (remove `-Wl,-n` from `STUB_EXE_LDFLAGS`)
+
+---
+
+### 0003b — `um/x86: select HAVE_EBPF_JIT for UML on 64-bit`
+
+**Problem:** `CONFIG_BPF_JIT` cannot be enabled on UML x86-64 because
+`HAVE_EBPF_JIT` was not selected for the architecture. Without
+`CONFIG_BPF_JIT=y`, `register_bpf_struct_ops()` returns `-EOPNOTSUPP`
+immediately, so all struct_ops BPF programs (tcp congestion control, etc.)
+fail to load. UML x86-64 can in fact use the x86-64 BPF JIT since it runs
+as a regular Linux process on an x86-64 host.
+
+**Fix:** Add `select HAVE_EBPF_JIT if 64BIT` to the `UML_X86` config block
+in `arch/x86/um/Kconfig`.
+
+**Files changed:**
 - `arch/x86/um/Kconfig` (add `select HAVE_EBPF_JIT if 64BIT`)
 
 ---

@@ -1,0 +1,36 @@
+From b718e4b15381a167d36bcbc3c952be288cba7e43 Mon Sep 17 00:00:00 2001
+From: Mykola Lysenko <mykolal@meta.com>
+Date: Tue, 21 Apr 2026 00:29:15 -0400
+Subject: [PATCH] um: fix stub binary page alignment by removing -Wl,-n
+
+The -Wl,-n linker flag creates a non-demand-paged (OMAGIC) output,
+which causes the stub binary's LOAD segments to have Align=0x8 instead
+of the required Align=0x1000 (page size).  UML's map_stub_pages()
+requires page-aligned LOAD segments to properly map the stub into the
+guest address space.  Without this fix, UML fails to boot with
+'mmap stub_exe' errors.
+
+Remove -Wl,-n from STUB_EXE_LDFLAGS so the stub binary gets
+page-aligned LOAD segments.
+
+Signed-off-by: Mykola Lysenko <mykolal@meta.com>
+---
+ arch/um/kernel/skas/Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/um/kernel/skas/Makefile b/arch/um/kernel/skas/Makefile
+index 3384be426..b2cb6fd48 100644
+--- a/arch/um/kernel/skas/Makefile
++++ b/arch/um/kernel/skas/Makefile
+@@ -27,7 +27,7 @@ quiet_cmd_stub_exe = STUB_EXE $@
+ 			   $(filter-out $(UM_GPROF_OPT) $(UM_GCOV_OPT),$(KBUILD_CFLAGS)) $(STUB_EXE_LDFLAGS) \
+ 			   $(filter %.o,$^)
+
+-STUB_EXE_LDFLAGS = -Wl,-n -static
++STUB_EXE_LDFLAGS = -static
+
+ targets += stub_exe.dbg stub_exe $(stub_exe_objs-y)
+
+--
+2.34.1
+

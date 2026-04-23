@@ -62,13 +62,14 @@ You can override the paths to the kernel and veristat binaries using environment
 
 ## Kernel Patches
 
-The `patches/` directory contains 8 patches applied to the `bpf-next` kernel tree to enable full BPF verification on UML:
+The `patches/` directory contains 9 patches applied to the `bpf-next` kernel tree to enable full BPF verification on UML:
 
 | Patch | Description | Programs fixed |
 |-------|-------------|----------------|
 | 0001 | Add `__x64_sys_*` wrappers for BPF selftest compatibility | fentry/kprobe attach targets |
 | 0002 | Add `BPF_TRACING_STUBS` with stack trace support | tracing types + stack trace maps |
-| 0003 | Fix UML boot and enable `BPF_JIT` for struct_ops support | struct_ops programs |
+| 0003 | Fix UML stub page alignment (`-Wl,-n` removal) | UML boot fix |
+| 0003b | Select `HAVE_EBPF_JIT` for UML x86-64 | struct_ops programs |
 | 0004 | Fix `bpf_testmod.c` compilation on UML | bpf_testmod module |
 | 0005 | Fix `btf_relocate` multiple-candidates error for module BTF | +72 programs |
 | 0006 | Fix `relo_core` TYPE_ID_TARGET ambiguity on duplicate types | CO-RE relocation fixes |
