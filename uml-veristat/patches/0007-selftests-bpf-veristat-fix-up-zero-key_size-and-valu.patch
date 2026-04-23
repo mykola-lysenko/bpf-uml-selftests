@@ -35,7 +35,7 @@ diff --git a/tools/testing/selftests/bpf/veristat.c b/tools/testing/selftests/bp
 index 5c82950e6..b95e4d691 100644
 --- a/tools/testing/selftests/bpf/veristat.c
 +++ b/tools/testing/selftests/bpf/veristat.c
-@@ -1253,9 +1253,21 @@ static void fixup_obj_maps(struct bpf_object *obj)
+@@ -1253,9 +1253,22 @@ static void fixup_obj_maps(struct bpf_object *obj)
  		case BPF_MAP_TYPE_CGRP_STORAGE:
 +		case BPF_MAP_TYPE_PERCPU_CGROUP_STORAGE:
  		case BPF_MAP_TYPE_STRUCT_OPS:
@@ -60,4 +60,3 @@ index 5c82950e6..b95e4d691 100644
  }
 -- 
 2.52.0
-

@@ -352,9 +352,12 @@ info "bpf-next: ${KERNEL_COMMIT}  (${KERNEL_VERSION})"
 # Apply UML BPF compatibility patches
 # ------------------------------------------------------------------------------
 # Patches are stored in patches/ next to this script, in git format-patch
-# format.  They are applied with 'git am' after kernel checkout.  Already-
-# applied patches are detected by matching the commit subject line and skipped
-# (idempotent).
+# format. They are applied with 'git am' after kernel checkout.
+#
+# We intentionally detect "already applied" by checking whether the patch
+# reverses cleanly against the current tree, not by matching commit subjects.
+# Patch subjects changed over time as patches were merged/squashed, and subject
+# matching causes stale build trees to mis-detect partially updated patch sets.
 PATCHES_DIR="${SCRIPT_DIR}/patches"
 if [ -d "${PATCHES_DIR}" ]; then
     # Configure a git identity in the kernel tree if not already set
@@ -363,14 +366,15 @@ if [ -d "${PATCHES_DIR}" ]; then
 
     for patch in "${PATCHES_DIR}"/*.patch; do
         [ -f "${patch}" ] || continue
-        # Extract the subject line from the patch (first non-empty Subject: line)
-        subject=$(grep -m1 '^Subject:' "${patch}" | sed 's/^Subject: //' | sed 's/^\[PATCH[^]]*\] //')
-        # Check if a commit with this subject already exists in the tree
-        if git -C "${LINUX_DIR}" log --oneline | grep -cF "${subject}" > /dev/null; then
+        if git -C "${LINUX_DIR}" apply --check --reverse "${patch}" >/dev/null 2>&1; then
             info "Patch already applied — skipping: ${patch##*/}"
         else
             info "Applying patch: ${patch##*/}"
-            git -C "${LINUX_DIR}" am --whitespace=nowarn "${patch}"
+            if ! git -C "${LINUX_DIR}" am --whitespace=nowarn "${patch}"; then
+                warn "Plain git am failed for ${patch##*/}; retrying with --3way"
+                git -C "${LINUX_DIR}" am --abort >/dev/null 2>&1 || true
+                git -C "${LINUX_DIR}" am --3way --whitespace=nowarn "${patch}"
+            fi
         fi
     done
 fi
@@ -479,6 +483,7 @@ mkdir -p "${SELFTESTS_OUTPUT}"
 export CLANG="${CLANG}"
 export LLC="${LLC}"
 export LLVM_CONFIG="${LLVM_INSTALL}/bin/llvm-config"
+export LLVM_STRIP="${LLVM_INSTALL}/bin/llvm-strip"
 export LD="${LLVM_INSTALL}/bin/ld.lld"
 
 # --- 7a: build bpftool from the same tree ---
@@ -497,6 +502,7 @@ if [ ! -x "${BPFTOOL_BIN}" ] || [ "${DO_UPDATE}" = "1" ] || [ "${REBUILD_BPFTOOL
         OUTPUT="${BPFTOOL_OUTPUT}/" \
         CLANG="${CLANG}" \
         LLVM_CONFIG="${LLVM_INSTALL}/bin/llvm-config" \
+        LLVM_STRIP="${LLVM_INSTALL}/bin/llvm-strip" \
         -j"$(nproc)" \
         all
 else
