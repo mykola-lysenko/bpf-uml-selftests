@@ -220,8 +220,10 @@ index 000000000..c463bd439
 +
 +#include <linux/bpf.h>
 +#include <linux/btf.h>
++#include <linux/btf_ids.h>
 +#include <linux/filter.h>
 +#include <linux/perf_event.h>
++#include <linux/pid.h>
 +
 +/* --- Tracing program type stubs --- */
 +
@@ -260,6 +262,52 @@ index 000000000..c463bd439
 +DEFINE_STUB_OPS(perf_event)
 +DEFINE_STUB_OPS(raw_tracepoint)
 +DEFINE_STUB_OPS(raw_tracepoint_writable)
++
++/* --- Tracing kfunc stubs --- */
++
++struct task_struct;
++
++extern struct task_struct *bpf_task_from_pid(s32 pid);
++extern void bpf_task_release(struct task_struct *task);
++
++__bpf_kfunc_start_defs();
++
++__bpf_kfunc int bpf_send_signal_task(struct task_struct *task, int sig,
++				     enum pid_type type, u64 value)
++{
++	if (type != PIDTYPE_PID && type != PIDTYPE_TGID)
++		return -EINVAL;
++
++	return -EOPNOTSUPP;
++}
++
++__bpf_kfunc_end_defs();
++
++BTF_KFUNCS_START(tracing_stub_kfunc_set_ids)
++BTF_ID_FLAGS(func, bpf_task_from_pid, KF_ACQUIRE | KF_RET_NULL)
++BTF_ID_FLAGS(func, bpf_task_release, KF_RELEASE)
++BTF_ID_FLAGS(func, bpf_send_signal_task)
++BTF_KFUNCS_END(tracing_stub_kfunc_set_ids)
++
++static const struct btf_kfunc_id_set tracing_stub_kfunc_set = {
++	.owner = THIS_MODULE,
++	.set = &tracing_stub_kfunc_set_ids,
++};
++
++static int __init tracing_stub_kfuncs_init(void)
++{
++	int ret;
++
++	ret = register_btf_kfunc_id_set(BPF_PROG_TYPE_KPROBE,
++					&tracing_stub_kfunc_set);
++	ret = ret ?: register_btf_kfunc_id_set(BPF_PROG_TYPE_TRACING,
++					       &tracing_stub_kfunc_set);
++	ret = ret ?: register_btf_kfunc_id_set(BPF_PROG_TYPE_TRACEPOINT,
++					       &tracing_stub_kfunc_set);
++	return ret ?: register_btf_kfunc_id_set(BPF_PROG_TYPE_PERF_EVENT,
++						&tracing_stub_kfunc_set);
++}
++late_initcall(tracing_stub_kfuncs_init);
 +
 +/* --- Stack trace map support (callchain stubs) --- */
 +
@@ -627,4 +675,3 @@ index da3d328f5..ee4e412f0 100644
 
 -- 
 2.34.1
-
