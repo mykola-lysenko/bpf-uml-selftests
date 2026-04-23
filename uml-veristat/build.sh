@@ -409,6 +409,7 @@ scripts/config \
     --enable  BPF_LSM_STUBS \
     --enable  KEYS \
     --enable  CRYPTO \
+    --enable  FS_VERITY \
     --enable  TCP_CONG_ADVANCED \
     --enable  TCP_CONG_CUBIC \
     --enable  TCP_CONG_DCTCP \
