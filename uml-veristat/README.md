@@ -89,19 +89,45 @@ The script runs two sweeps over the top-level installed selftest corpus:
 - default `uml-veristat` output for file-level counts
 - `uml-veristat -o csv` for per-program verdict counts
 
+The default report now separates the top-level corpus into:
+
+- standalone positive files that should load under `uml-veristat`
+- expected-negative tests that are supposed to fail
+- fixture-only linked/subskeleton objects that are not standalone load targets
+
 Current reproducible output for the top-level corpus (`879` `.bpf.o` files) is:
 
 | Metric | Value |
 |--------|-------|
-| Processed files | `869` |
-| Skipped files | `10` |
-| Processed programs | `4345` |
-| Successful CSV rows | `1742` |
-| Failing CSV rows | `2603` |
-| Failed-to-process files | `12` |
-| Failed-to-open files | `8` |
+| Standalone input files | `868` |
+| Excluded expected-negative tests | `3` |
+| Excluded fixture-only objects | `8` |
+| Processed files | `866` |
+| Skipped files | `2` |
+| Processed programs | `4341` |
+| Successful CSV rows | `1740` |
+| Failing CSV rows | `2601` |
+| Remaining failed-to-process files | `12` |
+| Remaining failed-to-open files | `1` |
 
-The `12` failed-to-process files are:
+Excluded expected-negative tests:
+
+- `bad_struct_ops.bpf.o`
+- `struct_ops_autocreate.bpf.o`
+- `test_pinning_invalid.bpf.o`
+
+Excluded fixture-only objects:
+
+- `linked_funcs1.bpf.o`
+- `linked_funcs2.bpf.o`
+- `linked_maps1.bpf.o`
+- `linked_maps2.bpf.o`
+- `linked_vars1.bpf.o`
+- `linked_vars2.bpf.o`
+- `test_subskeleton_lib.bpf.o`
+- `test_subskeleton_lib2.bpf.o`
+
+Remaining standalone items:
 
 - `arena_atomics.bpf.o`
 - `arena_htab.bpf.o`
@@ -109,23 +135,13 @@ The `12` failed-to-process files are:
 - `arena_list.bpf.o`
 - `arena_spin_lock.bpf.o`
 - `arena_strsearch.bpf.o`
-- `bad_struct_ops.bpf.o`
-- `struct_ops_autocreate.bpf.o`
 - `test_send_signal_kern.bpf.o`
 - `verifier_arena.bpf.o`
 - `verifier_arena_globals1.bpf.o`
 - `verifier_arena_globals2.bpf.o`
-
-The separate failed-to-open files are:
-
-- `linked_funcs1.bpf.o`
-- `linked_maps1.bpf.o`
-- `linked_maps2.bpf.o`
-- `linked_vars1.bpf.o`
-- `linked_vars2.bpf.o`
-- `test_pinning_invalid.bpf.o`
+- `verifier_arena_large.bpf.o`
+- `xfrm_info.bpf.o`
 - `test_sk_assign.bpf.o`
-- `test_subskeleton_lib.bpf.o`
 
 See `patches/README.md` for detailed descriptions of each patch.
 
