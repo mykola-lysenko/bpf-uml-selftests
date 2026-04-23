@@ -399,9 +399,10 @@ scripts/config \
     --enable  CGROUP_BPF \
     --enable  NET \
     --enable  INET \
-    --disable IPV6 \
+    --enable  IPV6 \
     --enable  NETFILTER \
     --enable  NETFILTER_INGRESS \
+    --enable  NET_FOU \
     --enable  NF_CONNTRACK \
     --enable  NF_TABLES \
     --enable  NF_FLOW_TABLE \
@@ -412,6 +413,7 @@ scripts/config \
     --enable  SECURITY \
     --enable  KEYS \
     --enable  CRYPTO \
+    --enable  XFRM_INTERFACE \
     --enable  FS_VERITY \
     --enable  TCP_CONG_ADVANCED \
     --enable  TCP_CONG_CUBIC \
