@@ -2,15 +2,16 @@
 #
 # Usage (after UML is running and has printed the loader PID):
 #
-#   gdb -x verifier.gdb /home/ubuntu/linux-uml-jit
+#   gdb -x verifier.gdb /path/to/linux-uml-debug
 #   (gdb) attach <PID>
 #   (gdb) cont          <- runs until bpf_check breakpoint fires
 #
 # Or non-interactively:
-#   gdb -x verifier.gdb -ex "attach <PID>" -ex cont /home/ubuntu/linux-uml-jit
+#   gdb -x verifier.gdb -ex "attach <PID>" -ex cont /path/to/linux-uml-debug
 
-# ── Source directory so GDB can find kernel source files ──────────────────────
-directory /home/ubuntu/linux-6.12.20
+# ── Optional source directory ─────────────────────────────────────────────────
+# If GDB cannot find kernel sources, run:
+#   directory /path/to/linux-source
 
 # ── Pretty-printing helpers ───────────────────────────────────────────────────
 set print pretty on

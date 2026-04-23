@@ -1,28 +1,5 @@
 #!/bin/sh
-# UML init script for failslab BPF verifier testing
+set -eu
 
-# Mount essential filesystems
-mount -t proc proc /proc
-mount -t sysfs sysfs /sys
-mount -t tmpfs tmpfs /tmp
-mount -t tmpfs tmpfs /run
-
-# Mount debugfs (needed for failslab)
-mkdir -p /sys/kernel/debug
-mount -t debugfs none /sys/kernel/debug
-
-# Set up /dev
-mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
-mdev -s 2>/dev/null || true
-
-# Bring up loopback
-ip link set lo up 2>/dev/null || true
-
-# Run the failslab test harness
-echo "=== Starting BPF Verifier Failslab Tests ==="
-sh /bpf_failslab_test.sh
-
-echo "=== Tests complete, powering off ==="
-sync
-# Use busybox poweroff (no -p flag needed)
-poweroff -f
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec "${SCRIPT_DIR}/selftests/fault-injection/init_failslab" "$@"

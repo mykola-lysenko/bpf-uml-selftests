@@ -1,8 +1,11 @@
 # Build workspace (created by run_bpf_uml.sh)
 bpf_uml_workspace/
+uml-veristat/.build/
 
 # Editor and OS artifacts
 *.swp
 *.swo
 *~
 .DS_Store
+*.profraw
+uml-veristat/.claude/

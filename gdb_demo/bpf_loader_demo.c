@@ -52,16 +52,16 @@ int main(void)
     printf("[bpf_loader_demo] === GDB SETUP INSTRUCTIONS ===\n");
     printf("[bpf_loader_demo]\n");
     printf("[bpf_loader_demo] 1. Find the UML main PID on the HOST:\n");
-    printf("[bpf_loader_demo]      ps aux | grep linux-uml-debug | grep -v grep\n");
+    printf("[bpf_loader_demo]      ps aux | grep <uml-kernel> | grep -v grep\n");
     printf("[bpf_loader_demo]\n");
     printf("[bpf_loader_demo] 2. Attach GDB to the UML main process:\n");
-    printf("[bpf_loader_demo]      gdb /home/ubuntu/linux-uml-debug\n");
+    printf("[bpf_loader_demo]      gdb <path-to-linux-uml-debug>\n");
     printf("[bpf_loader_demo]      (gdb) attach <UML_MAIN_PID>\n");
     printf("[bpf_loader_demo]      (gdb) break bpf_check\n");
     printf("[bpf_loader_demo]      (gdb) cont\n");
     printf("[bpf_loader_demo]\n");
     printf("[bpf_loader_demo] 3. Trigger the BPF load (in another HOST terminal):\n");
-    printf("[bpf_loader_demo]      touch /home/ubuntu/uml-rootfs/tmp/uml_go\n");
+    printf("[bpf_loader_demo]      touch <path-to-uml-rootfs>/tmp/uml_go\n");
     printf("[bpf_loader_demo]\n");
     printf("[bpf_loader_demo] GDB will stop at bpf_check() in kernel/bpf/verifier.c\n");
     printf("[bpf_loader_demo]\n");
@@ -80,7 +80,7 @@ int main(void)
     unlink(GO_FILE);
 
     printf("[bpf_loader_demo] Polling for trigger file: %s\n", GO_FILE);
-    printf("[bpf_loader_demo] (touch /home/ubuntu/uml-rootfs/tmp/uml_go to trigger)\n");
+    printf("[bpf_loader_demo] (touch <path-to-uml-rootfs>/tmp/uml_go to trigger)\n");
     fflush(stdout);
 
     /* Poll for go file - non-blocking, GDB-friendly */

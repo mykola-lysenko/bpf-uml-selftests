@@ -24,10 +24,14 @@ The synchronization flow:
 
 ## Prerequisites
 
-All prerequisites are already set up in this environment:
-- `linux-uml-debug`: The UML kernel binary (located at `/home/ubuntu/linux-uml-debug`)
-- `uml-rootfs`: The root filesystem directory (located at `/home/ubuntu/uml-rootfs`)
+This demo assumes you already have:
+
+- a UML kernel binary with debug symbols, such as `linux-uml-debug`
+- a UML root filesystem directory containing the demo loader binary
 - GDB installed on the host
+
+The exact paths depend on your local setup. Replace the example paths below
+with the paths in your environment.
 
 ## Running the Demo
 
@@ -38,7 +42,7 @@ We have provided a convenient script to run the entire demo automatically, or yo
 Simply run the automated Python controller which orchestrates the UML boot, GDB attachment, breakpoint setting, and triggering:
 
 ```bash
-cd /home/ubuntu/bpf_gdb_demo
+cd /path/to/repo/gdb_demo
 python3 run_automated_demo.py
 ```
 
@@ -57,7 +61,7 @@ If you want to experience the interactive debugging yourself, follow these steps
 #### Terminal 1: Start the UML Kernel
 Start the UML kernel using our wrapper script:
 ```bash
-cd /home/ubuntu/bpf_gdb_demo
+cd /path/to/repo/gdb_demo
 ./run_demo.sh
 ```
 The UML kernel will boot and the `bpf_loader_demo` will print instructions and wait for the trigger. Leave this terminal running.
@@ -70,7 +74,7 @@ ps aux | grep linux-uml-debug | grep -v grep
 
 Start GDB and attach to that PID:
 ```bash
-gdb /home/ubuntu/linux-uml-debug
+gdb /path/to/linux-uml-debug
 (gdb) attach <UML_PID>
 ```
 
@@ -92,7 +96,7 @@ Set your breakpoint and continue:
 #### Terminal 3: Trigger the BPF Load
 Now that GDB is waiting, trigger the loader to call the `bpf()` syscall:
 ```bash
-touch /home/ubuntu/uml-rootfs/tmp/uml_go
+touch /path/to/uml-rootfs/tmp/uml_go
 ```
 
 #### Back in Terminal 2: Debug!
@@ -111,7 +115,7 @@ You can now use standard GDB commands (`step`, `next`, `print`, `info locals`) t
 ## Files in this Directory
 
 - `bpf_loader_demo.c`: The source code for the loader program.
-- `bpf_loader_demo`: The compiled static binary (also copied to `/home/ubuntu/uml-rootfs/bpf/`).
+- `bpf_loader_demo`: The compiled static binary (also copied into the UML rootfs for the demo run).
 - `run_demo.sh`: Script to start the UML kernel with the correct arguments.
 - `verifier.gdb`: A collection of helpful GDB macros specifically for inspecting BPF verifier state (e.g., `print_bpf_insn`, `print_verifier_state`).
 - `demo_session_output.txt`: A captured log of a successful automated GDB session.
@@ -121,7 +125,7 @@ You can now use standard GDB commands (`step`, `next`, `print`, `info locals`) t
 We have provided a set of custom GDB macros in `verifier.gdb` to make inspecting the verifier state easier. To use them, load the file in your GDB session:
 
 ```gdb
-(gdb) source /home/ubuntu/bpf_gdb_demo/verifier.gdb
+(gdb) source /path/to/repo/gdb_demo/verifier.gdb
 ```
 
 Available commands:

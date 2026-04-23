@@ -2,18 +2,22 @@
 """
 GDB Controller for UML BPF Verifier Debugging
 Uses pexpect to control GDB running UML kernel
-Trigger: touch /home/ubuntu/uml-rootfs/tmp/uml_go
+Trigger: touch <rootfs>/tmp/uml_go
 """
 
-import pexpect
-import threading
-import time
 import os
 import sys
+import threading
+import time
 
-READY_FILE = "/home/ubuntu/uml-rootfs/tmp/uml_ready"
-GO_FILE = "/home/ubuntu/uml-rootfs/tmp/uml_go"
+import pexpect
+
 GDB_TIMEOUT = 120
+KERNEL = os.environ.get("UML_GDB_KERNEL", os.path.expanduser("~/linux-uml-debug"))
+ROOTFS = os.environ.get("UML_GDB_ROOTFS", os.path.expanduser("~/uml-rootfs"))
+SOURCE_DIR = os.environ.get("UML_GDB_SRCDIR", "")
+READY_FILE = os.path.join(ROOTFS, "tmp", "uml_ready")
+GO_FILE = os.path.join(ROOTFS, "tmp", "uml_go")
 
 def trigger_thread():
     """Wait for ready file, then create go file"""
@@ -34,6 +38,16 @@ def trigger_thread():
     print("[TRIGGER] Go file created! BPF load will be triggered.")
 
 def main():
+    if not os.path.isfile(KERNEL):
+        print(f"[FAIL] UML kernel not found: {KERNEL}")
+        print("[FAIL] Set UML_GDB_KERNEL to the debug UML kernel path.")
+        return 1
+
+    if not os.path.isdir(ROOTFS):
+        print(f"[FAIL] UML rootfs not found: {ROOTFS}")
+        print("[FAIL] Set UML_GDB_ROOTFS to the UML rootfs path.")
+        return 1
+
     # Clean up stale files
     for f in [READY_FILE, GO_FILE]:
         if os.path.exists(f):
@@ -46,7 +60,7 @@ def main():
     # Start GDB
     print("[GDB] Starting GDB with UML kernel...")
     gdb = pexpect.spawn(
-        'gdb /home/ubuntu/linux-uml-debug',
+        f'gdb {KERNEL}',
         timeout=GDB_TIMEOUT,
         encoding='utf-8'
     )
@@ -60,8 +74,9 @@ def main():
     gdb.expect(r'\(gdb\)')
     gdb.sendline('set print pretty on')
     gdb.expect(r'\(gdb\)')
-    gdb.sendline('directory /home/ubuntu/linux-6.12.20')
-    gdb.expect(r'\(gdb\)')
+    if SOURCE_DIR:
+        gdb.sendline(f'directory {SOURCE_DIR}')
+        gdb.expect(r'\(gdb\)')
     
     # Handle signals that UML generates internally
     for sig in ['SIGCHLD', 'SIGVTALRM', 'SIGIO', 'SIGUSR1', 'SIGUSR2']:
@@ -75,7 +90,10 @@ def main():
     gdb.expect(r'\(gdb\)')
     
     # Set UML arguments
-    gdb.sendline('set args rootfstype=hostfs rootflags=/home/ubuntu/uml-rootfs rw init=/init_gdb_demo mem=256M con=fd:0,fd:1 con0=fd:0,fd:1')
+    gdb.sendline(
+        f'set args rootfstype=hostfs rootflags={ROOTFS} rw init=/init_gdb_demo '
+        'mem=256M con=fd:0,fd:1 con0=fd:0,fd:1'
+    )
     gdb.expect(r'\(gdb\)')
     gdb.sendline('set follow-fork-mode parent')
     gdb.expect(r'\(gdb\)')

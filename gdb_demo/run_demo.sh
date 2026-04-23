@@ -7,12 +7,19 @@
 
 set -e
 
-KERNEL=/home/ubuntu/linux-uml-debug
-ROOTFS=/home/ubuntu/uml-rootfs
+KERNEL="${UML_GDB_KERNEL:-${HOME}/linux-uml-debug}"
+ROOTFS="${UML_GDB_ROOTFS:-${HOME}/uml-rootfs}"
 DEMO_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 if [ ! -f "$KERNEL" ]; then
     echo "ERROR: UML kernel not found at $KERNEL"
+    echo "Set UML_GDB_KERNEL to the debug UML kernel path."
+    exit 1
+fi
+
+if [ ! -d "$ROOTFS" ]; then
+    echo "ERROR: UML rootfs not found at $ROOTFS"
+    echo "Set UML_GDB_ROOTFS to the UML rootfs path."
     exit 1
 fi
 
@@ -22,6 +29,8 @@ echo "========================================================"
 echo ""
 echo "Starting UML kernel..."
 echo "Watch for the line:  [bpf_loader_demo] PID = <N>"
+echo "Kernel: $KERNEL"
+echo "Rootfs: $ROOTFS"
 echo ""
 echo "Then in a SECOND terminal, run:"
 echo ""
