@@ -89,7 +89,7 @@ page-aligned LOAD segments.
 
 ---
 
-### 0003b — `um/x86: select HAVE_EBPF_JIT for UML on 64-bit`
+### 0003b — `um/x86: enable eBPF JIT support and default-on JIT for UML`
 
 **Problem:** `CONFIG_BPF_JIT` cannot be enabled on UML x86-64 because
 `HAVE_EBPF_JIT` was not selected for the architecture. Without
@@ -98,11 +98,13 @@ immediately, so all struct_ops BPF programs (tcp congestion control, etc.)
 fail to load. UML x86-64 can in fact use the x86-64 BPF JIT since it runs
 as a regular Linux process on an x86-64 host.
 
-**Fix:** Add `select HAVE_EBPF_JIT if 64BIT` to the `UML_X86` config block
-in `arch/x86/um/Kconfig`.
+**Fix:** Add:
+- `select HAVE_EBPF_JIT if 64BIT` so `CONFIG_BPF_JIT=y` can be enabled
+- `select ARCH_WANT_DEFAULT_BPF_JIT if 64BIT` so 64-bit UML boots with
+  `net.core.bpf_jit_enable=1` by default, matching native x86-64
 
 **Files changed:**
-- `arch/x86/um/Kconfig` (add `select HAVE_EBPF_JIT if 64BIT`)
+- `arch/x86/um/Kconfig`
 
 ---
 

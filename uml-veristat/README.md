@@ -62,17 +62,18 @@ You can override the paths to the kernel and veristat binaries using environment
 
 ## Kernel Patches
 
-The `patches/` directory contains 7 patches applied to the `bpf-next` kernel tree to enable full BPF verification on UML:
+The `patches/` directory contains 8 patches applied to the `bpf-next` kernel tree to enable full BPF verification on UML:
 
 | Patch | Description | Programs fixed |
 |-------|-------------|----------------|
 | 0001 | Add `__x64_sys_*` wrappers for BPF selftest compatibility | fentry/kprobe attach targets |
 | 0002 | Add `BPF_VERIFICATION_STUBS` (tracing + LSM + stack trace) | tracing/LSM types + maps |
 | 0003 | Fix UML stub page alignment (`-Wl,-n` removal) | UML boot fix |
-| 0003b | Select `HAVE_EBPF_JIT` for UML x86-64 | struct_ops programs |
+| 0003b | Enable eBPF JIT support and default-on JIT for UML x86-64 | struct_ops + default guest JIT |
 | 0004 | Fix `bpf_testmod.c` compilation on UML | bpf_testmod module |
 | 0005 | Handle duplicate BTF types in CO-RE relocations | btf_relocate + relo_core |
 | 0007 | Fix veristat map fixup for zero key_size/value_size | bench + cgroup maps |
+| 0008 | Cap veristat auto log size to avoid UML OOM | verbose log stability |
 
 ## Reproducible Coverage
 
@@ -95,19 +96,19 @@ The default report now separates the top-level corpus into:
 - expected-negative tests that are supposed to fail
 - fixture-only linked/subskeleton objects that are not standalone load targets
 
-Current reproducible output for the top-level corpus (`879` `.bpf.o` files) is:
+Current reproducible output for the top-level corpus (`884` `.bpf.o` files) is:
 
 | Metric | Value |
 |--------|-------|
-| Standalone input files | `868` |
+| Standalone input files | `873` |
 | Excluded expected-negative tests | `3` |
 | Excluded fixture-only objects | `8` |
-| Processed files | `866` |
+| Processed files | `871` |
 | Skipped files | `2` |
-| Processed programs | `4341` |
-| Successful CSV rows | `1740` |
-| Failing CSV rows | `2601` |
-| Remaining failed-to-process files | `12` |
+| Processed programs | `4378` |
+| Successful CSV rows | `1748` |
+| Failing CSV rows | `2630` |
+| Remaining failed-to-process files | `11` |
 | Remaining failed-to-open files | `1` |
 
 Excluded expected-negative tests:
@@ -135,12 +136,11 @@ Remaining standalone items:
 - `arena_list.bpf.o`
 - `arena_spin_lock.bpf.o`
 - `arena_strsearch.bpf.o`
-- `test_send_signal_kern.bpf.o`
+- `stream.bpf.o`
 - `verifier_arena.bpf.o`
 - `verifier_arena_globals1.bpf.o`
 - `verifier_arena_globals2.bpf.o`
 - `verifier_arena_large.bpf.o`
-- `xfrm_info.bpf.o`
 - `test_sk_assign.bpf.o`
 
 See `patches/README.md` for detailed descriptions of each patch.

@@ -1,7 +1,7 @@
-From b718e4b15381a167d36bcbc3c952be288cba7e44 Mon Sep 17 00:00:00 2001
+From f45ea0d3f58d50f5f4b77a59d9dd9dba56c954a1 Mon Sep 17 00:00:00 2001
 From: Mykola Lysenko <mykolal@meta.com>
 Date: Tue, 21 Apr 2026 00:29:15 -0400
-Subject: [PATCH] um/x86: select HAVE_EBPF_JIT for UML on 64-bit
+Subject: [PATCH] um/x86: enable eBPF JIT support and default-on JIT for UML
 
 UML on x86-64 runs as a regular userspace process on an x86-64 host
 and can use the x86-64 BPF JIT.  Without HAVE_EBPF_JIT selected,
@@ -9,26 +9,28 @@ CONFIG_BPF_JIT cannot be enabled.  This makes
 register_bpf_struct_ops() return -EOPNOTSUPP, so all struct_ops BPF
 programs (tcp congestion control, etc.) fail to load.
 
-Add 'select HAVE_EBPF_JIT if 64BIT' to UML_X86 so that
-CONFIG_BPF_JIT=y can be enabled on UML x86-64.
+Also select ARCH_WANT_DEFAULT_BPF_JIT on 64-bit UML, matching native
+x86-64, so the guest boots with net.core.bpf_jit_enable=1 by default.
+This avoids having to flip the sysctl in userspace before veristat can
+request JIT.
 
 Signed-off-by: Mykola Lysenko <mykolal@meta.com>
 ---
- arch/x86/um/Kconfig | 1 +
- 1 file changed, 1 insertion(+)
+ arch/x86/um/Kconfig | 2 ++
+ 1 file changed, 2 insertions(+)
 
 diff --git a/arch/x86/um/Kconfig b/arch/x86/um/Kconfig
-index 44b12e45f..e3f2ec1fa 100644
+index 44b12e45f..8a685995c 100644
 --- a/arch/x86/um/Kconfig
 +++ b/arch/x86/um/Kconfig
-@@ -13,6 +13,7 @@ config UML_X86
+@@ -13,6 +13,8 @@ config UML_X86
  	select ARCH_USE_QUEUED_SPINLOCKS
  	select DCACHE_WORD_ACCESS
  	select HAVE_EFFICIENT_UNALIGNED_ACCESS
 +	select HAVE_EBPF_JIT if 64BIT
++	select ARCH_WANT_DEFAULT_BPF_JIT if 64BIT
  	select UML_SUBARCH_SUPPORTS_SMP if X86_CX8
 
  config 64BIT
 --
 2.34.1
-
