@@ -1,0 +1,134 @@
+From aa95e2c5827998e25816e5a432dd8a4405edbf81 Mon Sep 17 00:00:00 2001
+From: Mykola Lysenko <mykolal@meta.com>
+Date: Fri, 24 Apr 2026 10:49:23 -0700
+Subject: [PATCH] um/x86: add verification-only runtime shims for BPF JIT
+
+---
+ arch/x86/net/bpf_jit_comp.c | 65 ++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 64 insertions(+), 1 deletion(-)
+
+diff --git a/arch/x86/net/bpf_jit_comp.c b/arch/x86/net/bpf_jit_comp.c
+index 61ad7adda..c93bbc0be 100644
+--- a/arch/x86/net/bpf_jit_comp.c
++++ b/arch/x86/net/bpf_jit_comp.c
+@@ -24,7 +24,53 @@
+ #include <asm/cfi.h>
+ 
+ #ifdef CONFIG_UML
+-DECLARE_PER_CPU_CACHE_HOT(unsigned long, this_cpu_off);
++static const unsigned char x86_nop1[] = { BYTES_NOP1 };
++static const unsigned char x86_nop2[] = { BYTES_NOP2 };
++static const unsigned char x86_nop3[] = { BYTES_NOP3 };
++static const unsigned char x86_nop4[] = { BYTES_NOP4 };
++static const unsigned char x86_nop5[] = { BYTES_NOP5 };
++static const unsigned char x86_nop6[] = { BYTES_NOP6 };
++static const unsigned char x86_nop7[] = { BYTES_NOP7 };
++static const unsigned char x86_nop8[] = { BYTES_NOP8 };
++#ifdef CONFIG_X86_64
++static const unsigned char x86_nop9[] = { BYTES_NOP9 };
++static const unsigned char x86_nop10[] = { BYTES_NOP10 };
++static const unsigned char x86_nop11[] = { BYTES_NOP11 };
++#endif
++
++const unsigned char * const x86_nops[ASM_NOP_MAX + 1] = {
++	NULL,
++	x86_nop1,
++	x86_nop2,
++	x86_nop3,
++	x86_nop4,
++	x86_nop5,
++	x86_nop6,
++	x86_nop7,
++	x86_nop8,
++#ifdef CONFIG_X86_64
++	x86_nop9,
++	x86_nop10,
++	x86_nop11,
++#endif
++};
++
++enum cfi_mode cfi_mode = CFI_OFF;
++unsigned long this_cpu_off;
++
++void clear_bhb_loop(void)
++{
++}
++
++void *text_poke_set(void *addr, int c, size_t len)
++{
++	return memset(addr, c, len);
++}
++
++void smp_text_poke_single(void *addr, const void *opcode, size_t len, const void *emulate)
++{
++	memcpy(addr, opcode, len);
++}
+ #endif
+ 
+ static bool all_callee_regs_used[4] = {true, true, true, true};
+@@ -435,6 +481,7 @@ static void emit_nops(u8 **pprog, int len)
+  */
+ static int emit_call(u8 **prog, void *func, void *ip);
+ 
++#ifndef CONFIG_UML
+ static void emit_fineibt(u8 **pprog, u8 *ip, u32 hash, int arity)
+ {
+ 	u8 *prog = *pprog;
+@@ -465,11 +512,15 @@ static void emit_kcfi(u8 **pprog, u32 hash)
+ 
+ 	*pprog = prog;
+ }
++#endif
+ 
+ static void emit_cfi(u8 **pprog, u8 *ip, u32 hash, int arity)
+ {
+ 	u8 *prog = *pprog;
+ 
++#ifdef CONFIG_UML
++	EMIT_ENDBR();
++#else
+ 	switch (cfi_mode) {
+ 	case CFI_FINEIBT:
+ 		emit_fineibt(&prog, ip, hash, arity);
+@@ -483,6 +534,7 @@ static void emit_cfi(u8 **pprog, u8 *ip, u32 hash, int arity)
+ 		EMIT_ENDBR();
+ 		break;
+ 	}
++#endif
+ 
+ 	*pprog = prog;
+ }
+@@ -691,6 +743,11 @@ static void emit_indirect_jump(u8 **pprog, int bpf_reg, u8 *ip)
+ 	int reg = reg2hex[bpf_reg];
+ 	bool ereg = is_ereg(bpf_reg);
+ 
++#ifdef CONFIG_UML
++	__emit_indirect_jump(&prog, reg, ereg);
++	if (IS_ENABLED(CONFIG_MITIGATION_RETPOLINE) || IS_ENABLED(CONFIG_MITIGATION_SLS))
++		EMIT1(0xCC);
++#else
+ 	if (cpu_feature_enabled(X86_FEATURE_INDIRECT_THUNK_ITS)) {
+ 		OPTIMIZER_HIDE_VAR(reg);
+ 		emit_jump(&prog, its_static_thunk(reg + 8*ereg), ip);
+@@ -708,6 +765,7 @@ static void emit_indirect_jump(u8 **pprog, int bpf_reg, u8 *ip)
+ 		if (IS_ENABLED(CONFIG_MITIGATION_RETPOLINE) || IS_ENABLED(CONFIG_MITIGATION_SLS))
+ 			EMIT1(0xCC);		/* int3 */
+ 	}
++#endif
+ 
+ 	*pprog = prog;
+ }
+@@ -1633,6 +1691,11 @@ static int emit_spectre_bhb_barrier(u8 **pprog, u8 *ip,
+ 	u8 *prog = *pprog;
+ 	u8 *func;
+ 
++#ifdef CONFIG_UML
++	*pprog = prog;
++	return 0;
++#endif
++
+ 	if (cpu_feature_enabled(X86_FEATURE_CLEAR_BHB_LOOP)) {
+ 		/* The clearing sequence clobbers eax and ecx. */
+ 		EMIT1(0x50); /* push rax */
+-- 
+2.52.0

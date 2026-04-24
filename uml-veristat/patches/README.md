@@ -108,6 +108,70 @@ as a regular Linux process on an x86-64 host.
 
 ---
 
+### 0003c — `um/x86: wire up native x86 BPF JIT backend for UML`
+
+**Problem:** After enabling `CONFIG_BPF_JIT` for UML x86-64, the kernel still
+uses the weak generic BPF JIT stubs from `kernel/bpf/core.c`. UML's build path
+does not link `arch/x86/net/`, where the real x86 BPF JIT backend lives, so
+helpers like `bpf_jit_supports_kfunc_call()` keep returning `false`. This makes
+kfunc-using programs fail with `JIT does not support calling kernel function`
+even though JIT is enabled.
+
+`arch/x86/net/bpf_jit_comp.c` also assumes native x86 support headers and ptregs
+layout. UML needs a few small compatibility shims:
+
+1. Export native x86 NOP and vsyscall definitions through UML `asm/` wrappers.
+2. Provide the selector constants used by x86 speculation helpers.
+3. Teach the JIT's `pt_regs` fixup table to use UML's `regs.gp[]` layout.
+4. Provide the missing cpufeature mask fallbacks and declare `this_cpu_off`.
+
+**Fix:** Link `arch/x86/net/` into `arch/x86/Makefile.um` and add the minimal
+UML/x86 compatibility glue needed for `bpf_jit_comp.c` to build under
+`ARCH=um`.
+
+**Files changed:**
+- `arch/um/include/asm/cpufeature.h`
+- `arch/x86/Makefile.um`
+- `arch/x86/net/bpf_jit_comp.c`
+- `arch/x86/um/asm/nops.h` (new)
+- `arch/x86/um/asm/segment.h`
+- `arch/x86/um/asm/vsyscall.h` (new)
+
+---
+
+### 0003d — `um/x86: add verification-only runtime shims for BPF JIT`
+
+**Problem:** After linking `arch/x86/net/` into UML, the native x86 BPF JIT
+backend builds but the full UML kernel still fails to link. The backend pulls
+in a larger slice of native x86 runtime support that UML does not provide:
+`x86_nops`, `cfi_mode`, `text_poke_set()`, `smp_text_poke_single()`,
+`clear_bhb_loop()`, `this_cpu_off`, and retpoline thunk machinery.
+
+For `uml-veristat`, we do not need full native text-patching or mitigation
+semantics. We only need the JIT to compile programs far enough for load-time
+analysis. The generated code is never executed inside UML.
+
+**Fix:** Add UML-only runtime shims directly in `arch/x86/net/bpf_jit_comp.c`
+and bypass the native mitigation paths that require retpoline thunk arrays:
+
+1. Provide local x86 NOP tables.
+2. Force `cfi_mode = CFI_OFF`.
+3. Stub `text_poke_set()` and `smp_text_poke_single()` with `memset`/`memcpy`.
+4. Provide a zero `this_cpu_off` symbol and empty `clear_bhb_loop()`.
+5. Use the simple indirect-jump path on UML instead of retpoline thunk targets.
+6. Skip BHB barrier emission on UML.
+
+**Result:** The full UML kernel links, and `bpf_jit_supports_kfunc_call()`
+returns true in the final `linux` binary. Kfunc-using objects like
+`test_send_signal_kern.bpf.o` and `xfrm_info.bpf.o` get past the old
+`JIT does not support calling kernel function` failure and now fail later in
+normal verifier/codegen paths.
+
+**Files changed:**
+- `arch/x86/net/bpf_jit_comp.c`
+
+---
+
 ### 0004 — `selftests/bpf: fix bpf_testmod.c compilation on UML`
 
 **Problem:** `bpf_testmod.c` fails to compile as a kernel module when `ARCH=um`

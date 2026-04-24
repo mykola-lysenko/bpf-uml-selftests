@@ -1,33 +1,17 @@
-From 31c9c17f1426e0b5fb0e8661e3eae8f4f5eb48de Mon Sep 17 00:00:00 2001
+From 59ecd433ed69f9130fc78f82d36dae3609255c50 Mon Sep 17 00:00:00 2001
 From: Mykola Lysenko <mykolal@meta.com>
-Date: Thu, 23 Apr 2026 15:03:00 -0700
+Date: Fri, 24 Apr 2026 11:03:38 -0700
 Subject: [PATCH] selftests/bpf: veristat: cap auto log size to avoid OOM
 
-Veristat probes the kernel to see if it supports "big" verifier log
-buffers and, when it does, defaults to UINT_MAX >> 2 as the automatic
-log size. In UML this is roughly 1 GiB, which exceeds the guest's
-default 512 MiB memory size.
-
-As a result, `veristat -vl2` can crash before printing any verifier log
-at all. The problem is not just the final userspace allocation: the
-probe itself asks the verifier for a ~1 GiB log, which is already
-impractical on a default UML guest.
-
-Keep the existing small-vs-big probe, but reduce the automatic "big log"
-size to 64 MiB. This preserves the ability to request a larger buffer
-explicitly with `--log-size`, while making the default verbose mode safe
-on UML.
-
-Signed-off-by: Mykola Lysenko <mykolal@meta.com>
 ---
- tools/testing/selftests/bpf/veristat.c | 6 ++++--
- 1 file changed, 4 insertions(+), 2 deletions(-)
+ tools/testing/selftests/bpf/veristat.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
 
 diff --git a/tools/testing/selftests/bpf/veristat.c b/tools/testing/selftests/bpf/veristat.c
-index b95e4d691..9ad91a11f 100644
+index 010ad9c0d..108373349 100644
 --- a/tools/testing/selftests/bpf/veristat.c
 +++ b/tools/testing/selftests/bpf/veristat.c
-@@ -1339,7 +1339,8 @@ skip_freplace_fixup:
+@@ -1342,7 +1342,8 @@ static void fixup_obj(struct bpf_object *obj, struct bpf_program *prog, const ch
  static int max_verifier_log_size(void)
  {
  	const int SMALL_LOG_SIZE = UINT_MAX >> 8;
@@ -37,15 +21,13 @@ index b95e4d691..9ad91a11f 100644
  	struct bpf_insn insns[] = {
  		{ .code = BPF_ALU | BPF_MOV | BPF_X, .dst_reg = BPF_REG_0, },
  		{ .code  = BPF_JMP | BPF_EXIT, },
-@@ -1365,7 +1366,8 @@ static int max_verifier_log_size(void)
- 		log_size = BIG_LOG_SIZE;
+@@ -1365,6 +1366,7 @@ static int max_verifier_log_size(void)
  	else /* ret == -EINVAL, big log size is not supported by the verifier */
  		log_size = SMALL_LOG_SIZE;
--
+ 
 +	/* Larger logs can still be requested explicitly with --log-size. */
  	return log_size;
  }
  
- static bool output_stat_enabled(int id)
 -- 
 2.52.0

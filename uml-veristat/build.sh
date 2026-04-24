@@ -360,6 +360,24 @@ info "bpf-next: ${KERNEL_COMMIT}  (${KERNEL_VERSION})"
 # matching causes stale build trees to mis-detect partially updated patch sets.
 PATCHES_DIR="${SCRIPT_DIR}/patches"
 if [ -d "${PATCHES_DIR}" ]; then
+    UPSTREAM_REF="origin/${KERNEL_BRANCH}"
+    if ! git -C "${LINUX_DIR}" rev-parse --verify "${UPSTREAM_REF}" >/dev/null 2>&1; then
+        UPSTREAM_REF="HEAD"
+    fi
+
+    CURRENT_HEAD=$(git -C "${LINUX_DIR}" rev-parse HEAD)
+    UPSTREAM_HEAD=$(git -C "${LINUX_DIR}" rev-parse "${UPSTREAM_REF}")
+    if [ "${CURRENT_HEAD}" != "${UPSTREAM_HEAD}" ] || \
+       [ -n "$(git -C "${LINUX_DIR}" status --porcelain)" ]; then
+        info "Resetting kernel tree to clean upstream state before applying patches..."
+        git -C "${LINUX_DIR}" am --abort >/dev/null 2>&1 || true
+        git -C "${LINUX_DIR}" reset --hard "${UPSTREAM_REF}"
+        git -C "${LINUX_DIR}" clean -fd
+        KERNEL_COMMIT=$(git -C "${LINUX_DIR}" rev-parse --short HEAD)
+        KERNEL_VERSION=$(make -C "${LINUX_DIR}" -s kernelversion 2>/dev/null || echo "unknown")
+        info "Reset kernel tree to ${KERNEL_COMMIT}  (${KERNEL_VERSION})"
+    fi
+
     # Configure a git identity in the kernel tree if not already set
     git -C "${LINUX_DIR}" config user.email "uml-veristat@build" 2>/dev/null || true
     git -C "${LINUX_DIR}" config user.name  "uml-veristat build"  2>/dev/null || true
@@ -525,11 +543,10 @@ VERISTAT_BIN="${SELFTESTS_OUTPUT}/veristat"
 
 if [ ! -x "${VERISTAT_BIN}" ] || [ "${DO_UPDATE}" = "1" ] || [ "${REBUILD_SELFTESTS}" = "1" ]; then
     info "Building all BPF selftests (veristat, test_progs, .bpf.o progs)..."
-    # -k: keep going on errors so that the handful of UML-incompatible progs
-    # (e.g. bpf_iter_ipv6_route which needs CONFIG_IPV6, bpf_iter_tasks which
-    # uses x86 pt_regs->ip absent in UML, bpf_iter_task_stack / bpf_iter_task_btf
-    # which need CONFIG_PERF_EVENTS unavailable on UML) do not abort the entire
-    # build.  All other 200+ progs build successfully.
+    # -k: keep going on errors so that UML-incompatible or upstream-drifting
+    # selftests do not abort the whole build. We still install the successfully
+    # built corpus and validate it with scripts/report_coverage.py.
+    SELFTESTS_MAKE_STATUS=0
     make -C "${SELFTESTS_DIR}" \
         OUTPUT="${SELFTESTS_OUTPUT}/" \
         CLANG="${CLANG}" \
@@ -539,7 +556,11 @@ if [ ! -x "${VERISTAT_BIN}" ] || [ "${DO_UPDATE}" = "1" ] || [ "${REBUILD_SELFTE
         VMLINUX_BTF="${UML_BINARY}" \
         ARCH=x86_64 \
         -j"$(nproc)" \
-        -k 2>&1 || true
+        -k 2>&1 || SELFTESTS_MAKE_STATUS=$?
+    if [ "${SELFTESTS_MAKE_STATUS}" -ne 0 ]; then
+        warn "Selftests build completed with partial failures; continuing with the successfully built corpus."
+        warn "Use scripts/report_coverage.py to validate the installed standalone corpus."
+    fi
 else
     info "Selftests already built — skipping. (Use --update to rebuild.)"
 fi

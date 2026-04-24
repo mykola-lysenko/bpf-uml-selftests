@@ -28,10 +28,15 @@ cd uml-veristat
 2. Downloads a pre-built LLVM/Clang release from GitHub (or builds from source with `--llvm-source`).
 3. Builds `pahole` (v1.31) from source.
 4. Clones the latest `bpf-next` kernel tree.
-5. Applies 6 patches to enable full BPF verification on UML (see `patches/`).
+5. Applies the UML patch stack to enable full BPF verification on UML (see `patches/`).
 6. Builds the UML kernel (`linux`) with BPF and BTF enabled.
 7. Builds the `veristat` binary.
 8. Installs the artifacts to `~/.local/share/uml-veristat/`.
+
+The selftests build runs in keep-going mode. A small set of UML-incompatible or
+upstream-drifting selftests can fail to compile without aborting the overall
+install. The supported standalone corpus is tracked by
+`scripts/report_coverage.py`.
 
 *Note: The initial build takes about 15–20 minutes depending on your CPU and network speed. Subsequent builds (e.g. `./build.sh --update`) are incremental and much faster.*
 
@@ -62,7 +67,7 @@ You can override the paths to the kernel and veristat binaries using environment
 
 ## Kernel Patches
 
-The `patches/` directory contains 8 patches applied to the `bpf-next` kernel tree to enable full BPF verification on UML:
+The `patches/` directory contains 10 patches applied to the `bpf-next` kernel tree to enable full BPF verification on UML:
 
 | Patch | Description | Programs fixed |
 |-------|-------------|----------------|
@@ -70,6 +75,8 @@ The `patches/` directory contains 8 patches applied to the `bpf-next` kernel tre
 | 0002 | Add `BPF_VERIFICATION_STUBS` (tracing + LSM + stack trace) | tracing/LSM types + maps |
 | 0003 | Fix UML stub page alignment (`-Wl,-n` removal) | UML boot fix |
 | 0003b | Enable eBPF JIT support and default-on JIT for UML x86-64 | struct_ops + default guest JIT |
+| 0003c | Wire the native x86 BPF JIT backend into UML | real JIT capability hooks |
+| 0003d | Add UML-only JIT runtime shims for verification | kfunc-capable JIT in UML |
 | 0004 | Fix `bpf_testmod.c` compilation on UML | bpf_testmod module |
 | 0005 | Handle duplicate BTF types in CO-RE relocations | btf_relocate + relo_core |
 | 0007 | Fix veristat map fixup for zero key_size/value_size | bench + cgroup maps |
@@ -106,8 +113,8 @@ Current reproducible output for the top-level corpus (`884` `.bpf.o` files) is:
 | Processed files | `871` |
 | Skipped files | `2` |
 | Processed programs | `4378` |
-| Successful CSV rows | `1748` |
-| Failing CSV rows | `2630` |
+| Successful CSV rows | `2202` |
+| Failing CSV rows | `2176` |
 | Remaining failed-to-process files | `11` |
 | Remaining failed-to-open files | `1` |
 

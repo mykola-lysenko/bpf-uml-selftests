@@ -1,42 +1,20 @@
-From 5be565df453a432eae9ceddf1be58b0af670ec8c Mon Sep 17 00:00:00 2001
+From 5ed2457ba0a93594f7bedd143be405e58d098f62 Mon Sep 17 00:00:00 2001
 From: Mykola Lysenko <mykolal@meta.com>
-Date: Mon, 20 Apr 2026 18:58:49 -0400
+Date: Fri, 24 Apr 2026 11:07:56 -0700
 Subject: [PATCH] bpf: add verification stubs for UML kernels without
  PERF_EVENTS
 
-On User Mode Linux (UML), CONFIG_PERF_EVENTS and CONFIG_BPF_EVENTS are
-unavailable because they depend on hardware performance counters and
-kprobes.  This means tracing program types (KPROBE, TRACEPOINT,
-PERF_EVENT, RAW_TRACEPOINT, TRACING) and LSM program types are not
-registered.  BPF_MAP_TYPE_STACK_TRACE and BPF_MAP_TYPE_INODE_STORAGE
-are also unavailable.
-
-For static verification purposes (veristat), we only need the BPF
-verifier to accept these program types — programs are never attached
-or executed.
-
-Add CONFIG_BPF_VERIFICATION_STUBS (default y on UML) that provides:
-
-Tracing stubs:
-- Minimal bpf_verifier_ops/bpf_prog_ops for all six tracing program
-  types, delegating to bpf_base_func_proto() and
-  bpf_tracing_btf_ctx_access().
-- Callchain buffer stubs so BPF_MAP_TYPE_STACK_TRACE maps can be
-  created.  Execution-time stubs use WARN_ON_ONCE since veristat
-  never runs programs.
-
-LSM stubs (when CONFIG_SECURITY is also set):
-- Weak noinline bpf_lsm_* nop functions as BTF attach targets for
-  SEC("lsm/...") programs.
-- BTF ID sets for hook validation (bpf_lsm_hooks, sleepable, etc.)
-  and bpf_lsm_verify_prog(), is_sleepable_hook(), is_trusted(),
-  get_retval_range() implementations.
-- Stub FS kfuncs (bpf_get_file_xattr, bpf_get_dentry_xattr, etc.)
-  with BTF_KFUNCS registration for BPF_PROG_TYPE_LSM.
-- BPF_MAP_TYPE_INODE_STORAGE via bpf_inode_storage.c.
-
-Signed-off-by: Mykola Lysenko <mykolal@meta.com>
 ---
+ include/linux/bpf_lsm.h             |   6 +-
+ include/linux/bpf_types.h           |  10 +-
+ include/linux/perf_event.h          |  17 +-
+ kernel/bpf/Kconfig                  |  18 ++
+ kernel/bpf/Makefile                 |   7 +-
+ kernel/bpf/bpf_verification_stubs.c | 403 ++++++++++++++++++++++++++++
+ kernel/bpf/stackmap.c               |   2 +
+ 7 files changed, 452 insertions(+), 11 deletions(-)
+ create mode 100644 kernel/bpf/bpf_verification_stubs.c
+
 diff --git a/include/linux/bpf_lsm.h b/include/linux/bpf_lsm.h
 index 643809cc7..9c16b8e39 100644
 --- a/include/linux/bpf_lsm.h
@@ -197,10 +175,10 @@ index 399007b67..26438fc45 100644
  CFLAGS_REMOVE_queue_stack_maps.o = $(CC_FLAGS_FTRACE)
 diff --git a/kernel/bpf/bpf_verification_stubs.c b/kernel/bpf/bpf_verification_stubs.c
 new file mode 100644
-index 000000000..c463bd439
+index 000000000..589b95659
 --- /dev/null
 +++ b/kernel/bpf/bpf_verification_stubs.c
-@@ -0,0 +1,403 @@
+@@ -0,0 +1,451 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * BPF program type stubs for verification-only kernels (e.g. UML)
@@ -672,6 +650,5 @@ index da3d328f5..ee4e412f0 100644
  
  /* Called from eBPF program */
  static void *stack_map_lookup_elem(struct bpf_map *map, void *key)
-
 -- 
-2.34.1
+2.52.0
