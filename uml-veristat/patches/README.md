@@ -207,7 +207,25 @@ when they are zero.  Map types that require zero by design are excluded:
 
 ---
 
-## Patch 0008 — bpf: add BPF_LSM_STUBS for kernels without BPF_EVENTS
+## Patch 0008 — selftests/bpf: veristat: cap auto log size to avoid OOM
+
+**File:** `tools/testing/selftests/bpf/veristat.c`
+
+**Problem:** Veristat probes whether the kernel accepts "big" verifier log
+buffers and, if it does, defaults to `UINT_MAX >> 2` for verbose mode. On UML
+this is roughly 1 GiB, which exceeds the guest's default memory size and can
+make `veristat -vl2` crash before it prints any verifier log output.
+
+**Fix:** Keep the existing probe, but cap the automatically chosen default log
+size to 64 MiB. Users can still request a larger buffer explicitly with
+`--log-size`.
+
+**Impact:** Prevents verbose-mode crashes in UML while preserving explicit
+large-log opt-in behavior.
+
+---
+
+## Patch 0009 — bpf: add BPF_LSM_STUBS for kernels without BPF_EVENTS
 
 **Files:** `kernel/bpf/bpf_lsm_stubs.c` (new), `kernel/bpf/Kconfig`,
 `kernel/bpf/Makefile`, `include/linux/bpf_types.h`, `include/linux/bpf_lsm.h`,
