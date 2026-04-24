@@ -1,0 +1,40 @@
+name: Build uml-veristat
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+concurrency:
+  group: uml-veristat-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: Build package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build uml-veristat package
+        working-directory: uml-veristat
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: ./build.sh --package
+
+      - name: Show built packages
+        run: ls -lh uml-veristat/*.tar.gz
+
+      - name: Upload uml-veristat package
+        uses: actions/upload-artifact@v4
+        with:
+          name: uml-veristat-package-${{ github.sha }}
+          path: uml-veristat/*.tar.gz
+          if-no-files-found: error
+          retention-days: 14
