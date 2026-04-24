@@ -184,6 +184,10 @@ mount -t proc proc /proc 2>/dev/null || true
 mount -t sysfs sysfs /sys 2>/dev/null || true
 mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
 
+# Request JIT in the guest so kfunc-capable programs don't fail early just
+# because net.core.bpf_jit_enable defaults to 0 on UML.
+echo 1 > /proc/sys/net/core/bpf_jit_enable 2>/dev/null || true
+
 # Load kernel modules before running veristat
 ${INSMOD_CMDS}
 # Run veristat; redirect all output to a host-visible file
