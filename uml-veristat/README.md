@@ -82,6 +82,70 @@ The `patches/` directory contains 10 patches applied to the `bpf-next` kernel tr
 | 0007 | Fix veristat map fixup for zero key_size/value_size | bench + cgroup maps |
 | 0008 | Cap veristat auto log size to avoid UML OOM | verbose log stability |
 
+## Verification Model
+
+`uml-veristat` exposes an upstream kernel reality that is easy to miss: BPF
+"verification" is not a single platform-independent pass.
+
+In practice there are two layers:
+
+1. Generic verifier checks
+   - CFG validity, register typing, pointer provenance, bounds, lifetimes,
+     reference tracking, helper/kfunc signatures, etc.
+2. Backend-dependent compatibility checks
+   - whether the selected execution target can actually lower the verified
+     program: interpreter vs JIT, architecture-specific code generation, and
+     feature-specific backend support.
+
+The current kernel mixes those layers together in the verifier instead of
+reporting them as two separate phases. For `uml-veristat`, that means some
+failures are not "your program is invalid BPF", but "this UML/x86 JIT backend
+does not support lowering this valid construct yet".
+
+### Why arena requires JIT
+
+Arena is the clearest example. In
+`kernel/bpf/verifier.c`, `BPF_MAP_TYPE_ARENA` is rejected unless:
+
+- `prog->jit_requested` is true
+- `bpf_jit_supports_arena()` is true
+- the arena has a user VM base address
+
+This is not just a generic kfunc restriction. Arena pointers rely on
+architecture-specific JIT lowering. As explained in `kernel/bpf/arena.c`,
+arena pointers use the lower 32 bits of the user-space address as an offset
+into a kernel VM area, and the JIT emits special addressing sequences for arena
+loads/stores. `kernel/bpf/fixups.c` and `kernel/bpf/core.c` also contain
+arena-specific instruction rewrites (`BPF_PROBE_MEM32`/`MEM32SX`) that are only
+meaningful if the JIT backend knows how to lower them.
+
+So arena currently means:
+
+- generically valid verifier state is necessary but not sufficient
+- the selected JIT backend must explicitly claim arena support
+
+### Current backend-dependent gates
+
+The upstream verifier currently folds several backend-dependent checks into
+program load/verification:
+
+- kfunc calls: `bpf_jit_supports_kfunc_call()`
+- far kfunc calls: `bpf_jit_supports_far_kfunc_call()`
+- arena programs: `bpf_jit_supports_arena()`
+- arena-specific instruction forms: `bpf_jit_supports_insn(..., true)`
+- percpu map instructions: `bpf_jit_supports_percpu_insn()`
+- subprog tailcalls: `bpf_jit_supports_subprog_tailcalls()`
+- private stack: `bpf_jit_supports_private_stack()`
+- exceptions / throwing kfuncs: `bpf_jit_supports_exceptions()`
+- fsession support: `bpf_jit_supports_fsession()`
+- pointer exchange lowering: `bpf_jit_supports_ptr_xchg()`
+- timed `may_goto`: `bpf_jit_supports_timed_may_goto()`
+
+This is why `uml-veristat` should be interpreted as testing both:
+
+- verifier semantics on current `bpf-next`
+- backend support of the current UML/x86 execution target
+
 ## Reproducible Coverage
 
 Coverage numbers should be generated from the installed artifacts, not edited by

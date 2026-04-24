@@ -318,3 +318,45 @@ provides:
 **Impact:** Fixes `local_storage`, `map_kptr`, `map_ptr_kern`, `test_get_xattr`,
 `test_map_in_map`, `verifier_vfs_reject`, `xfrm_info` (7 files). Total
 failed-to-process files drops from 23 to 18.
+
+---
+
+## Verification Notes
+
+`uml-veristat` is validating two things at once:
+
+1. generic verifier correctness
+2. UML/x86 backend support for lowering the verified program
+
+The kernel does not separate those into two visible phases. Instead, the
+verifier directly consults JIT/backend capability hooks such as:
+
+- `bpf_jit_supports_kfunc_call()`
+- `bpf_jit_supports_far_kfunc_call()`
+- `bpf_jit_supports_arena()`
+- `bpf_jit_supports_insn(..., true)`
+- `bpf_jit_supports_percpu_insn()`
+- `bpf_jit_supports_subprog_tailcalls()`
+- `bpf_jit_supports_private_stack()`
+- `bpf_jit_supports_exceptions()`
+- `bpf_jit_supports_fsession()`
+- `bpf_jit_supports_ptr_xchg()`
+- `bpf_jit_supports_timed_may_goto()`
+
+Arena is the most important example for this patch stack. Upstream verifier code
+rejects `BPF_MAP_TYPE_ARENA` unless JIT is requested and the backend reports
+arena support. That is because arena accesses are not plain generic memory
+operations; they rely on JIT-specific lowering of arena pointers and
+`BPF_PROBE_MEM32`/`BPF_PROBE_MEM32SX` fixups.
+
+For `uml-veristat`, this means some failures are best read as:
+
+- the program is semantically valid BPF, but
+- current UML/x86 JIT support is incomplete for that feature
+
+That distinction matters when evaluating remaining failures and deciding
+whether a fix belongs in:
+
+- generic verifier logic
+- UML/JIT backend support
+- selftest harness assumptions
