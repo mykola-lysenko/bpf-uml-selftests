@@ -7,5 +7,6 @@ uml-veristat/.build/
 *.swo
 *~
 .DS_Store
+__pycache__/
 *.profraw
 uml-veristat/.claude/

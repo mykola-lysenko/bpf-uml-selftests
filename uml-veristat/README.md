@@ -101,6 +101,12 @@ The table below shows the current practical correspondence.
 | 0007 | `veristat` map fixups for harness-shaped benchmark objects | `bloom_filter_bench.bpf.o`, `bpf_hashmap_lookup.bpf.o`, `htab_mem_bench.bpf.o` |
 | 0008 | Stable verbose verifier logging under UML memory limits | Diagnostic coverage for failing objects in `-vl2` mode, especially `test_send_signal_kern.bpf.o`, `xfrm_info.bpf.o`, and `test_tunnel_kern.bpf.o` |
 
+For upstreaming work, use the generated comparison report in
+[`docs/patch-impact.md`](/home/mykolal/bpf-uml-selftests/docs/patch-impact.md)
+and the machine-readable snapshots under
+[`uml-veristat/reports/patch-impact/`](/home/mykolal/bpf-uml-selftests/uml-veristat/reports/patch-impact)
+instead of hand-maintaining patch impact notes.
+
 ## Verification Model
 
 `uml-veristat` exposes an upstream kernel reality that is easy to miss: BPF

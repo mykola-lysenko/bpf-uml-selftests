@@ -83,6 +83,8 @@ DO_UPDATE=0
 DO_PACKAGE=0
 LLVM_NIGHTLY=1
 APPLY_PATCHES=1
+SKIP_PATCHES_RAW=""
+INSTALL_SUFFIX=""
 REBUILD_LLVM=0
 REBUILD_PAHOLE=0
 REBUILD_KERNEL=0
@@ -95,6 +97,8 @@ for arg in "$@"; do
         --update)       DO_UPDATE=1 ;;
         --package)      DO_PACKAGE=1 ;;
         --clean)        APPLY_PATCHES=0 ;;
+        --skip-patches=*) SKIP_PATCHES_RAW="${arg#*=}" ;;
+        --install-suffix=*) INSTALL_SUFFIX="${arg#*=}" ;;
         --llvm-source)  LLVM_NIGHTLY=0 ;;
         --rebuild-llvm)      REBUILD_LLVM=1 ;;
         --rebuild-pahole)    REBUILD_PAHOLE=1 ;;
@@ -108,6 +112,8 @@ for arg in "$@"; do
             echo "Options:"
             echo "  --update             Pull latest bpf-next and LLVM, then rebuild."
             echo "  --clean              Build against clean upstream bpf-next with no local patch stack."
+            echo "  --skip-patches=LIST  Comma-separated patch prefixes to skip (e.g. 0005,0008)."
+            echo "  --install-suffix=SFX Install into ~/.local/share/uml-veristat-SFX."
             echo "  --llvm-source        Build LLVM from source instead of downloading pre-built release."
             echo "  --package            After building, create a distributable tarball."
             echo ""
@@ -130,12 +136,27 @@ if [ "${APPLY_PATCHES}" = "0" ]; then
     MODE_SUFFIX="-clean"
 fi
 
+IFS=',' read -r -a SKIP_PATCHES <<< "${SKIP_PATCHES_RAW}"
+if [ "${#SKIP_PATCHES[@]}" -gt 0 ] && [ -n "${SKIP_PATCHES_RAW}" ]; then
+    APPLY_PATCHES=1
+    BUILD_FLAVOR="patched-minus"
+    if [ -z "${MODE_SUFFIX}" ]; then
+        MODE_SUFFIX="-skip-$(printf '%s_' "${SKIP_PATCHES[@]}" | sed 's/_$//')"
+    fi
+fi
+if [ -n "${INSTALL_SUFFIX}" ]; then
+    MODE_SUFFIX="-${INSTALL_SUFFIX}"
+fi
+
 INSTALL_DIR="${HOME}/.local/share/uml-veristat${MODE_SUFFIX}"
 SELFTESTS_OUTPUT="${WORKDIR}/selftests-output${MODE_SUFFIX}"
 BPFTOOL_OUTPUT="${WORKDIR}/bpftool-output${MODE_SUFFIX}"
 
 mkdir -p "${WORKDIR}" "${INSTALL_DIR}"
 info "Build flavor: ${BUILD_FLAVOR}"
+if [ "${#SKIP_PATCHES[@]}" -gt 0 ] && [ -n "${SKIP_PATCHES_RAW}" ]; then
+    info "Skipping patches: ${SKIP_PATCHES_RAW}"
+fi
 
 # ------------------------------------------------------------------------------
 # Detect host OS and install build dependencies
@@ -372,6 +393,17 @@ info "bpf-next: ${KERNEL_COMMIT}  (${KERNEL_VERSION})"
 # Patch subjects changed over time as patches were merged/squashed, and subject
 # matching causes stale build trees to mis-detect partially updated patch sets.
 PATCHES_DIR="${SCRIPT_DIR}/patches"
+should_skip_patch() {
+    local patch_name="$1"
+    local skip
+    for skip in "${SKIP_PATCHES[@]}"; do
+        [ -n "${skip}" ] || continue
+        if [[ "${patch_name}" == "${skip}"* ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
 if [ -d "${PATCHES_DIR}" ]; then
     UPSTREAM_REF="origin/${KERNEL_BRANCH}"
     if ! git -C "${LINUX_DIR}" rev-parse --verify "${UPSTREAM_REF}" >/dev/null 2>&1; then
@@ -398,6 +430,10 @@ if [ -d "${PATCHES_DIR}" ]; then
 
         for patch in "${PATCHES_DIR}"/*.patch; do
             [ -f "${patch}" ] || continue
+            if should_skip_patch "${patch##*/}"; then
+                info "Skipping patch by request: ${patch##*/}"
+                continue
+            fi
             if git -C "${LINUX_DIR}" apply --check --reverse "${patch}" >/dev/null 2>&1; then
                 info "Patch already applied — skipping: ${patch##*/}"
             else
@@ -652,6 +688,7 @@ ln -sfn "${SELFTESTS_OUTPUT}" "${INSTALL_DIR}/selftests"
 cat > "${INSTALL_DIR}/version.txt" <<EOF
 Built: $(date -u +"%Y-%m-%d %H:%M UTC")
 mode: ${BUILD_FLAVOR}
+skipped_patches: ${SKIP_PATCHES_RAW}
 bpf-next: ${KERNEL_COMMIT} (${KERNEL_VERSION})
 LLVM: ${LLVM_COMMIT}
 pahole: ${PAHOLE_TAG}
@@ -741,6 +778,7 @@ if [ "${DO_PACKAGE}" = "1" ]; then
     cat > "${PKG_DIR}/version.txt" <<VEOF
 Built:        $(date -u +"%Y-%m-%d %H:%M UTC")
 Mode:         ${BUILD_FLAVOR}
+Skipped:      ${SKIP_PATCHES_RAW}
 Host arch:    ${HOST_ARCH}
 bpf-next:     ${KERNEL_COMMIT_FULL}
 bpf-next tag: ${KERNEL_VERSION}
