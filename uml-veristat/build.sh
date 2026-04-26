@@ -54,7 +54,6 @@ KERNEL_BRANCH="master"
 # ------------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKDIR="${SCRIPT_DIR}/.build"
-INSTALL_DIR="${HOME}/.local/share/uml-veristat"
 
 LLVM_SRC="${WORKDIR}/llvm-project"
 LLVM_BUILD="${WORKDIR}/llvm-build"
@@ -64,7 +63,6 @@ PAHOLE_BUILD="${WORKDIR}/pahole-build"
 PAHOLE_INSTALL="${WORKDIR}/pahole-install"
 LINUX_DIR="${WORKDIR}/bpf-next"
 SELFTESTS_DIR="${LINUX_DIR}/tools/testing/selftests/bpf"
-SELFTESTS_OUTPUT="${WORKDIR}/selftests-output"
 
 CLANG="${LLVM_INSTALL}/bin/clang"
 LLC="${LLVM_INSTALL}/bin/llc"
@@ -84,6 +82,7 @@ warn() { echo -e "${YELLOW}[build]${NC}  $*"; }
 DO_UPDATE=0
 DO_PACKAGE=0
 LLVM_NIGHTLY=1
+APPLY_PATCHES=1
 REBUILD_LLVM=0
 REBUILD_PAHOLE=0
 REBUILD_KERNEL=0
@@ -95,6 +94,7 @@ for arg in "$@"; do
     case "${arg}" in
         --update)       DO_UPDATE=1 ;;
         --package)      DO_PACKAGE=1 ;;
+        --clean)        APPLY_PATCHES=0 ;;
         --llvm-source)  LLVM_NIGHTLY=0 ;;
         --rebuild-llvm)      REBUILD_LLVM=1 ;;
         --rebuild-pahole)    REBUILD_PAHOLE=1 ;;
@@ -107,6 +107,7 @@ for arg in "$@"; do
             echo ""
             echo "Options:"
             echo "  --update             Pull latest bpf-next and LLVM, then rebuild."
+            echo "  --clean              Build against clean upstream bpf-next with no local patch stack."
             echo "  --llvm-source        Build LLVM from source instead of downloading pre-built release."
             echo "  --package            After building, create a distributable tarball."
             echo ""
@@ -122,7 +123,19 @@ for arg in "$@"; do
     esac
 done
 
+BUILD_FLAVOR="patched"
+MODE_SUFFIX=""
+if [ "${APPLY_PATCHES}" = "0" ]; then
+    BUILD_FLAVOR="clean"
+    MODE_SUFFIX="-clean"
+fi
+
+INSTALL_DIR="${HOME}/.local/share/uml-veristat${MODE_SUFFIX}"
+SELFTESTS_OUTPUT="${WORKDIR}/selftests-output${MODE_SUFFIX}"
+BPFTOOL_OUTPUT="${WORKDIR}/bpftool-output${MODE_SUFFIX}"
+
 mkdir -p "${WORKDIR}" "${INSTALL_DIR}"
+info "Build flavor: ${BUILD_FLAVOR}"
 
 # ------------------------------------------------------------------------------
 # Detect host OS and install build dependencies
@@ -378,23 +391,27 @@ if [ -d "${PATCHES_DIR}" ]; then
         info "Reset kernel tree to ${KERNEL_COMMIT}  (${KERNEL_VERSION})"
     fi
 
-    # Configure a git identity in the kernel tree if not already set
-    git -C "${LINUX_DIR}" config user.email "uml-veristat@build" 2>/dev/null || true
-    git -C "${LINUX_DIR}" config user.name  "uml-veristat build"  2>/dev/null || true
+    if [ "${APPLY_PATCHES}" = "1" ]; then
+        # Configure a git identity in the kernel tree if not already set
+        git -C "${LINUX_DIR}" config user.email "uml-veristat@build" 2>/dev/null || true
+        git -C "${LINUX_DIR}" config user.name  "uml-veristat build"  2>/dev/null || true
 
-    for patch in "${PATCHES_DIR}"/*.patch; do
-        [ -f "${patch}" ] || continue
-        if git -C "${LINUX_DIR}" apply --check --reverse "${patch}" >/dev/null 2>&1; then
-            info "Patch already applied — skipping: ${patch##*/}"
-        else
-            info "Applying patch: ${patch##*/}"
-            if ! git -C "${LINUX_DIR}" am --whitespace=nowarn "${patch}"; then
-                warn "Plain git am failed for ${patch##*/}; retrying with --3way"
-                git -C "${LINUX_DIR}" am --abort >/dev/null 2>&1 || true
-                git -C "${LINUX_DIR}" am --3way --whitespace=nowarn "${patch}"
+        for patch in "${PATCHES_DIR}"/*.patch; do
+            [ -f "${patch}" ] || continue
+            if git -C "${LINUX_DIR}" apply --check --reverse "${patch}" >/dev/null 2>&1; then
+                info "Patch already applied — skipping: ${patch##*/}"
+            else
+                info "Applying patch: ${patch##*/}"
+                if ! git -C "${LINUX_DIR}" am --whitespace=nowarn "${patch}"; then
+                    warn "Plain git am failed for ${patch##*/}; retrying with --3way"
+                    git -C "${LINUX_DIR}" am --abort >/dev/null 2>&1 || true
+                    git -C "${LINUX_DIR}" am --3way --whitespace=nowarn "${patch}"
+                fi
             fi
-        fi
-    done
+        done
+    else
+        info "Clean mode: leaving kernel tree at upstream state and skipping local patch stack."
+    fi
 fi
 
 # ------------------------------------------------------------------------------
@@ -408,38 +425,42 @@ if [ ! -f .config ]; then
     make ARCH=um defconfig
 fi
 
-scripts/config \
-    --enable  BPF \
-    --enable  BPF_SYSCALL \
-    --enable  BPF_JIT \
-    --disable BPF_JIT_ALWAYS_ON \
-    --enable  CGROUPS \
-    --enable  CGROUP_BPF \
-    --enable  NET \
-    --enable  INET \
-    --enable  IPV6 \
-    --enable  NETFILTER \
-    --enable  NETFILTER_INGRESS \
-    --enable  NET_FOU \
-    --enable  NF_CONNTRACK \
-    --enable  NF_TABLES \
-    --enable  NF_FLOW_TABLE \
-    --enable  DEBUG_INFO \
-    --enable  DEBUG_INFO_BTF \
-    --enable  PAHOLE_HAS_SPLIT_BTF \
-    --enable  BPF_VERIFICATION_STUBS \
-    --enable  SECURITY \
-    --enable  KEYS \
-    --enable  CRYPTO \
-    --enable  XFRM_INTERFACE \
-    --enable  FS_VERITY \
-    --enable  TCP_CONG_ADVANCED \
-    --enable  TCP_CONG_CUBIC \
-    --enable  TCP_CONG_DCTCP \
-    --enable  SMP \
-    --set-val NR_CPUS 8 \
-    --enable  KALLSYMS_ALL \
+CONFIG_ARGS=(
+    --enable  BPF
+    --enable  BPF_SYSCALL
+    --enable  BPF_JIT
+    --disable BPF_JIT_ALWAYS_ON
+    --enable  CGROUPS
+    --enable  CGROUP_BPF
+    --enable  NET
+    --enable  INET
+    --enable  IPV6
+    --enable  NETFILTER
+    --enable  NETFILTER_INGRESS
+    --enable  NET_FOU
+    --enable  NF_CONNTRACK
+    --enable  NF_TABLES
+    --enable  NF_FLOW_TABLE
+    --enable  DEBUG_INFO
+    --enable  DEBUG_INFO_BTF
+    --enable  PAHOLE_HAS_SPLIT_BTF
+    --enable  SECURITY
+    --enable  KEYS
+    --enable  CRYPTO
+    --enable  XFRM_INTERFACE
+    --enable  FS_VERITY
+    --enable  TCP_CONG_ADVANCED
+    --enable  TCP_CONG_CUBIC
+    --enable  TCP_CONG_DCTCP
+    --enable  SMP
+    --set-val NR_CPUS 8
+    --enable  KALLSYMS_ALL
     --enable  XDP_SOCKETS
+)
+if [ "${APPLY_PATCHES}" = "1" ]; then
+    CONFIG_ARGS+=(--enable BPF_VERIFICATION_STUBS)
+fi
+scripts/config "${CONFIG_ARGS[@]}"
 
 # Re-run olddefconfig to resolve any new dependencies introduced above.
 make ARCH=um PAHOLE="${PAHOLE_BIN}" olddefconfig
@@ -507,7 +528,6 @@ export LLVM_STRIP="${LLVM_INSTALL}/bin/llvm-strip"
 export LD="${LLVM_INSTALL}/bin/ld.lld"
 
 # --- 7a: build bpftool from the same tree ---
-BPFTOOL_OUTPUT="${WORKDIR}/bpftool-output"
 BPFTOOL_BIN="${BPFTOOL_OUTPUT}/bpftool"
 mkdir -p "${BPFTOOL_OUTPUT}"
 
@@ -580,7 +600,7 @@ info "BPF object files built: ${BPF_OBJ_COUNT} files in ${SELFTESTS_OUTPUT}/"
 # Only bpf_testmod.ko is built here; the other test_kmods (bpf_test_rqspinlock,
 # etc.) require CONFIG_PERF_EVENTS which is not available on UML.
 TESTMOD_KO_SRC="${SELFTESTS_DIR}/test_kmods/bpf_testmod.ko"
-TESTMOD_KO_DST="${INSTALL_DIR}/bpf_testmod.ko"
+TESTMOD_AVAILABLE=0
 
 if [ ! -f "${TESTMOD_KO_SRC}" ] || [ "${REBUILD_TESTMOD}" = "1" ] || [ "${DO_UPDATE}" = "1" ]; then
     info "Building bpf_testmod.ko for UML..."
@@ -590,14 +610,27 @@ if [ ! -f "${TESTMOD_KO_SRC}" ] || [ "${REBUILD_TESTMOD}" = "1" ] || [ "${DO_UPD
     make -C "${LINUX_DIR}" ARCH=um PAHOLE="${PAHOLE_BIN}" -j"$(nproc)" 2>&1 | tail -3
     # Build only bpf_testmod.ko (not the full test_kmods set, which includes
     # modules that require CONFIG_PERF_EVENTS unavailable on UML).
+    TESTMOD_BUILD_STATUS=0
     make -C "${LINUX_DIR}" ARCH=um PAHOLE="${PAHOLE_BIN}" \
-        M="${SELFTESTS_DIR}/test_kmods" bpf_testmod.ko 2>&1
+        M="${SELFTESTS_DIR}/test_kmods" bpf_testmod.ko 2>&1 || TESTMOD_BUILD_STATUS=$?
+    if [ "${TESTMOD_BUILD_STATUS}" -ne 0 ]; then
+        if [ "${APPLY_PATCHES}" = "0" ]; then
+            warn "bpf_testmod.ko did not build in clean mode; continuing without module-backed selftests."
+        else
+            echo "bpf_testmod.ko build failed"
+            exit 1
+        fi
+    fi
 else
     info "bpf_testmod.ko already built — skipping. (Use --rebuild-testmod to rebuild.)"
 fi
 
-[ -f "${TESTMOD_KO_SRC}" ] || { echo "bpf_testmod.ko build failed"; exit 1; }
-info "bpf_testmod.ko: ${TESTMOD_KO_SRC} ($(ls -lh "${TESTMOD_KO_SRC}" | awk '{print $5}'))"
+if [ -f "${TESTMOD_KO_SRC}" ]; then
+    TESTMOD_AVAILABLE=1
+    info "bpf_testmod.ko: ${TESTMOD_KO_SRC} ($(ls -lh "${TESTMOD_KO_SRC}" | awk '{print $5}'))"
+else
+    warn "bpf_testmod.ko is not available for the ${BUILD_FLAVOR} build."
+fi
 
 # ------------------------------------------------------------------------------
 # Install artifacts
@@ -605,8 +638,12 @@ info "bpf_testmod.ko: ${TESTMOD_KO_SRC} ($(ls -lh "${TESTMOD_KO_SRC}" | awk '{pr
 info "Installing to ${INSTALL_DIR}/"
 cp "${UML_BINARY}"       "${INSTALL_DIR}/linux"
 cp "${VERISTAT_BIN}"     "${INSTALL_DIR}/veristat"
-cp "${TESTMOD_KO_SRC}"  "${INSTALL_DIR}/bpf_testmod.ko"
 chmod +x "${INSTALL_DIR}/linux" "${INSTALL_DIR}/veristat"
+if [ "${TESTMOD_AVAILABLE}" = "1" ]; then
+    cp "${TESTMOD_KO_SRC}" "${INSTALL_DIR}/bpf_testmod.ko"
+else
+    rm -f "${INSTALL_DIR}/bpf_testmod.ko"
+fi
 
 # Symlink the selftests output directory so uml-veristat can find .bpf.o files
 ln -sfn "${SELFTESTS_OUTPUT}" "${INSTALL_DIR}/selftests"
@@ -614,6 +651,7 @@ ln -sfn "${SELFTESTS_OUTPUT}" "${INSTALL_DIR}/selftests"
 # Write a version manifest for diagnostics
 cat > "${INSTALL_DIR}/version.txt" <<EOF
 Built: $(date -u +"%Y-%m-%d %H:%M UTC")
+mode: ${BUILD_FLAVOR}
 bpf-next: ${KERNEL_COMMIT} (${KERNEL_VERSION})
 LLVM: ${LLVM_COMMIT}
 pahole: ${PAHOLE_TAG}
@@ -624,7 +662,11 @@ info "Build complete!"
 info ""
 info "  UML kernel     : ${INSTALL_DIR}/linux"
 info "  veristat       : ${INSTALL_DIR}/veristat"
-info "  bpf_testmod.ko : ${INSTALL_DIR}/bpf_testmod.ko"
+if [ "${TESTMOD_AVAILABLE}" = "1" ]; then
+    info "  bpf_testmod.ko : ${INSTALL_DIR}/bpf_testmod.ko"
+else
+    info "  bpf_testmod.ko : not available in ${BUILD_FLAVOR} build"
+fi
 info "  Selftests      : ${INSTALL_DIR}/selftests/ (${BPF_OBJ_COUNT} .bpf.o files)"
 info "  Versions       : ${INSTALL_DIR}/version.txt"
 info ""
@@ -666,7 +708,7 @@ if [ "${DO_PACKAGE}" = "1" ]; then
     step "Packaging uml-veristat"
 
     HOST_ARCH="$(uname -m)"
-    PKG_NAME="uml-veristat-${KERNEL_COMMIT}-${HOST_ARCH}"
+    PKG_NAME="uml-veristat${MODE_SUFFIX}-${KERNEL_COMMIT}-${HOST_ARCH}"
     PKG_DIR="${WORKDIR}/${PKG_NAME}"
     PKG_TARBALL="${SCRIPT_DIR}/${PKG_NAME}.tar.gz"
 
@@ -677,8 +719,10 @@ if [ "${DO_PACKAGE}" = "1" ]; then
     # --- Core binaries ---
     cp "${UML_BINARY}"         "${PKG_DIR}/linux"
     cp "${VERISTAT_BIN}"       "${PKG_DIR}/veristat"
-    cp "${TESTMOD_KO_SRC}"    "${PKG_DIR}/bpf_testmod.ko"
     chmod +x "${PKG_DIR}/linux" "${PKG_DIR}/veristat"
+    if [ "${TESTMOD_AVAILABLE}" = "1" ]; then
+        cp "${TESTMOD_KO_SRC}" "${PKG_DIR}/bpf_testmod.ko"
+    fi
 
     # --- Wrapper script ---
     cp "${SCRIPT_DIR}/uml-veristat" "${PKG_DIR}/uml-veristat"
@@ -696,6 +740,7 @@ if [ "${DO_PACKAGE}" = "1" ]; then
     fi
     cat > "${PKG_DIR}/version.txt" <<VEOF
 Built:        $(date -u +"%Y-%m-%d %H:%M UTC")
+Mode:         ${BUILD_FLAVOR}
 Host arch:    ${HOST_ARCH}
 bpf-next:     ${KERNEL_COMMIT_FULL}
 bpf-next tag: ${KERNEL_VERSION}
@@ -717,7 +762,7 @@ Contents
   uml-veristat    Wrapper script — the only file you need to run
   linux           UML kernel binary (bpf-next, BPF enabled)
   veristat        veristat binary (built from the same bpf-next tree)
-  bpf_testmod.ko  BPF test module (auto-loaded by uml-veristat)
+  bpf_testmod.ko  Optional BPF test module (included when it builds)
   kernel.config   Exact kernel config used for this build
   version.txt     Full provenance: git hashes, build date, host arch
   sha256sums      Integrity manifest for all included files
@@ -743,7 +788,11 @@ To rebuild from source: https://github.com/mykola-lysenko/bpf-uml-selftests
 REOF
 
     # --- SHA-256 integrity manifest ---
-    (cd "${PKG_DIR}" && sha256sum linux veristat uml-veristat bpf_testmod.ko kernel.config > sha256sums)
+    if [ "${TESTMOD_AVAILABLE}" = "1" ]; then
+        (cd "${PKG_DIR}" && sha256sum linux veristat uml-veristat bpf_testmod.ko kernel.config > sha256sums)
+    else
+        (cd "${PKG_DIR}" && sha256sum linux veristat uml-veristat kernel.config > sha256sums)
+    fi
 
     # --- Create tarball ---
     tar -czf "${PKG_TARBALL}" -C "${WORKDIR}" "${PKG_NAME}"

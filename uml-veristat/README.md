@@ -82,6 +82,25 @@ The `patches/` directory contains 10 patches applied to the `bpf-next` kernel tr
 | 0007 | Fix veristat map fixup for zero key_size/value_size | bench + cgroup maps |
 | 0008 | Cap veristat auto log size to avoid UML OOM | verbose log stability |
 
+### Patch-to-Selftest Correspondence
+
+The patch stack is not strictly one-patch-per-selftest. Some patches are pure
+infrastructure prerequisites, while others unlock whole classes of selftests.
+The table below shows the current practical correspondence.
+
+| Patch | Main area | Representative selftests or classes unlocked |
+|-------|-----------|----------------------------------------------|
+| 0001 | x86-64 syscall wrapper BTF attach targets on UML | Syscall attach-target tests using `SYS_PREFIX`, such as `bpf_syscall_macro.c` and other `__x64_sys_*` kprobe/fentry/raw_tp cases |
+| 0002 | verification-only tracing/LSM/stack-trace support without `PERF_EVENTS` | Tracing-type and stack-trace users such as `pyperf*`, `strobemeta*`, `stacktrace_*`, plus LSM/storage-style cases like `local_storage`, `map_kptr`, `map_ptr_kern`, `test_get_xattr`, `test_map_in_map`, `verifier_vfs_reject` |
+| 0003 | UML boot fix | Global prerequisite: all `uml-veristat` selftests depend on the UML guest booting at all |
+| 0003b | JIT enablement and default-on JIT | Struct-ops and JIT-gated program classes, including `struct_ops_*`, `tcp_ca_*`, and early kfunc-capable loads |
+| 0003c | Real x86 JIT capability hooks in UML | Kfunc-using objects that used to fail with `JIT does not support calling kernel function`, such as `test_send_signal_kern.bpf.o`, `xfrm_info.bpf.o`, and parts of `test_tunnel_kern.bpf.o` |
+| 0003d | UML runtime shims needed to actually link the native x86 BPF JIT | Same class as `0003c`; this is the link/runtime half that makes the JIT backend usable in the final UML kernel |
+| 0004 | `bpf_testmod.ko` buildability on UML | Global prerequisite for `bpf_testmod`-backed selftests, including `struct_ops_module*`, `kfunc_call_*`, `iters_testmod*`, `kprobe_multi*`, and related module-BTF tests |
+| 0005 | Duplicate-BTF relocation handling | Large `bpf_testmod`/CO-RE bucket: `struct_ops_*`, `kfunc_call_*`, `iters_testmod*`, `kprobe_multi*`, `epilogue_*`, plus CO-RE cases like `getsockname_unix_prog.bpf.o`, `netif_receive_skb.bpf.o`, `htab_mem_bench.bpf.o`, and `stream.bpf.o` |
+| 0007 | `veristat` map fixups for harness-shaped benchmark objects | `bloom_filter_bench.bpf.o`, `bpf_hashmap_lookup.bpf.o`, `htab_mem_bench.bpf.o` |
+| 0008 | Stable verbose verifier logging under UML memory limits | Diagnostic coverage for failing objects in `-vl2` mode, especially `test_send_signal_kern.bpf.o`, `xfrm_info.bpf.o`, and `test_tunnel_kern.bpf.o` |
+
 ## Verification Model
 
 `uml-veristat` exposes an upstream kernel reality that is easy to miss: BPF
@@ -182,6 +201,45 @@ Current reproducible output for the top-level corpus (`884` `.bpf.o` files) is:
 | Remaining failed-to-process files | `11` |
 | Remaining failed-to-open files | `1` |
 
+### Clean Upstream Baseline
+
+It is also possible to build a clean upstream UML variant with no local patch
+stack:
+
+```bash
+cd uml-veristat
+./build.sh --clean --rebuild-kernel --rebuild-bpftool --rebuild-selftests --rebuild-testmod
+```
+
+This installs to `~/.local/share/uml-veristat-clean` and leaves the normal
+patched install untouched.
+
+The important point is that the clean upstream build is still usable. The
+headline corpus size is only slightly smaller, because `standalone input files`
+is just the filename-based input corpus after excluding expected-negative and
+fixture-only objects. It is not a success count.
+
+The real difference shows up in the verification results:
+
+| Metric | Patched UML | Clean upstream UML |
+|--------|-------------|--------------------|
+| Standalone input files | `873` | `862` |
+| Processed files | `871` | `860` |
+| Processed programs | `4378` | `4323` |
+| Successful CSV rows | `2202` | `1336` |
+| Failing CSV rows | `2176` | `2987` |
+| Remaining failed-to-process files | `11` | `104` |
+| Remaining failed-to-open files | `1` | `2` |
+
+So the local patch stack does not merely increase the input corpus a little. It
+substantially improves effective coverage by:
+
+- turning many hard file-level failures into processable objects
+- converting a large number of per-program failures into successes
+- restoring whole feature classes such as tracing/session-style programs,
+  `bpf_testmod`/module-BTF-dependent objects, struct_ops-heavy cases, and more
+  stable diagnostic runs
+
 Excluded expected-negative tests:
 
 - `bad_struct_ops.bpf.o`
@@ -220,3 +278,30 @@ See `patches/README.md` for detailed descriptions of each patch.
 
 - The tool currently boots a fresh UML instance for every invocation. If you are running `veristat` in a tight loop (e.g., hundreds of times in a CI pipeline), the ~1s boot overhead per invocation will add up.
 - Because the UML guest runs as your user, it cannot verify programs that require `CAP_SYS_ADMIN` unless your host user also has those privileges (though BPF verification itself usually does not require root in modern kernels).
+
+## Next Improvements
+
+The current prioritized improvement list for `uml-veristat` is:
+
+1. Add expectation-aware regression checks.
+   - Keep the standalone coverage sweep, but also assert that known failing
+     files stay in the expected bucket with stable failure reasons.
+2. Add backend capability reporting.
+   - Expose the current UML/x86 JIT capability set in a machine-readable and
+     user-friendly way, for example `kfunc_call`, `arena`, `percpu_insn`,
+     `exceptions`, `private_stack`, and `subprog_tailcalls`.
+3. Continue arena-focused support work.
+   - The arena family remains the biggest real functionality gap in the
+     standalone selftest corpus.
+4. Clarify harness-dependent selftests.
+   - Keep non-standalone or harness-shaped objects out of the default product
+     metric unless `uml-veristat` grows explicit setup emulation for them.
+5. Expand CI beyond package builds.
+   - Add post-build smoke checks, package validation, and cached build inputs
+     once the first CI iteration settles.
+6. Add a machine-readable corpus manifest.
+   - Track expected-negative tests, fixture-only objects, standalone-positive
+     files, known UML gaps, and harness-dependent cases in one place.
+7. Document the failure taxonomy more explicitly.
+   - Distinguish invalid BPF, missing kernel features, missing UML backend
+     capability, and selftest harness assumptions.
