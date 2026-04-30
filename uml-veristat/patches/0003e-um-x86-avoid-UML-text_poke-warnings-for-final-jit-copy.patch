@@ -1,0 +1,36 @@
+From 342173be0b71b928bfc7bf62d0d799985f7e6009 Mon Sep 17 00:00:00 2001
+From: Codex <codex@example.com>
+Date: Tue, 28 Apr 2026 05:00:03 -0700
+Subject: [PATCH] um/x86: avoid UML text_poke warnings for final JIT copy
+
+---
+ arch/x86/net/bpf_jit_comp.c | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/arch/x86/net/bpf_jit_comp.c b/arch/x86/net/bpf_jit_comp.c
+index c93bbc0be..4c25c2c33 100644
+--- a/arch/x86/net/bpf_jit_comp.c
++++ b/arch/x86/net/bpf_jit_comp.c
+@@ -3995,8 +3995,19 @@ bool bpf_jit_supports_kfunc_call(void)
+ 
+ void *bpf_arch_text_copy(void *dst, void *src, size_t len)
+ {
++#ifdef CONFIG_UML
++	/*
++	 * UML doesn't provide real text patching infrastructure. The
++	 * verification-oriented JIT path already uses memcpy-based shims for
++	 * text pokes, so avoid routing final JIT image copies through UML's
++	 * WARN_ON(1) text_poke() stub.
++	 */
++	if (memcpy(dst, src, len) == NULL)
++		return ERR_PTR(-EINVAL);
++#else
+ 	if (text_poke_copy(dst, src, len) == NULL)
+ 		return ERR_PTR(-EINVAL);
++#endif
+ 	return dst;
+ }
+ 
+-- 
+2.52.0
+
