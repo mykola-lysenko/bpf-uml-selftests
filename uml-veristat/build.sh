@@ -76,6 +76,24 @@ info() { echo -e "${GREEN}[build]${NC}  $*"; }
 step() { echo -e "${CYAN}[build]${NC}  === $* ==="; }
 warn() { echo -e "${YELLOW}[build]${NC}  $*"; }
 
+github_api_get() {
+    local url="$1"
+    local -a curl_args=(
+        -fsSL
+        -H "Accept: application/vnd.github+json"
+        -H "X-GitHub-Api-Version: 2022-11-28"
+        -H "User-Agent: uml-veristat-build"
+    )
+
+    if [ -n "${GITHUB_TOKEN:-}" ]; then
+        curl_args+=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+    elif [ -n "${GH_TOKEN:-}" ]; then
+        curl_args+=(-H "Authorization: Bearer ${GH_TOKEN}")
+    fi
+
+    curl "${curl_args[@]}" "${url}"
+}
+
 # ------------------------------------------------------------------------------
 # Parse flags
 # ------------------------------------------------------------------------------
@@ -224,11 +242,18 @@ if [ "${LLVM_NIGHTLY}" = "1" ]; then
         info "LLVM already installed — skipping. (Use --rebuild-llvm to re-download.)"
         LLVM_COMMIT="nightly-$(${CLANG} --version | head -1 | grep -oP '\d+\.\d+\.\d+' | head -1)"
     else
-        # Fetch the latest release tag and tarball URL from the GitHub API
-        LLVM_RELEASE_JSON=$(curl -sf "https://api.github.com/repos/llvm/llvm-project/releases/latest") || {
-            echo "ERROR: Could not fetch LLVM release info from GitHub API"
-            exit 1
-        }
+        # Fetch the latest release tag and tarball URL from the GitHub API.
+        # In CI, use GITHUB_TOKEN when available to avoid anonymous API limits.
+        LLVM_RELEASE_JSON=""
+        if ! LLVM_RELEASE_JSON=$(github_api_get "https://api.github.com/repos/llvm/llvm-project/releases/latest"); then
+            warn "Could not fetch LLVM release info from /releases/latest; retrying with /releases?per_page=1"
+            LLVM_RELEASE_JSON=$(github_api_get "https://api.github.com/repos/llvm/llvm-project/releases?per_page=1" | python3 -c \
+                "import sys,json; releases=json.load(sys.stdin); print(json.dumps(releases[0]))") || {
+                echo "ERROR: Could not fetch LLVM release info from GitHub API"
+                echo "Hint: set GITHUB_TOKEN or GH_TOKEN to avoid GitHub API rate limits"
+                exit 1
+            }
+        fi
         LLVM_TAG=$(echo "${LLVM_RELEASE_JSON}" | python3 -c \
             "import sys,json; print(json.load(sys.stdin)['tag_name'])")
         LLVM_VERSION=$(echo "${LLVM_TAG}" | sed 's/llvmorg-//')

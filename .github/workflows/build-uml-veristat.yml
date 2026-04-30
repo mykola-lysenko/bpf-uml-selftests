@@ -26,7 +26,25 @@ jobs:
         working-directory: uml-veristat
         env:
           DEBIAN_FRONTEND: noninteractive
+          GITHUB_TOKEN: ${{ github.token }}
         run: ./build.sh --package
+
+      - name: Smoke test UML verbose mode
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          LOG="$(mktemp)"
+          trap 'rm -f "$LOG"' EXIT
+
+          UML_VERBOSE=1 ./uml-veristat/uml-veristat \
+            "$HOME/.local/share/uml-veristat/selftests/verifier_and.bpf.o" \
+            2>&1 | tee "$LOG"
+
+          if grep -Eq 'WARNING: arch/um/kernel/um_arch.c|text_poke\+' "$LOG"; then
+            echo "Unexpected UML text_poke warning in verbose-mode smoke test"
+            exit 1
+          fi
 
       - name: Show built packages
         run: ls -lh uml-veristat/*.tar.gz
