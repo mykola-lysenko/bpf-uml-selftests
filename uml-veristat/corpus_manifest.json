@@ -1,0 +1,83 @@
+{
+  "expected_negative_files": [
+    "bad_struct_ops.bpf.o",
+    "struct_ops_autocreate.bpf.o",
+    "test_pinning_invalid.bpf.o"
+  ],
+  "fixture_only_files": [
+    "linked_funcs1.bpf.o",
+    "linked_funcs2.bpf.o",
+    "linked_maps1.bpf.o",
+    "linked_maps2.bpf.o",
+    "linked_vars1.bpf.o",
+    "linked_vars2.bpf.o",
+    "test_subskeleton_lib.bpf.o",
+    "test_subskeleton_lib2.bpf.o"
+  ],
+  "corpora": {
+    "top-level": {
+      "expected_metrics": {
+        "input_files": 884,
+        "standalone_input_files": 873,
+        "processed_files": 871,
+        "processed_programs": 4378,
+        "skipped_files": 2,
+        "skipped_programs": 0,
+        "success_rows": 2202,
+        "failure_rows": 2176
+      },
+      "expected_failed_process": {
+        "arena_atomics.bpf.o": {
+          "errno": -22,
+          "reason": "arena unsupported on UML"
+        },
+        "arena_htab.bpf.o": {
+          "errno": -22,
+          "reason": "arena unsupported on UML"
+        },
+        "arena_htab_asm.bpf.o": {
+          "errno": -22,
+          "reason": "arena unsupported on UML"
+        },
+        "arena_list.bpf.o": {
+          "errno": -22,
+          "reason": "arena unsupported on UML"
+        },
+        "arena_spin_lock.bpf.o": {
+          "errno": -22,
+          "reason": "arena unsupported on UML"
+        },
+        "arena_strsearch.bpf.o": {
+          "errno": -22,
+          "reason": "arena unsupported on UML"
+        },
+        "stream.bpf.o": {
+          "errno": -22,
+          "reason": "arena-backed stream setup unsupported on UML"
+        },
+        "verifier_arena.bpf.o": {
+          "errno": -22,
+          "reason": "arena unsupported on UML"
+        },
+        "verifier_arena_globals1.bpf.o": {
+          "errno": -22,
+          "reason": "arena unsupported on UML"
+        },
+        "verifier_arena_globals2.bpf.o": {
+          "errno": -22,
+          "reason": "arena unsupported on UML"
+        },
+        "verifier_arena_large.bpf.o": {
+          "errno": -22,
+          "reason": "arena unsupported on UML"
+        }
+      },
+      "expected_failed_open": {
+        "test_sk_assign.bpf.o": {
+          "errno": -95,
+          "reason": "legacy maps-section object is not standalone-openable under libbpf"
+        }
+      }
+    }
+  }
+}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import os
 import pathlib
 import re
@@ -10,24 +11,7 @@ import subprocess
 import tempfile
 from dataclasses import asdict, dataclass
 
-
-EXPECTED_NEGATIVE_FILES = {
-    "bad_struct_ops.bpf.o",
-    "struct_ops_autocreate.bpf.o",
-    "test_pinning_invalid.bpf.o",
-}
-
-
-FIXTURE_ONLY_FILES = {
-    "linked_funcs1.bpf.o",
-    "linked_funcs2.bpf.o",
-    "linked_maps1.bpf.o",
-    "linked_maps2.bpf.o",
-    "linked_vars1.bpf.o",
-    "linked_vars2.bpf.o",
-    "test_subskeleton_lib.bpf.o",
-    "test_subskeleton_lib2.bpf.o",
-}
+MANIFEST_PATH = pathlib.Path(__file__).resolve().parents[1] / "corpus_manifest.json"
 
 
 @dataclass
@@ -53,6 +37,13 @@ class CoverageResult:
 
 def run(cmd, check=True, **kwargs):
     return subprocess.run(cmd, text=True, check=check, **kwargs)
+
+
+def load_manifest(manifest_path: pathlib.Path | None = None) -> dict:
+    path = manifest_path or MANIFEST_PATH
+    if not path.is_file():
+        raise RuntimeError(f"corpus manifest not found: {path}")
+    return json.loads(path.read_text())
 
 
 def load_version_info(version_path: pathlib.Path) -> dict[str, str]:
@@ -103,6 +94,8 @@ def parse_csv_counts(csv_output: str) -> tuple[int, int]:
 
 def classify_files(
     file_list: list[pathlib.Path],
+    expected_negative_names: set[str],
+    fixture_only_names: set[str],
 ) -> tuple[list[pathlib.Path], list[pathlib.Path], list[pathlib.Path]]:
     positive = []
     expected_negative = []
@@ -110,9 +103,9 @@ def classify_files(
 
     for path in file_list:
         name = path.name
-        if name in EXPECTED_NEGATIVE_FILES:
+        if name in expected_negative_names:
             expected_negative.append(path)
-        elif name in FIXTURE_ONLY_FILES:
+        elif name in fixture_only_names:
             fixture_only.append(path)
         else:
             positive.append(path)
@@ -158,10 +151,18 @@ def analyze_install(
     version_file: pathlib.Path,
     corpus: str = "top-level",
     extra_env: dict[str, str] | None = None,
+    manifest_path: pathlib.Path | None = None,
 ) -> CoverageResult:
+    manifest = load_manifest(manifest_path)
+    expected_negative_names = set(manifest.get("expected_negative_files", []))
+    fixture_only_names = set(manifest.get("fixture_only_files", []))
     version_info = load_version_info(version_file)
     file_list = collect_files(selftests_dir, corpus)
-    positive_files, expected_negative_files, fixture_only_files = classify_files(file_list)
+    positive_files, expected_negative_files, fixture_only_files = classify_files(
+        file_list,
+        expected_negative_names,
+        fixture_only_names,
+    )
     if not positive_files:
         raise RuntimeError("no standalone positive files found")
 

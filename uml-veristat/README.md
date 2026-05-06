@@ -215,6 +215,17 @@ The default report now separates the top-level corpus into:
 - expected-negative tests that are supposed to fail
 - fixture-only linked/subskeleton objects that are not standalone load targets
 
+The corpus classification and expected regression baseline live in the
+machine-readable manifest
+[`corpus_manifest.json`](/home/mykolal/bpf-uml-selftests/uml-veristat/corpus_manifest.json).
+To assert that the current installed build still matches the expected file
+bucket and errno baseline, run:
+
+```bash
+cd uml-veristat
+python3 scripts/check_expectations.py
+```
+
 Current reproducible output for the top-level corpus (`884` `.bpf.o` files) is:
 
 | Metric | Value |
@@ -312,25 +323,26 @@ See `patches/README.md` for detailed descriptions of each patch.
 
 The current prioritized improvement list for `uml-veristat` is:
 
-1. Add expectation-aware regression checks.
-   - Keep the standalone coverage sweep, but also assert that known failing
-     files stay in the expected bucket with stable failure reasons.
-2. Add backend capability reporting.
+1. Add backend capability reporting.
    - Expose the current UML/x86 JIT capability set in a machine-readable and
      user-friendly way, for example `kfunc_call`, `arena`, `percpu_insn`,
      `exceptions`, `private_stack`, and `subprog_tailcalls`.
-3. Continue arena-focused support work.
+2. Continue arena-focused support work.
    - The arena family remains the biggest real functionality gap in the
      standalone selftest corpus.
-4. Clarify harness-dependent selftests.
+3. Clarify harness-dependent selftests.
    - Keep non-standalone or harness-shaped objects out of the default product
      metric unless `uml-veristat` grows explicit setup emulation for them.
-5. Expand CI beyond package builds.
-   - Add post-build smoke checks, package validation, and cached build inputs
-     once the first CI iteration settles.
-6. Add a machine-readable corpus manifest.
-   - Track expected-negative tests, fixture-only objects, standalone-positive
-     files, known UML gaps, and harness-dependent cases in one place.
+4. Expand CI beyond package builds.
+   - Add package validation and cached build inputs now that the first
+     regression and smoke checks are in place.
+5. Expand expectation-aware regressions to program-level behavior.
+   - Today the baseline checks file bucket and errno stability. The next step
+     is to pin selected per-program verdicts and failure modes where that adds
+     real signal.
+6. Grow the corpus manifest.
+   - Extend it with known-UML-gap and harness-dependent annotations so the
+     manifest becomes the default source of truth for corpus policy.
 7. Document the failure taxonomy more explicitly.
    - Distinguish invalid BPF, missing kernel features, missing UML backend
      capability, and selftest harness assumptions.

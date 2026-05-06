@@ -46,6 +46,9 @@ jobs:
             exit 1
           fi
 
+      - name: Check expectation-aware regression baseline
+        run: python3 uml-veristat/scripts/check_expectations.py
+
       - name: Show built packages
         run: ls -lh uml-veristat/*.tar.gz
 
