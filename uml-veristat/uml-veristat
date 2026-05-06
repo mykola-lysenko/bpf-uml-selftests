@@ -4,7 +4,7 @@
 # ==============================================================================
 #
 # Usage:
-#   uml-veristat [veristat-options...] file1.bpf.o [file2.bpf.o ...]
+#   uml-veristat [--gdb-wait] [veristat-options...] file1.bpf.o [file2.bpf.o ...]
 #
 # All arguments are passed verbatim to veristat running inside the UML guest.
 #
@@ -22,6 +22,18 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+print_usage() {
+    cat >&2 <<'EOF'
+Usage: uml-veristat [--gdb-wait] [veristat-options...] file.bpf.o ...
+
+Wrapper options:
+  --gdb-wait   Boot UML, pause before running veristat, print host GDB attach
+               instructions, and wait for Enter before continuing.
+EOF
+}
+
 # ------------------------------------------------------------------------------
 # Locate the UML kernel binary
 # ------------------------------------------------------------------------------
@@ -36,10 +48,8 @@ find_uml_kernel() {
         echo "${installed}"; return 0
     fi
     # 3. Same directory as this script
-    local script_dir
-    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    if [ -x "${script_dir}/linux" ]; then
-        echo "${script_dir}/linux"; return 0
+    if [ -x "${SCRIPT_DIR}/linux" ]; then
+        echo "${SCRIPT_DIR}/linux"; return 0
     fi
     return 1
 }
@@ -58,10 +68,8 @@ find_veristat() {
         echo "${installed}"; return 0
     fi
     # 3. Same directory as this script
-    local script_dir
-    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    if [ -x "${script_dir}/veristat" ]; then
-        echo "${script_dir}/veristat"; return 0
+    if [ -x "${SCRIPT_DIR}/veristat" ]; then
+        echo "${SCRIPT_DIR}/veristat"; return 0
     fi
     # 4. System PATH
     if command -v veristat >/dev/null 2>&1; then
@@ -86,11 +94,9 @@ find_uml_modules() {
         return 0
     fi
     # Auto-detect bpf_testmod.ko from well-known locations.
-    local script_dir
-    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     local candidates=(
         "${HOME}/.local/share/uml-veristat/bpf_testmod.ko"
-        "${script_dir}/bpf_testmod.ko"
+        "${SCRIPT_DIR}/bpf_testmod.ko"
     )
     local found=()
     for f in "${candidates[@]}"; do
@@ -99,25 +105,34 @@ find_uml_modules() {
     echo "${found[*]:-}"
 }
 
+GDB_WAIT=0
+VERISTAT_ARGS=()
+for arg in "$@"; do
+    case "${arg}" in
+        --gdb-wait) GDB_WAIT=1 ;;
+        *) VERISTAT_ARGS+=("${arg}") ;;
+    esac
+done
+
 # ------------------------------------------------------------------------------
 # Validate inputs
 # ------------------------------------------------------------------------------
-if [ $# -eq 0 ]; then
-    echo "Usage: uml-veristat [veristat-options...] file.bpf.o ..." >&2
+if [ "${#VERISTAT_ARGS[@]}" -eq 0 ]; then
+    print_usage
     echo "       uml-veristat --help" >&2
     exit 1
 fi
 
 UML_BIN=$(find_uml_kernel) || {
     echo "uml-veristat: UML kernel not found." >&2
-    echo "  Run: $(dirname "${BASH_SOURCE[0]}")/build.sh" >&2
+    echo "  Run: ${SCRIPT_DIR}/build.sh" >&2
     echo "  Or set: export UML_KERNEL=/path/to/linux" >&2
     exit 1
 }
 
 VERISTAT_BIN=$(find_veristat) || {
     echo "uml-veristat: veristat binary not found." >&2
-    echo "  Run: $(dirname "${BASH_SOURCE[0]}")/build.sh" >&2
+    echo "  Run: ${SCRIPT_DIR}/build.sh" >&2
     echo "  Or set: export VERISTAT=/path/to/veristat" >&2
     exit 1
 }
@@ -129,7 +144,7 @@ MODULE_LIST=$(find_uml_modules)
 # Build the argument list with absolute paths substituted
 # ------------------------------------------------------------------------------
 ARGS=()
-for arg in "$@"; do
+for arg in "${VERISTAT_ARGS[@]}"; do
     if [ -f "${arg}" ]; then
         ARGS+=("$(realpath "${arg}")")
     else
@@ -146,11 +161,21 @@ done
 # paths — no separate /host mount point is needed.
 # ------------------------------------------------------------------------------
 TMPDIR_UML=$(mktemp -d /tmp/uml-veristat-XXXXXX)
-trap 'rm -rf "${TMPDIR_UML}"' EXIT
-
 INIT_SCRIPT="${TMPDIR_UML}/init"
 RESULT_FILE="${TMPDIR_UML}/result"
 OUTPUT_FILE="${TMPDIR_UML}/output"
+READY_FILE="${TMPDIR_UML}/gdb-ready"
+GO_FILE="${TMPDIR_UML}/gdb-go"
+UML_PID=""
+
+cleanup() {
+    if [ -n "${UML_PID}" ] && kill -0 "${UML_PID}" 2>/dev/null; then
+        kill "${UML_PID}" 2>/dev/null || true
+        wait "${UML_PID}" 2>/dev/null || true
+    fi
+    rm -rf "${TMPDIR_UML}"
+}
+trap cleanup EXIT
 
 # Build the veristat command line as a single quoted string
 VERISTAT_CMD="${VERISTAT_BIN}"
@@ -186,6 +211,14 @@ mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
 
 # Load kernel modules before running veristat
 ${INSMOD_CMDS}
+# Wait for host GDB attach if requested
+if [ "${GDB_WAIT}" = "1" ]; then
+    : > ${READY_FILE}
+    while [ ! -f ${GO_FILE} ]; do
+        sleep 1
+    done
+fi
+
 # Run veristat; redirect all output to a host-visible file
 ${VERISTAT_CMD} > ${OUTPUT_FILE} 2>&1
 echo \$? > ${RESULT_FILE}
@@ -202,6 +235,7 @@ chmod +x "${INIT_SCRIPT}"
 # ------------------------------------------------------------------------------
 MEM="${UML_MEM:-512M}"
 VERBOSE="${UML_VERBOSE:-0}"
+GDB_MACROS="${SCRIPT_DIR}/../gdb_demo/verifier.gdb"
 
 # Base args shared by both modes
 UML_ARGS=(
@@ -212,7 +246,58 @@ UML_ARGS=(
     "init=${INIT_SCRIPT}"
 )
 
-if [ "${VERBOSE}" = "1" ]; then
+if [ "${GDB_WAIT}" = "1" ]; then
+    UML_CONSOLE_ARGS=(quiet loglevel=0 con=null con0=null)
+    if [ "${VERBOSE}" = "1" ]; then
+        UML_CONSOLE_ARGS=(con=fd:2,fd:2 con0=fd:2,fd:2)
+    fi
+
+    if [ "${VERBOSE}" = "1" ]; then
+        "${UML_BIN}" "${UML_ARGS[@]}" "${UML_CONSOLE_ARGS[@]}" &
+    else
+        "${UML_BIN}" "${UML_ARGS[@]}" "${UML_CONSOLE_ARGS[@]}" 2>/dev/null &
+    fi
+    UML_PID=$!
+
+    for _ in $(seq 1 60); do
+        if [ -f "${READY_FILE}" ]; then
+            break
+        fi
+        if ! kill -0 "${UML_PID}" 2>/dev/null; then
+            break
+        fi
+        sleep 1
+    done
+
+    if [ ! -f "${READY_FILE}" ]; then
+        wait "${UML_PID}" || true
+        [ -f "${OUTPUT_FILE}" ] && cat "${OUTPUT_FILE}" >&2
+        echo "uml-veristat: UML guest did not reach GDB wait state." >&2
+        exit 1
+    fi
+
+    echo "uml-veristat: UML guest paused before running veristat." >&2
+    echo "  UML PID: ${UML_PID}" >&2
+    echo "  Attach with:" >&2
+    echo "    gdb ${UML_BIN}" >&2
+    echo "    (gdb) attach ${UML_PID}" >&2
+    if [ -f "${GDB_MACROS}" ]; then
+        echo "    (gdb) source ${GDB_MACROS}" >&2
+    fi
+    echo "    (gdb) continue" >&2
+    echo "  Resume the guest after GDB is ready with:" >&2
+    echo "    touch ${GO_FILE}" >&2
+
+    while [ ! -f "${GO_FILE}" ]; do
+        if ! kill -0 "${UML_PID}" 2>/dev/null; then
+            break
+        fi
+        sleep 1
+    done
+
+    wait "${UML_PID}"
+    UML_PID=""
+elif [ "${VERBOSE}" = "1" ]; then
     # Verbose: show full kernel boot log on stderr; veristat output still goes to
     # OUTPUT_FILE (captured in init script) and is replayed cleanly after UML exits.
     "${UML_BIN}" "${UML_ARGS[@]}" \

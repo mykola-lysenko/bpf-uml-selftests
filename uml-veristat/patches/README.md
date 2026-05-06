@@ -172,6 +172,29 @@ normal verifier/codegen paths.
 
 ---
 
+### 0003e — `um/x86: avoid UML text_poke warnings for final JIT copy`
+
+**Problem:** UML's `text_poke()` implementation in `arch/um/kernel/um_arch.c`
+is a placeholder that unconditionally calls `WARN_ON(1)`, because upstream UML
+assumes it does not participate in normal kernel text patching. After `0003c`
+and `0003d`, the x86 BPF JIT uses `bpf_arch_text_copy()` during final JIT image
+installation, and that path routed through `text_poke_copy()`. As a result,
+`UML_VERBOSE=1 uml-veristat ...` emitted noisy kernel stack traces even for
+successful verifier runs.
+
+**Fix:** On UML, make `bpf_arch_text_copy()` use a direct `memcpy()` instead of
+`text_poke_copy()`. This matches the existing verification-only UML shims in
+the JIT backend and avoids the bogus `text_poke()` warning path.
+
+**Result:** Verbose-mode runs no longer print spurious
+`WARNING: arch/um/kernel/um_arch.c` / `text_poke+...` stack traces for normal
+successful BPF verification.
+
+**Files changed:**
+- `arch/x86/net/bpf_jit_comp.c`
+
+---
+
 ### 0004 — `selftests/bpf: fix bpf_testmod.c compilation on UML`
 
 **Problem:** `bpf_testmod.c` fails to compile as a kernel module when `ARCH=um`

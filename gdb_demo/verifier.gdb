@@ -17,6 +17,18 @@
 set print pretty on
 set print array on
 set pagination off
+set follow-fork-mode parent
+set detach-on-fork on
+set print inferior-events off
+set print thread-events off
+
+# UML uses these signals internally while emulating the guest. If GDB stops on
+# them, interactive verifier debugging is unusably noisy.
+handle SIGCHLD nostop noprint pass
+handle SIGVTALRM nostop noprint pass
+handle SIGIO nostop noprint pass
+handle SIGUSR1 nostop noprint pass
+handle SIGUSR2 nostop noprint pass
 
 # ── Breakpoints inside the BPF verifier ──────────────────────────────────────
 
@@ -109,4 +121,5 @@ end
 echo \n[verifier.gdb loaded]\n
 echo Breakpoints set on: bpf_check, do_check_main, do_check, check_helper_call, bpf_prog_select_runtime\n
 echo \nNow run:  attach <PID from UML output>\n
-echo Then:     cont\n\n
+echo Then:     continue\n
+echo Resume the guest by creating the trigger file printed by uml-veristat.\n\n
