@@ -28,48 +28,48 @@
       },
       "expected_failed_process": {
         "arena_atomics.bpf.o": {
-          "errno": -22,
-          "reason": "arena unsupported on UML"
+          "errno": -12,
+          "reason": "arena allocation hits UML kmalloc_nolock limitations"
         },
         "arena_htab.bpf.o": {
-          "errno": -22,
-          "reason": "arena unsupported on UML"
+          "errno": -12,
+          "reason": "arena allocation hits UML kmalloc_nolock limitations"
         },
         "arena_htab_asm.bpf.o": {
-          "errno": -22,
-          "reason": "arena unsupported on UML"
+          "errno": -12,
+          "reason": "arena allocation hits UML kmalloc_nolock limitations"
         },
         "arena_list.bpf.o": {
-          "errno": -22,
-          "reason": "arena unsupported on UML"
+          "errno": -12,
+          "reason": "arena allocation hits UML kmalloc_nolock limitations"
         },
         "arena_spin_lock.bpf.o": {
-          "errno": -22,
-          "reason": "arena unsupported on UML"
+          "errno": -12,
+          "reason": "arena allocation hits UML kmalloc_nolock limitations"
         },
         "arena_strsearch.bpf.o": {
-          "errno": -22,
-          "reason": "arena unsupported on UML"
+          "errno": -12,
+          "reason": "arena allocation hits UML kmalloc_nolock limitations"
         },
         "stream.bpf.o": {
-          "errno": -22,
-          "reason": "arena-backed stream setup unsupported on UML"
+          "errno": -12,
+          "reason": "arena-backed stream setup hits UML kmalloc_nolock limitations"
         },
         "verifier_arena.bpf.o": {
-          "errno": -22,
-          "reason": "arena unsupported on UML"
+          "errno": -12,
+          "reason": "arena allocation hits UML kmalloc_nolock limitations"
         },
         "verifier_arena_globals1.bpf.o": {
-          "errno": -22,
-          "reason": "arena unsupported on UML"
+          "errno": -12,
+          "reason": "arena allocation hits UML kmalloc_nolock limitations"
         },
         "verifier_arena_globals2.bpf.o": {
-          "errno": -22,
-          "reason": "arena unsupported on UML"
+          "errno": -12,
+          "reason": "arena allocation hits UML kmalloc_nolock limitations"
         },
         "verifier_arena_large.bpf.o": {
-          "errno": -22,
-          "reason": "arena unsupported on UML"
+          "errno": -12,
+          "reason": "arena allocation hits UML kmalloc_nolock limitations"
         }
       },
       "expected_failed_open": {

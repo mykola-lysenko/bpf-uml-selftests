@@ -68,7 +68,7 @@ The wrapper will:
 
 1. Boot UML and pause before `veristat` runs
 2. Print the UML host PID and example `gdb` commands
-3. Wait for you to press Enter after GDB is attached
+3. Wait until you resume the guest by creating the trigger file it prints
 
 This reuses the same host-attach model documented in
 [`gdb_demo/`](/home/mykolal/bpf-uml-selftests/gdb_demo), but against the real
@@ -101,7 +101,7 @@ The `patches/` directory contains 10 patches applied to the `bpf-next` kernel tr
 | 0003e | Avoid UML `text_poke()` warnings during final JIT image copy | clean `UML_VERBOSE=1` diagnostics |
 | 0004 | Fix `bpf_testmod.c` compilation on UML | bpf_testmod module |
 | 0005 | Handle duplicate BTF types in CO-RE relocations | btf_relocate + relo_core |
-| 0007 | Fix veristat map fixup for zero key_size/value_size | bench + cgroup maps |
+| 0007 | Fix veristat map fixup for zero key_size/value_size while preserving arena zero fields | bench + cgroup maps, arena maps reach kernel allocation path |
 | 0008 | Cap veristat auto log size to avoid UML OOM | verbose log stability |
 
 ### Patch-to-Selftest Correspondence
@@ -121,7 +121,7 @@ The table below shows the current practical correspondence.
 | 0003e | Suppress UML `text_poke()` WARN noise during final JIT image installation | Verbose-mode diagnostics for otherwise successful loads, such as `verifier_and.bpf.o` under `UML_VERBOSE=1` |
 | 0004 | `bpf_testmod.ko` buildability on UML | Global prerequisite for `bpf_testmod`-backed selftests, including `struct_ops_module*`, `kfunc_call_*`, `iters_testmod*`, `kprobe_multi*`, and related module-BTF tests |
 | 0005 | Duplicate-BTF relocation handling | Large `bpf_testmod`/CO-RE bucket: `struct_ops_*`, `kfunc_call_*`, `iters_testmod*`, `kprobe_multi*`, `epilogue_*`, plus CO-RE cases like `getsockname_unix_prog.bpf.o`, `netif_receive_skb.bpf.o`, `htab_mem_bench.bpf.o`, and `stream.bpf.o` |
-| 0007 | `veristat` map fixups for harness-shaped benchmark objects | `bloom_filter_bench.bpf.o`, `bpf_hashmap_lookup.bpf.o`, `htab_mem_bench.bpf.o` |
+| 0007 | `veristat` map fixups for harness-shaped objects while preserving map types that require zero key/value sizes | `bloom_filter_bench.bpf.o`, `bpf_hashmap_lookup.bpf.o`, `htab_mem_bench.bpf.o`, plus arena files now fail with the real kernel-side `-ENOMEM` path instead of a false `-EINVAL` |
 | 0008 | Stable verbose verifier logging under UML memory limits | Diagnostic coverage for failing objects in `-vl2` mode, especially `test_send_signal_kern.bpf.o`, `xfrm_info.bpf.o`, and `test_tunnel_kern.bpf.o` |
 
 For upstreaming work, use the generated comparison report in
@@ -311,6 +311,12 @@ Remaining standalone items:
 - `verifier_arena_globals2.bpf.o`
 - `verifier_arena_large.bpf.o`
 - `test_sk_assign.bpf.o`
+
+After the `0007` map-fixup correction, the arena family no longer fails with a
+false `-EINVAL` from `veristat`'s synthetic map attributes. These files now
+reach the kernel arena allocator and fail with `-ENOMEM`, which points at the
+remaining UML-side `kmalloc_nolock()` / SLUB capability gap rather than a
+userspace fixup bug.
 
 See `patches/README.md` for detailed descriptions of each patch.
 

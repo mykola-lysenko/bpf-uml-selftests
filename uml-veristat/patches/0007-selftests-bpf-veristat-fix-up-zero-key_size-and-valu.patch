@@ -26,19 +26,23 @@ Also add BPF_MAP_TYPE_PERCPU_CGROUP_STORAGE to the exclusion list
 alongside CGROUP_STORAGE, since percpu cgroup storage requires
 max_entries == 0 and would fail if set to 1.
 
+Arena maps also require key_size == 0 and value_size == 0, so exclude
+them from the generic fixups as well.
+
 Signed-off-by: Mykola Lysenko <mykolal@meta.com>
 ---
- tools/testing/selftests/bpf/veristat.c | 13 +++++++++++++
- 1 file changed, 13 insertions(+)
+ tools/testing/selftests/bpf/veristat.c | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
 
 diff --git a/tools/testing/selftests/bpf/veristat.c b/tools/testing/selftests/bpf/veristat.c
 index 5c82950e6..b95e4d691 100644
 --- a/tools/testing/selftests/bpf/veristat.c
 +++ b/tools/testing/selftests/bpf/veristat.c
-@@ -1253,9 +1253,22 @@ static void fixup_obj_maps(struct bpf_object *obj)
+@@ -1253,9 +1253,23 @@ static void fixup_obj_maps(struct bpf_object *obj)
  		case BPF_MAP_TYPE_CGRP_STORAGE:
 +		case BPF_MAP_TYPE_PERCPU_CGROUP_STORAGE:
  		case BPF_MAP_TYPE_STRUCT_OPS:
++		case BPF_MAP_TYPE_ARENA:
  			break;
 +		case BPF_MAP_TYPE_RINGBUF:
 +		case BPF_MAP_TYPE_USER_RINGBUF:

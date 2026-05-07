@@ -284,15 +284,24 @@ already handles `max_entries == 0` but does not fix up zero `key_size` or
 `value_size`, causing `bpf_object__prepare()` to fail with `-EINVAL` from the
 kernel's `map_create` path.
 
+At the same time, some map types require zero sizes by design. Most notably,
+`BPF_MAP_TYPE_ARENA` must keep `key_size == 0` and `value_size == 0`, so a
+generic "fix every zero-sized map" policy turns arena programs into a false
+`-EINVAL` failure before they even reach the real kernel allocation path.
+
 **Fix:** Extend `fixup_obj_maps()` to set `value_size = 1` and `key_size = 4`
 when they are zero.  Map types that require zero by design are excluded:
 - Bloom filters, queues, and stacks: `key_size == 0` is valid
 - Ringbuf and user_ringbuf: both `key_size == 0` and `value_size == 0` are
   required; these maps get a separate `max_entries = 4096` fixup (page-aligned
   power-of-2) instead
+- Arena: both `key_size == 0` and `value_size == 0` are required, so arena maps
+  are excluded from the generic fixups as well
 
 **Impact:** Fixes `bloom_filter_bench.bpf.o`, `bpf_hashmap_lookup.bpf.o`,
-`htab_mem_bench.bpf.o` (3 files, -22 EINVAL).
+`htab_mem_bench.bpf.o` (3 files, -22 EINVAL), and removes the false `-22`
+arena failures so arena objects now surface the real kernel-side `-12 ENOMEM`
+allocator limitation on UML.
 
 ---
 
