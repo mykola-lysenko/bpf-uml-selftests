@@ -236,6 +236,7 @@ chmod +x "${INIT_SCRIPT}"
 MEM="${UML_MEM:-512M}"
 VERBOSE="${UML_VERBOSE:-0}"
 GDB_MACROS="${SCRIPT_DIR}/../gdb_demo/verifier.gdb"
+UML_EXIT=0
 
 # Base args shared by both modes
 UML_ARGS=(
@@ -295,19 +296,27 @@ if [ "${GDB_WAIT}" = "1" ]; then
         sleep 1
     done
 
-    wait "${UML_PID}"
+    wait "${UML_PID}" 2>/dev/null || UML_EXIT=$?
     UML_PID=""
 elif [ "${VERBOSE}" = "1" ]; then
     # Verbose: show full kernel boot log on stderr; veristat output still goes to
     # OUTPUT_FILE (captured in init script) and is replayed cleanly after UML exits.
     "${UML_BIN}" "${UML_ARGS[@]}" \
-        con=fd:2,fd:2 con0=fd:2,fd:2
+        con=fd:2,fd:2 con0=fd:2,fd:2 &
+    UML_PID=$!
+    wait "${UML_PID}" 2>/dev/null || UML_EXIT=$?
+    UML_PID=""
 else
     # Silent: suppress all kernel console output; veristat output goes to OUTPUT_FILE.
-    "${UML_BIN}" "${UML_ARGS[@]}" \
-        quiet loglevel=0 \
-        con=null con0=null \
-        2>/dev/null
+    (
+        "${UML_BIN}" "${UML_ARGS[@]}" \
+            quiet loglevel=0 \
+            con=null con0=null \
+            2>/dev/null
+    ) 2>/dev/null &
+    UML_PID=$!
+    wait "${UML_PID}" 2>/dev/null || UML_EXIT=$?
+    UML_PID=""
 fi
 
 # ------------------------------------------------------------------------------
@@ -320,6 +329,6 @@ if [ -f "${RESULT_FILE}" ]; then
 else
     # UML crashed or init didn't write result; show whatever output was captured
     [ -f "${OUTPUT_FILE}" ] && cat "${OUTPUT_FILE}" >&2
-    echo "uml-veristat: UML guest did not complete normally." >&2
+    echo "uml-veristat: UML guest did not complete normally (UML exit ${UML_EXIT})." >&2
     exit 1
 fi
