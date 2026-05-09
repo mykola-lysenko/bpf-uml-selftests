@@ -23,59 +23,50 @@
         "processed_programs": 4378,
         "skipped_files": 2,
         "skipped_programs": 0,
-        "success_rows": 2202,
-        "failure_rows": 2176
+        "success_rows": 2282,
+        "failure_rows": 2096
       },
-      "expected_failed_process": {
-        "arena_atomics.bpf.o": {
-          "errno": -12,
-          "reason": "arena allocation hits UML kmalloc_nolock limitations"
-        },
-        "arena_htab.bpf.o": {
-          "errno": -12,
-          "reason": "arena allocation hits UML kmalloc_nolock limitations"
-        },
-        "arena_htab_asm.bpf.o": {
-          "errno": -12,
-          "reason": "arena allocation hits UML kmalloc_nolock limitations"
-        },
-        "arena_list.bpf.o": {
-          "errno": -12,
-          "reason": "arena allocation hits UML kmalloc_nolock limitations"
-        },
-        "arena_spin_lock.bpf.o": {
-          "errno": -12,
-          "reason": "arena allocation hits UML kmalloc_nolock limitations"
-        },
-        "arena_strsearch.bpf.o": {
-          "errno": -12,
-          "reason": "arena allocation hits UML kmalloc_nolock limitations"
-        },
-        "stream.bpf.o": {
-          "errno": -12,
-          "reason": "arena-backed stream setup hits UML kmalloc_nolock limitations"
-        },
-        "verifier_arena.bpf.o": {
-          "errno": -12,
-          "reason": "arena allocation hits UML kmalloc_nolock limitations"
-        },
-        "verifier_arena_globals1.bpf.o": {
-          "errno": -12,
-          "reason": "arena allocation hits UML kmalloc_nolock limitations"
-        },
-        "verifier_arena_globals2.bpf.o": {
-          "errno": -12,
-          "reason": "arena allocation hits UML kmalloc_nolock limitations"
-        },
-        "verifier_arena_large.bpf.o": {
-          "errno": -12,
-          "reason": "arena allocation hits UML kmalloc_nolock limitations"
-        }
-      },
+      "expected_failed_process": {},
       "expected_failed_open": {
         "test_sk_assign.bpf.o": {
           "errno": -95,
           "reason": "legacy maps-section object is not standalone-openable under libbpf"
+        }
+      }
+    }
+  },
+  "arena_corpus": {
+    "files": [
+      "arena_atomics.bpf.o",
+      "arena_htab.bpf.o",
+      "arena_htab_asm.bpf.o",
+      "arena_list.bpf.o",
+      "arena_spin_lock.bpf.o",
+      "arena_strsearch.bpf.o",
+      "stream.bpf.o",
+      "verifier_arena.bpf.o",
+      "verifier_arena_globals1.bpf.o",
+      "verifier_arena_globals2.bpf.o",
+      "verifier_arena_large.bpf.o"
+    ],
+    "expected_metrics": {
+      "input_files": 11,
+      "processed_files": 11,
+      "processed_programs": 59,
+      "skipped_files": 0,
+      "skipped_programs": 0,
+      "success_rows": 57,
+      "failure_rows": 2
+    },
+    "expected_failed_process": {},
+    "expected_failed_open": {},
+    "expected_failed_programs": {
+      "verifier_arena.bpf.o": {
+        "iter_maps2": {
+          "reason": "expected-negative verifier case: bpf_arena_alloc_pages() receives struct seq_file instead of struct bpf_map"
+        },
+        "iter_maps3": {
+          "reason": "expected-negative verifier case: bpf_arena_alloc_pages() receives untrusted inner_map_meta pointer"
         }
       }
     }

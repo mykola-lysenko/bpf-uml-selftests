@@ -21,64 +21,20 @@
       -95
     ]
   ],
-  "failed_process": [
-    [
-      "arena_atomics.bpf.o",
-      -22
-    ],
-    [
-      "arena_htab.bpf.o",
-      -22
-    ],
-    [
-      "arena_htab_asm.bpf.o",
-      -22
-    ],
-    [
-      "arena_list.bpf.o",
-      -22
-    ],
-    [
-      "arena_spin_lock.bpf.o",
-      -22
-    ],
-    [
-      "arena_strsearch.bpf.o",
-      -22
-    ],
-    [
-      "stream.bpf.o",
-      -22
-    ],
-    [
-      "verifier_arena.bpf.o",
-      -22
-    ],
-    [
-      "verifier_arena_globals1.bpf.o",
-      -22
-    ],
-    [
-      "verifier_arena_globals2.bpf.o",
-      -22
-    ],
-    [
-      "verifier_arena_large.bpf.o",
-      -22
-    ]
-  ],
-  "failure_rows": 2176,
+  "failed_process": [],
+  "failure_rows": 2096,
   "input_files": 884,
   "processed_files": 871,
   "processed_programs": 4378,
   "skipped_files": 2,
   "skipped_programs": 0,
   "standalone_input_files": 873,
-  "success_rows": 2202,
+  "success_rows": 2282,
   "version_info": {
-    "Built": "2026-04-26 03:38 UTC",
+    "Built": "2026-05-09 04:15 UTC",
     "LLVM": "nightly-23.0.0",
     "bpf-next": "9012cf249 (7.0.0)",
+    "bpf_testmod": "available",
     "mode": "patched",
     "pahole": "v1.31",
     "skipped_patches": ""

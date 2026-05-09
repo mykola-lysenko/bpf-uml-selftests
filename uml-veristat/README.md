@@ -88,21 +88,21 @@ You can override the paths to the kernel and veristat binaries using environment
 
 ## Kernel Patches
 
-The `patches/` directory contains 10 patches applied to the `bpf-next` kernel tree to enable full BPF verification on UML:
+The `patches/` directory contains 11 patches applied to the `bpf-next` kernel tree to enable full BPF verification on UML:
 
 | Patch | Description | Programs fixed |
 |-------|-------------|----------------|
 | 0001 | Add `__x64_sys_*` wrappers for BPF selftest compatibility | fentry/kprobe attach targets |
-| 0002 | Add `BPF_VERIFICATION_STUBS` (tracing + LSM + stack trace) | tracing/LSM types + maps |
+| 0002 | Add hidden UML verification stubs for tracing, stack trace, and gated LSM support | tracing/LSM types + maps |
 | 0003 | Fix UML stub page alignment (`-Wl,-n` removal) | UML boot fix |
 | 0003b | Enable eBPF JIT support and default-on JIT for UML x86-64 | struct_ops + default guest JIT |
-| 0003c | Wire the native x86 BPF JIT backend into UML | real JIT capability hooks |
-| 0003d | Add UML-only JIT runtime shims for verification | kfunc-capable JIT in UML |
-| 0003e | Avoid UML `text_poke()` warnings during final JIT image copy | clean `UML_VERBOSE=1` diagnostics |
+| 0003c | Wire the native x86 BPF JIT backend into UML with runtime shims | real JIT capability hooks + clean verbose diagnostics |
 | 0004 | Fix `bpf_testmod.c` compilation on UML | bpf_testmod module |
-| 0005 | Handle duplicate BTF types in CO-RE relocations | btf_relocate + relo_core |
+| 0005 | Tolerate duplicate base BTF candidates during split-BTF relocation | btf_relocate |
+| 0006 | Preallocate arena range-tree nodes in sleepable paths | arena map creation + arena globals copied through mmap |
 | 0007 | Fix veristat map fixup for zero key_size/value_size while preserving arena zero fields | bench + cgroup maps, arena maps reach kernel allocation path |
 | 0008 | Cap veristat auto log size to avoid UML OOM | verbose log stability |
+| 0009 | Avoid capability-gated `bpf_trace_printk()` in arena spin-lock verifier fallback | `arena_spin_lock.bpf.o` |
 
 ### Patch-to-Selftest Correspondence
 
@@ -116,13 +116,13 @@ The table below shows the current practical correspondence.
 | 0002 | verification-only tracing/LSM/stack-trace support without `PERF_EVENTS` | Tracing-type and stack-trace users such as `pyperf*`, `strobemeta*`, `stacktrace_*`, plus LSM/storage-style cases like `local_storage`, `map_kptr`, `map_ptr_kern`, `test_get_xattr`, `test_map_in_map`, `verifier_vfs_reject` |
 | 0003 | UML boot fix | Global prerequisite: all `uml-veristat` selftests depend on the UML guest booting at all |
 | 0003b | JIT enablement and default-on JIT | Struct-ops and JIT-gated program classes, including `struct_ops_*`, `tcp_ca_*`, and early kfunc-capable loads |
-| 0003c | Real x86 JIT capability hooks in UML | Kfunc-using objects that used to fail with `JIT does not support calling kernel function`, such as `test_send_signal_kern.bpf.o`, `xfrm_info.bpf.o`, and parts of `test_tunnel_kern.bpf.o` |
-| 0003d | UML runtime shims needed to actually link the native x86 BPF JIT | Same class as `0003c`; this is the link/runtime half that makes the JIT backend usable in the final UML kernel |
-| 0003e | Suppress UML `text_poke()` WARN noise during final JIT image installation | Verbose-mode diagnostics for otherwise successful loads, such as `verifier_and.bpf.o` under `UML_VERBOSE=1` |
+| 0003c | Real x86 JIT capability hooks in UML, plus the UML runtime shims needed to link and use the backend for verification | Kfunc-using objects that used to fail with `JIT does not support calling kernel function`, such as `test_send_signal_kern.bpf.o`, `xfrm_info.bpf.o`, and parts of `test_tunnel_kern.bpf.o`; also suppresses `text_poke()` WARN noise in verbose-mode diagnostics |
 | 0004 | `bpf_testmod.ko` buildability on UML | Global prerequisite for `bpf_testmod`-backed selftests, including `struct_ops_module*`, `kfunc_call_*`, `iters_testmod*`, `kprobe_multi*`, and related module-BTF tests |
-| 0005 | Duplicate-BTF relocation handling | Large `bpf_testmod`/CO-RE bucket: `struct_ops_*`, `kfunc_call_*`, `iters_testmod*`, `kprobe_multi*`, `epilogue_*`, plus CO-RE cases like `getsockname_unix_prog.bpf.o`, `netif_receive_skb.bpf.o`, `htab_mem_bench.bpf.o`, and `stream.bpf.o` |
-| 0007 | `veristat` map fixups for harness-shaped objects while preserving map types that require zero key/value sizes | `bloom_filter_bench.bpf.o`, `bpf_hashmap_lookup.bpf.o`, `htab_mem_bench.bpf.o`, plus arena files now fail with the real kernel-side `-ENOMEM` path instead of a false `-EINVAL` |
+| 0005 | Duplicate base-BTF candidate handling for split-BTF relocation | `bpf_testmod` module-BTF registration, which unblocks module-backed classes such as `struct_ops_*`, `kfunc_call_*`, `iters_testmod*`, `kprobe_multi*`, and `epilogue_*` |
+| 0006 | Sleepable arena range-tree bootstrap and user-fault split preallocation | Arena map creation for `arena_*`, `stream.bpf.o`, and `verifier_arena*` objects that previously failed at the first full-range insertion; arena globals copied through libbpf mmap, including `arena_htab.bpf.o`, `arena_spin_lock.bpf.o`, and `verifier_arena_globals1.bpf.o` |
+| 0007 | `veristat` map fixups for harness-shaped objects while preserving map types that require zero key/value sizes | `bloom_filter_bench.bpf.o`, `bpf_hashmap_lookup.bpf.o`, `htab_mem_bench.bpf.o`; arena maps keep their required zero key/value sizes and reach the kernel arena paths |
 | 0008 | Stable verbose verifier logging under UML memory limits | Diagnostic coverage for failing objects in `-vl2` mode, especially `test_send_signal_kern.bpf.o`, `xfrm_info.bpf.o`, and `test_tunnel_kern.bpf.o` |
+| 0009 | Remove debug-only `bpf_printk()` calls from arena spin-lock loop escape labels | `arena_spin_lock.bpf.o` verifies as an unprivileged TC object under `uml-veristat` |
 
 For upstreaming work, use the generated comparison report in
 [`docs/patch-impact.md`](/home/mykolal/bpf-uml-selftests/docs/patch-impact.md)
@@ -226,6 +226,17 @@ cd uml-veristat
 python3 scripts/check_expectations.py
 ```
 
+For arena-specific work, run the focused arena regression:
+
+```bash
+cd uml-veristat
+python3 scripts/check_arena_expectations.py
+```
+
+That check covers the 11 top-level arena-family objects and asserts that none
+fail at file-processing time. The current expected arena result is 59 processed
+programs: 57 success rows and 2 verifier-failure rows.
+
 Current reproducible output for the top-level corpus (`884` `.bpf.o` files) is:
 
 | Metric | Value |
@@ -236,9 +247,9 @@ Current reproducible output for the top-level corpus (`884` `.bpf.o` files) is:
 | Processed files | `871` |
 | Skipped files | `2` |
 | Processed programs | `4378` |
-| Successful CSV rows | `2202` |
-| Failing CSV rows | `2176` |
-| Remaining failed-to-process files | `11` |
+| Successful CSV rows | `2282` |
+| Failing CSV rows | `2096` |
+| Remaining failed-to-process files | `0` |
 | Remaining failed-to-open files | `1` |
 
 ### Clean Upstream Baseline
@@ -266,9 +277,9 @@ The real difference shows up in the verification results:
 | Standalone input files | `873` | `862` |
 | Processed files | `871` | `860` |
 | Processed programs | `4378` | `4323` |
-| Successful CSV rows | `2202` | `1336` |
-| Failing CSV rows | `2176` | `2987` |
-| Remaining failed-to-process files | `11` | `104` |
+| Successful CSV rows | `2282` | `1336` |
+| Failing CSV rows | `2096` | `2987` |
+| Remaining failed-to-process files | `0` | `104` |
 | Remaining failed-to-open files | `1` | `2` |
 
 So the local patch stack does not merely increase the input corpus a little. It
@@ -297,26 +308,17 @@ Excluded fixture-only objects:
 - `test_subskeleton_lib.bpf.o`
 - `test_subskeleton_lib2.bpf.o`
 
-Remaining standalone items:
+Remaining standalone file-level item:
 
-- `arena_atomics.bpf.o`
-- `arena_htab.bpf.o`
-- `arena_htab_asm.bpf.o`
-- `arena_list.bpf.o`
-- `arena_spin_lock.bpf.o`
-- `arena_strsearch.bpf.o`
-- `stream.bpf.o`
-- `verifier_arena.bpf.o`
-- `verifier_arena_globals1.bpf.o`
-- `verifier_arena_globals2.bpf.o`
-- `verifier_arena_large.bpf.o`
 - `test_sk_assign.bpf.o`
 
-After the `0007` map-fixup correction, the arena family no longer fails with a
-false `-EINVAL` from `veristat`'s synthetic map attributes. These files now
-reach the kernel arena allocator and fail with `-ENOMEM`, which points at the
-remaining UML-side `kmalloc_nolock()` / SLUB capability gap rather than a
-userspace fixup bug.
+After the arena range-tree fixes in `0006`, the arena family no
+longer fails at file-processing time. Arena objects now produce normal
+per-program verifier rows under `uml-veristat`. `arena_spin_lock.bpf.o` now
+verifies under the unprivileged TC environment after `0009`; only
+`verifier_arena.bpf.o` contains expected-negative rows,
+`iter_maps2` and `iter_maps3`, which intentionally pass invalid arena kfunc
+arguments to the verifier.
 
 See `patches/README.md` for detailed descriptions of each patch.
 
@@ -333,9 +335,10 @@ The current prioritized improvement list for `uml-veristat` is:
    - Expose the current UML/x86 JIT capability set in a machine-readable and
      user-friendly way, for example `kfunc_call`, `arena`, `percpu_insn`,
      `exceptions`, `private_stack`, and `subprog_tailcalls`.
-2. Continue arena-focused support work.
-   - The arena family remains the biggest real functionality gap in the
-     standalone selftest corpus.
+2. Clarify remaining backend-dependent verifier failures.
+   - Arena now reaches normal per-program verifier rows with only the
+     intentionally negative `verifier_arena.bpf.o` cases left in the focused
+     arena corpus.
 3. Clarify harness-dependent selftests.
    - Keep non-standalone or harness-shaped objects out of the default product
      metric unless `uml-veristat` grows explicit setup emulation for them.
