@@ -667,6 +667,8 @@ info "bpftool: ${BPFTOOL_BIN}"
 #   BPFTOOL      — our freshly built bpftool (for vmlinux.h + skeleton gen)
 #   VMLINUX_BTF  — the UML kernel binary (contains BTF for vmlinux.h)
 #   CLANG / LLC  — our freshly built clang/llc
+#   TEST_KMODS=   — keep the host-arch selftests build from trying to build
+#                  kernel modules; bpf_testmod.ko is built separately for UML.
 VERISTAT_BIN="${SELFTESTS_OUTPUT}/veristat"
 
 if [ ! -x "${VERISTAT_BIN}" ] || [ "${DO_UPDATE}" = "1" ] || [ "${REBUILD_SELFTESTS}" = "1" ]; then
@@ -683,6 +685,7 @@ if [ ! -x "${VERISTAT_BIN}" ] || [ "${DO_UPDATE}" = "1" ] || [ "${REBUILD_SELFTE
         BPFTOOL="${BPFTOOL_BIN}" \
         VMLINUX_BTF="${UML_BINARY}" \
         ARCH=x86_64 \
+        TEST_KMODS= \
         -j"$(nproc)" \
         -k 2>&1 || SELFTESTS_MAKE_STATUS=$?
     if [ "${SELFTESTS_MAKE_STATUS}" -ne 0 ]; then
