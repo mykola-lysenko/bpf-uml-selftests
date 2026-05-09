@@ -88,7 +88,7 @@ You can override the paths to the kernel and veristat binaries using environment
 
 ## Kernel Patches
 
-The `patches/` directory contains 11 patches applied to the `bpf-next` kernel tree to enable full BPF verification on UML:
+The `patches/` directory contains 10 patches applied to the `bpf-next` kernel tree to enable full BPF verification on UML:
 
 | Patch | Description | Programs fixed |
 |-------|-------------|----------------|
@@ -102,7 +102,6 @@ The `patches/` directory contains 11 patches applied to the `bpf-next` kernel tr
 | 0006 | Preallocate arena range-tree nodes in sleepable paths | arena map creation + arena globals copied through mmap |
 | 0007 | Fix veristat map fixup for zero key_size/value_size while preserving arena zero fields | bench + cgroup maps, arena maps reach kernel allocation path |
 | 0008 | Cap veristat auto log size to avoid UML OOM | verbose log stability |
-| 0009 | Avoid capability-gated `bpf_trace_printk()` in arena spin-lock verifier fallback | `arena_spin_lock.bpf.o` |
 
 ### Patch-to-Selftest Correspondence
 
@@ -122,7 +121,6 @@ The table below shows the current practical correspondence.
 | 0006 | Sleepable arena range-tree bootstrap and user-fault split preallocation | Arena map creation for `arena_*`, `stream.bpf.o`, and `verifier_arena*` objects that previously failed at the first full-range insertion; arena globals copied through libbpf mmap, including `arena_htab.bpf.o`, `arena_spin_lock.bpf.o`, and `verifier_arena_globals1.bpf.o` |
 | 0007 | `veristat` map fixups for harness-shaped objects while preserving map types that require zero key/value sizes | `bloom_filter_bench.bpf.o`, `bpf_hashmap_lookup.bpf.o`, `htab_mem_bench.bpf.o`; arena maps keep their required zero key/value sizes and reach the kernel arena paths |
 | 0008 | Stable verbose verifier logging under UML memory limits | Diagnostic coverage for failing objects in `-vl2` mode, especially `test_send_signal_kern.bpf.o`, `xfrm_info.bpf.o`, and `test_tunnel_kern.bpf.o` |
-| 0009 | Remove debug-only `bpf_printk()` calls from arena spin-lock loop escape labels | `arena_spin_lock.bpf.o` verifies as an unprivileged TC object under `uml-veristat` |
 
 For upstreaming work, use the generated comparison report in
 [`docs/patch-impact.md`](/home/mykolal/bpf-uml-selftests/docs/patch-impact.md)
@@ -312,11 +310,10 @@ Remaining standalone file-level item:
 
 - `test_sk_assign.bpf.o`
 
-After the arena range-tree fixes in `0006`, the arena family no
-longer fails at file-processing time. Arena objects now produce normal
-per-program verifier rows under `uml-veristat`. `arena_spin_lock.bpf.o` now
-verifies under the unprivileged TC environment after `0009`; only
-`verifier_arena.bpf.o` contains expected-negative rows,
+After the arena range-tree fixes in `0006`, the arena family no longer fails at
+file-processing time. Arena objects now produce normal per-program verifier
+rows under `uml-veristat`; only `verifier_arena.bpf.o` contains
+expected-negative rows,
 `iter_maps2` and `iter_maps3`, which intentionally pass invalid arena kfunc
 arguments to the verifier.
 

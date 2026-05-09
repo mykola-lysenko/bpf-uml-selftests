@@ -329,25 +329,6 @@ large-log opt-in behavior.
 
 ---
 
-## Patch 0009 — selftests/bpf: avoid trace_printk in arena spin lock fallback
-
-**File:** `tools/testing/selftests/bpf/progs/bpf_arena_spin_lock.h`
-
-**Problem:** `arena_spin_lock.bpf.o` is a TC program. In UML, `uml-veristat`
-runs without CAP_PERFMON, so TC helper lookup does not expose
-`bpf_trace_printk()`. The globally validated arena spin-lock slow path can reach
-the debug-only `bpf_printk()` calls placed after `cond_break_label()` loop
-escape labels, causing the verifier to reject the otherwise valid object.
-
-**Fix:** Remove the two debug-only `bpf_printk()` calls and keep the fallback
-return value. The loop escape labels still give the verifier a bounded path,
-but the object no longer depends on a capability-gated helper.
-
-**Impact:** `arena_spin_lock.bpf.o` now verifies successfully under the normal
-unprivileged `uml-veristat` environment.
-
----
-
 ## Verification Notes
 
 `uml-veristat` is validating two things at once:
