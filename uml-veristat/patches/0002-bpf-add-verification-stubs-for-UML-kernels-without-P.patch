@@ -351,16 +351,16 @@ index 000000000..cb4ece330
 +	return DEFAULT;						\
 +}
 +
-+#define LSM_HOOK(type, ...) __BPF_LSM_DEFINE_HOOK(type, __VA_ARGS__)
++#define LSM_HOOK(RET, DEFAULT, NAME, ...) __BPF_LSM_DEFINE_HOOK(RET, DEFAULT, NAME, __VA_ARGS__)
 +
 +#include <linux/lsm_hook_defs.h>
 +#undef LSM_HOOK
 +
 +/* BTF ID sets for hook validation */
 +
-+#define __BPF_LSM_HOOK_ID(name) BTF_ID(func, bpf_lsm_##name)
-+#define __BPF_LSM_HOOK_NAME(type, name, ...) name
-+#define LSM_HOOK(type, ...) __BPF_LSM_HOOK_ID(__BPF_LSM_HOOK_NAME(__VA_ARGS__))
++#define __BPF_LSM_HOOK_ID1(NAME) BTF_ID(func, bpf_lsm_##NAME)
++#define __BPF_LSM_HOOK_ID(NAME, ...) __BPF_LSM_HOOK_ID1(NAME)
++#define LSM_HOOK(RET, DEFAULT, NAME, ...) __BPF_LSM_HOOK_ID(NAME, RET, DEFAULT)
 +BTF_SET_START(bpf_lsm_hooks)
 +#include <linux/lsm_hook_defs.h>
 +#undef LSM_HOOK
@@ -676,4 +676,3 @@ index da3d328f5..ee4e412f0 100644
  static void *stack_map_lookup_elem(struct bpf_map *map, void *key)
 -- 
 2.53.0-Meta
-
