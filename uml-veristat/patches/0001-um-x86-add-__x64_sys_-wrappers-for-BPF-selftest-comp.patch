@@ -23,8 +23,8 @@ entry. Arguments are extracted using UPT_SYSCALL_ARGn() macros.
 Signed-off-by: Mykola Lysenko <mykolal@meta.com>
 ---
  arch/x86/um/Makefile               |  2 +-
- arch/x86/um/x64_syscall_wrappers.c | 65 ++++++++++++++++++++++++++++++
- 2 files changed, 66 insertions(+), 1 deletion(-)
+ arch/x86/um/x64_syscall_wrappers.c | 71 ++++++++++++++++++++++++++++++
+ 2 files changed, 72 insertions(+), 1 deletion(-)
  create mode 100644 arch/x86/um/x64_syscall_wrappers.c
 
 diff --git a/arch/x86/um/Makefile b/arch/x86/um/Makefile
@@ -45,7 +45,7 @@ new file mode 100644
 index 000000000..294ebeeef
 --- /dev/null
 +++ b/arch/x86/um/x64_syscall_wrappers.c
-@@ -0,0 +1,65 @@
+@@ -0,0 +1,71 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * UML x86-64: __x64_sys_* wrappers for BPF selftest compatibility
@@ -74,6 +74,12 @@ index 000000000..294ebeeef
 +#include <linux/resource.h>
 +#include <asm/ptrace.h>
 +#include <sysdep/ptrace.h>
++
++asmlinkage long __x64_sys_getpgid(const struct pt_regs *regs);
++asmlinkage long __x64_sys_nanosleep(const struct pt_regs *regs);
++asmlinkage long __x64_sys_prctl(const struct pt_regs *regs);
++asmlinkage long __x64_sys_prlimit64(const struct pt_regs *regs);
++asmlinkage long __x64_sys_setdomainname(const struct pt_regs *regs);
 +
 +asmlinkage long __x64_sys_getpgid(const struct pt_regs *regs)
 +{
