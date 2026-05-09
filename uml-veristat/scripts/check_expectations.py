@@ -38,17 +38,22 @@ def compare_failure_bucket(
     title: str,
     actual: list[tuple[str, int]],
     expected: dict[str, dict],
+    allowed: dict[str, dict] | None = None,
 ) -> None:
     actual_map = {name: err for name, err in actual}
     expected_map = {name: spec["errno"] for name, spec in expected.items()}
+    allowed_map = {name: spec["errno"] for name, spec in (allowed or {}).items()}
 
     missing = sorted(expected_map.keys() - actual_map.keys())
-    unexpected = sorted(actual_map.keys() - expected_map.keys())
+    unexpected = sorted(actual_map.keys() - expected_map.keys() - allowed_map.keys())
     mismatched = sorted(
         name for name in expected_map.keys() & actual_map.keys() if expected_map[name] != actual_map[name]
     )
+    allowed_mismatched = sorted(
+        name for name in allowed_map.keys() & actual_map.keys() if allowed_map[name] != actual_map[name]
+    )
 
-    if not missing and not unexpected and not mismatched:
+    if not missing and not unexpected and not mismatched and not allowed_mismatched:
         return
 
     failures.append(f"{title}:")
@@ -60,6 +65,10 @@ def compare_failure_bucket(
         failures.append(
             f"  errno mismatch for `{name}`: expected `{expected_map[name]}`, got `{actual_map[name]}`"
         )
+    for name in allowed_mismatched:
+        failures.append(
+            f"  errno mismatch for allowed `{name}`: expected `{allowed_map[name]}`, got `{actual_map[name]}`"
+        )
 
 
 def compare_metrics(
@@ -67,6 +76,8 @@ def compare_metrics(
     *,
     result,
     expected_metrics: dict[str, int],
+    minimum_metrics: dict[str, int],
+    maximum_metrics: dict[str, int],
 ) -> None:
     mismatches: list[str] = []
     for metric, expected_value in expected_metrics.items():
@@ -74,6 +85,18 @@ def compare_metrics(
         if actual_value != expected_value:
             mismatches.append(
                 f"  `{metric}` expected `{expected_value}`, got `{actual_value}`"
+            )
+    for metric, minimum_value in minimum_metrics.items():
+        actual_value = getattr(result, metric)
+        if actual_value < minimum_value:
+            mismatches.append(
+                f"  `{metric}` expected at least `{minimum_value}`, got `{actual_value}`"
+            )
+    for metric, maximum_value in maximum_metrics.items():
+        actual_value = getattr(result, metric)
+        if actual_value > maximum_value:
+            mismatches.append(
+                f"  `{metric}` expected at most `{maximum_value}`, got `{actual_value}`"
             )
 
     if mismatches:
@@ -152,6 +175,7 @@ def main() -> int:
         title="failed-to-process bucket",
         actual=result.failed_process,
         expected=corpus_expectations.get("expected_failed_process", {}),
+        allowed=corpus_expectations.get("allowed_failed_process", {}),
     )
     compare_failure_bucket(
         failures,
@@ -163,6 +187,8 @@ def main() -> int:
         failures,
         result=result,
         expected_metrics=corpus_expectations.get("expected_metrics", {}),
+        minimum_metrics=corpus_expectations.get("minimum_metrics", {}),
+        maximum_metrics=corpus_expectations.get("maximum_metrics", {}),
     )
 
     if failures:

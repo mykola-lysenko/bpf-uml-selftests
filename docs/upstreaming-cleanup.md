@@ -37,7 +37,14 @@ This is the current cleanup list to work through before shaping the local
      selftests.
    - Validate arena range-tree preallocation outside the UML-only workflow.
 
-6. Generate maintainer data per final patch.
+6. Investigate tolerated top-level corpus drift.
+   - Current moving `bpf-next/master` can report `-EINVAL` file-processing
+     failures for `getpeername_unix_prog.bpf.o`, `getsockname_unix_prog.bpf.o`,
+     `sendmsg_unix_prog.bpf.o`, and `xfrm_info.bpf.o`.
+   - Decide whether each object needs another UML/veristat fix, harness-aware
+     setup, or permanent classification as non-standalone.
+
+7. Generate maintainer data per final patch.
    - Run `scripts/get_maintainer.pl` from a fresh `bpf-next` tree for each
      final patch.
    - Use the result to decide whether to send one coordinated series or

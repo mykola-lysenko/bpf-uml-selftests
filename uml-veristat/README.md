@@ -235,7 +235,13 @@ That check covers the 11 top-level arena-family objects and asserts that none
 fail at file-processing time. The current expected arena result is 59 processed
 programs: 57 success rows and 2 verifier-failure rows.
 
-Current reproducible output for the top-level corpus (`884` `.bpf.o` files) is:
+The top-level CI expectation check uses exact failure-bucket checks plus
+minimum aggregate thresholds from `corpus_manifest.json`. It intentionally does
+not pin every top-level count exactly because CI builds against moving
+`bpf-next/master`. The focused arena expectation check remains exact.
+
+Reference output from the `9012cf249` `bpf-next` snapshot (`884` `.bpf.o`
+files) was:
 
 | Metric | Value |
 |--------|-------|
