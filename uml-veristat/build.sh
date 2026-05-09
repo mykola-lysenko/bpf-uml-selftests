@@ -40,14 +40,14 @@ set -euo pipefail
 # ------------------------------------------------------------------------------
 # Configurable source versions
 # ------------------------------------------------------------------------------
-LLVM_REPO="https://github.com/llvm/llvm-project.git"
-LLVM_BRANCH="main"                   # LLVM 23 development tip
+LLVM_REPO="${LLVM_REPO:-https://github.com/llvm/llvm-project.git}"
+LLVM_BRANCH="${LLVM_BRANCH:-main}"                   # LLVM 23 development tip
 
-PAHOLE_REPO="https://github.com/acmel/dwarves.git"
-PAHOLE_TAG="v1.31"
+PAHOLE_REPO="${PAHOLE_REPO:-https://github.com/acmel/dwarves.git}"
+PAHOLE_TAG="${PAHOLE_TAG:-v1.31}"
 
-KERNEL_REPO="https://git.kernel.org/pub/scm/linux/kernel/git/bpf/bpf-next.git"
-KERNEL_BRANCH="master"
+KERNEL_REPO="${KERNEL_REPO:-https://git.kernel.org/pub/scm/linux/kernel/git/bpf/bpf-next.git}"
+KERNEL_BRANCH="${KERNEL_BRANCH:-master}"
 
 # ------------------------------------------------------------------------------
 # Directory layout
@@ -109,6 +109,7 @@ REBUILD_KERNEL=0
 REBUILD_BPFTOOL=0
 REBUILD_SELFTESTS=0
 REBUILD_TESTMOD=0
+REUSE_LLVM=0
 
 for arg in "$@"; do
     case "${arg}" in
@@ -118,6 +119,7 @@ for arg in "$@"; do
         --skip-patches=*) SKIP_PATCHES_RAW="${arg#*=}" ;;
         --install-suffix=*) INSTALL_SUFFIX="${arg#*=}" ;;
         --llvm-source)  LLVM_NIGHTLY=0 ;;
+        --reuse-llvm)   REUSE_LLVM=1 ;;
         --rebuild-llvm)      REBUILD_LLVM=1 ;;
         --rebuild-pahole)    REBUILD_PAHOLE=1 ;;
         --rebuild-kernel)    REBUILD_KERNEL=1 ;;
@@ -133,6 +135,7 @@ for arg in "$@"; do
             echo "  --skip-patches=LIST  Comma-separated patch prefixes to skip (e.g. 0005,0008)."
             echo "  --install-suffix=SFX Install into ~/.local/share/uml-veristat-SFX."
             echo "  --llvm-source        Build LLVM from source instead of downloading pre-built release."
+            echo "  --reuse-llvm         Keep existing LLVM/Clang even when --update is used."
             echo "  --package            After building, create a distributable tarball."
             echo ""
             echo "Per-stage rebuild options (skips checking if already built):"
@@ -146,6 +149,10 @@ for arg in "$@"; do
         *) echo "Unknown argument: ${arg}"; exit 1 ;;
     esac
 done
+if [ "${REUSE_LLVM}" = "1" ] && [ "${REBUILD_LLVM}" = "1" ]; then
+    echo "ERROR: --reuse-llvm and --rebuild-llvm cannot be combined."
+    exit 1
+fi
 
 BUILD_FLAVOR="patched"
 MODE_SUFFIX=""
@@ -281,7 +288,11 @@ esac
 if [ "${LLVM_NIGHTLY}" = "1" ]; then
     step "2/7  Downloading pre-built LLVM release"
 
-    if [ -f "${CLANG}" ] && [ "${REBUILD_LLVM}" != "1" ] && [ "${DO_UPDATE}" != "1" ]; then
+    if [ -f "${CLANG}" ] && [ "${REUSE_LLVM}" = "1" ]; then
+        info "Reusing existing LLVM/Clang due to --reuse-llvm."
+        info "Clang: $(${CLANG} --version | head -1)"
+        LLVM_COMMIT="reused-$(${CLANG} --version | head -1)"
+    elif [ -f "${CLANG}" ] && [ "${REBUILD_LLVM}" != "1" ] && [ "${DO_UPDATE}" != "1" ]; then
         info "LLVM already installed — skipping. (Use --rebuild-llvm to re-download.)"
         LLVM_COMMIT="nightly-$(${CLANG} --version | head -1 | grep -oP '\d+\.\d+\.\d+' | head -1)"
     else
@@ -290,43 +301,81 @@ if [ "${LLVM_NIGHTLY}" = "1" ]; then
         LLVM_RELEASE_JSON=""
         if ! LLVM_RELEASE_JSON=$(github_api_get "https://api.github.com/repos/llvm/llvm-project/releases/latest"); then
             warn "Could not fetch LLVM release info from /releases/latest; retrying with /releases?per_page=1"
-            LLVM_RELEASE_JSON=$(github_api_get "https://api.github.com/repos/llvm/llvm-project/releases?per_page=1" | python3 -c \
-                "import sys,json; releases=json.load(sys.stdin); print(json.dumps(releases[0]))") || {
+            LLVM_RELEASE_LIST_JSON=""
+            if LLVM_RELEASE_LIST_JSON=$(github_api_get "https://api.github.com/repos/llvm/llvm-project/releases?per_page=1"); then
+                LLVM_RELEASE_JSON=$(printf '%s' "${LLVM_RELEASE_LIST_JSON}" | python3 -c \
+                    "import sys,json; releases=json.load(sys.stdin); print(json.dumps(releases[0]))")
+            fi
+        fi
+        if [ -z "${LLVM_RELEASE_JSON}" ]; then
+            if [ -f "${CLANG}" ] && [ "${REBUILD_LLVM}" != "1" ]; then
+                warn "Could not fetch LLVM release info; reusing installed LLVM/Clang."
+                warn "Use --rebuild-llvm to make LLVM refresh failure fatal."
+                info "Clang: $(${CLANG} --version | head -1)"
+                LLVM_COMMIT="reused-$(${CLANG} --version | head -1)"
+            else
                 echo "ERROR: Could not fetch LLVM release info from GitHub API"
                 echo "Hint: set GITHUB_TOKEN or GH_TOKEN to avoid GitHub API rate limits"
                 exit 1
-            }
+            fi
         fi
-        LLVM_TAG=$(echo "${LLVM_RELEASE_JSON}" | python3 -c \
-            "import sys,json; print(json.load(sys.stdin)['tag_name'])")
-        LLVM_VERSION=$(echo "${LLVM_TAG}" | sed 's/llvmorg-//')
-        LLVM_TARBALL_URL=$(echo "${LLVM_RELEASE_JSON}" | python3 -c \
-            "import sys,json; r=json.load(sys.stdin); \
-             urls=[a['browser_download_url'] for a in r['assets'] \
-                   if 'Linux-X64' in a['name'] and a['name'].endswith('.tar.xz')]; \
-             print(urls[0] if urls else '')")
+        if [ -n "${LLVM_RELEASE_JSON}" ]; then
+            LLVM_TAG=$(echo "${LLVM_RELEASE_JSON}" | python3 -c \
+                "import sys,json; print(json.load(sys.stdin)['tag_name'])")
+            LLVM_VERSION=$(echo "${LLVM_TAG}" | sed 's/llvmorg-//')
+            LLVM_TARBALL_URL=$(echo "${LLVM_RELEASE_JSON}" | python3 -c \
+                "import sys,json; r=json.load(sys.stdin); \
+                 urls=[a['browser_download_url'] for a in r['assets'] \
+                       if 'Linux-X64' in a['name'] and a['name'].endswith('.tar.xz')]; \
+                 print(urls[0] if urls else '')")
 
-        if [ -z "${LLVM_TARBALL_URL}" ]; then
-            echo "ERROR: Could not find Linux-X64 tarball in LLVM release ${LLVM_TAG}"
-            exit 1
+            if [ -z "${LLVM_TARBALL_URL}" ]; then
+                if [ -f "${CLANG}" ] && [ "${REBUILD_LLVM}" != "1" ]; then
+                    warn "Could not find Linux-X64 tarball in LLVM release ${LLVM_TAG}; reusing installed LLVM/Clang."
+                    warn "Use --rebuild-llvm to make LLVM refresh failure fatal."
+                    info "Clang: $(${CLANG} --version | head -1)"
+                    LLVM_COMMIT="reused-$(${CLANG} --version | head -1)"
+                else
+                    echo "ERROR: Could not find Linux-X64 tarball in LLVM release ${LLVM_TAG}"
+                    exit 1
+                fi
+            fi
+
+            if [ -n "${LLVM_TARBALL_URL}" ]; then
+                LLVM_TARBALL="${WORKDIR}/$(basename "${LLVM_TARBALL_URL}")"
+                info "Latest LLVM release: ${LLVM_TAG} (${LLVM_VERSION})"
+                info "Tarball URL: ${LLVM_TARBALL_URL}"
+
+                LLVM_TARBALL_READY=1
+                if [ ! -f "${LLVM_TARBALL}" ]; then
+                    info "Downloading LLVM tarball (~700 MB)..."
+                    if ! curl -L --progress-bar -o "${LLVM_TARBALL}" "${LLVM_TARBALL_URL}"; then
+                        rm -f "${LLVM_TARBALL}"
+                        if [ -f "${CLANG}" ] && [ "${REBUILD_LLVM}" != "1" ]; then
+                            LLVM_TARBALL_READY=0
+                            warn "Could not download LLVM tarball; reusing installed LLVM/Clang."
+                            warn "Use --rebuild-llvm to make LLVM refresh failure fatal."
+                            info "Clang: $(${CLANG} --version | head -1)"
+                            LLVM_COMMIT="reused-$(${CLANG} --version | head -1)"
+                        else
+                            echo "ERROR: Could not download LLVM tarball"
+                            exit 1
+                        fi
+                    fi
+                else
+                    info "Tarball already downloaded: ${LLVM_TARBALL}"
+                fi
+
+                if [ "${LLVM_TARBALL_READY}" = "1" ]; then
+                    info "Extracting LLVM tarball..."
+                    rm -rf "${LLVM_INSTALL}"
+                    mkdir -p "${LLVM_INSTALL}"
+                    tar -xf "${LLVM_TARBALL}" -C "${LLVM_INSTALL}" --strip-components=1
+                    info "Clang: $(${CLANG} --version | head -1)"
+                    LLVM_COMMIT="nightly-${LLVM_VERSION}"
+                fi
+            fi
         fi
-
-        LLVM_TARBALL="${WORKDIR}/$(basename "${LLVM_TARBALL_URL}")"
-        info "Latest LLVM release: ${LLVM_TAG} (${LLVM_VERSION})"
-        info "Tarball URL: ${LLVM_TARBALL_URL}"
-
-        if [ ! -f "${LLVM_TARBALL}" ]; then
-            info "Downloading LLVM tarball (~700 MB)..."
-            curl -L --progress-bar -o "${LLVM_TARBALL}" "${LLVM_TARBALL_URL}"
-        else
-            info "Tarball already downloaded: ${LLVM_TARBALL}"
-        fi
-        info "Extracting LLVM tarball..."
-        rm -rf "${LLVM_INSTALL}"
-        mkdir -p "${LLVM_INSTALL}"
-        tar -xf "${LLVM_TARBALL}" -C "${LLVM_INSTALL}" --strip-components=1
-        info "Clang: $(${CLANG} --version | head -1)"
-        LLVM_COMMIT="nightly-${LLVM_VERSION}"
     fi
 else
     step "2/7  Building LLVM/Clang (${LLVM_BRANCH} branch, BPF+X86 only)"
