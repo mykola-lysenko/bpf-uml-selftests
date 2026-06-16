@@ -227,6 +227,58 @@ finalize_testmod_install() {
 }
 
 # ------------------------------------------------------------------------------
+# Honor an outbound HTTP(S) proxy for every network step
+# ------------------------------------------------------------------------------
+# All fetches in this script (git clone/fetch, curl, wget, cmake downloads) run
+# through the standard proxy environment variables. libcurl ignores the
+# uppercase HTTP_PROXY by design and some tools only read the lowercase names,
+# so mirror whatever the caller exported (either case) into both cases. This
+# lets `HTTP_PROXY=... HTTPS_PROXY=... ./build.sh` just work, e.g. behind
+# fwdproxy.
+normalize_proxy_var() {
+    local lower="$1" upper="$2" val=""
+    val="${!lower:-${!upper:-}}"
+    [ -n "${val}" ] || return 0
+    export "${lower}=${val}" "${upper}=${val}"
+}
+normalize_proxy_var http_proxy  HTTP_PROXY
+normalize_proxy_var https_proxy HTTPS_PROXY
+normalize_proxy_var all_proxy   ALL_PROXY
+normalize_proxy_var no_proxy    NO_PROXY
+
+# On managed hosts the curl proxy environment (e.g. HTTPS_PROXY=fwdproxy:8082)
+# can point at a different port than git's configured proxy (fwdproxy:8080), so
+# curl downloads fail with "Proxy CONNECT aborted" even though `git fetch`
+# succeeds. git's configured proxy is the authoritative egress path here, so
+# adopt it for curl/wget too. Override with FORCE_ENV_PROXY=1 to keep the env.
+if [ "${FORCE_ENV_PROXY:-0}" != "1" ]; then
+    git_proxy="$(git config --get https.proxy 2>/dev/null || true)"
+    [ -n "${git_proxy}" ] || git_proxy="$(git config --get http.proxy 2>/dev/null || true)"
+    if [ -n "${git_proxy}" ] && [ "${git_proxy}" != "${https_proxy:-}" ]; then
+        info "Aligning curl/wget proxy with git's configured proxy (${git_proxy})."
+        export https_proxy="${git_proxy}" HTTPS_PROXY="${git_proxy}"
+        export http_proxy="${git_proxy}"  HTTP_PROXY="${git_proxy}"
+    fi
+fi
+
+if [ -n "${https_proxy:-}" ] || [ -n "${http_proxy:-}" ]; then
+    info "Using proxy: https_proxy=${https_proxy:-<unset>} http_proxy=${http_proxy:-<unset>}"
+fi
+
+# Run a command under sudo while forwarding the proxy variables. Plain `sudo`
+# resets the environment, which would otherwise break first-run package installs
+# behind a proxy. Passing the values to `env` works regardless of the sudoers
+# env_keep policy.
+sudo_env() {
+    sudo env \
+        ${http_proxy:+http_proxy="${http_proxy}" HTTP_PROXY="${http_proxy}"} \
+        ${https_proxy:+https_proxy="${https_proxy}" HTTPS_PROXY="${https_proxy}"} \
+        ${all_proxy:+all_proxy="${all_proxy}" ALL_PROXY="${all_proxy}"} \
+        ${no_proxy:+no_proxy="${no_proxy}" NO_PROXY="${no_proxy}"} \
+        "$@"
+}
+
+# ------------------------------------------------------------------------------
 # Detect host OS and install build dependencies
 # ------------------------------------------------------------------------------
 step "1/7  Installing host build dependencies"
@@ -255,27 +307,27 @@ info "Distro family: ${DISTRO_FAMILY} (ID=${OS_ID})"
 
 case "${DISTRO_FAMILY}" in
   debian)
-    sudo apt-get update -qq
-    sudo apt-get install -y \
+    sudo_env apt-get update -qq
+    sudo_env apt-get install -y \
         build-essential git bc flex bison \
         libelf-dev libssl-dev libdw-dev libdwarf-dev \
         pkg-config cmake ninja-build python3 \
         libcap-dev curl wget rsync zlib1g-dev ;;
   fedora)
     PKG_MGR="dnf"; command -v dnf >/dev/null 2>&1 || PKG_MGR="yum"
-    sudo "${PKG_MGR}" install -y \
+    sudo_env "${PKG_MGR}" install -y \
         gcc gcc-c++ make git bc flex bison \
         elfutils-libelf-devel openssl-devel elfutils-devel libdwarf-devel \
         pkgconf-pkg-config cmake ninja-build python3 \
         libcap-devel curl wget rsync zlib-devel ;;
   suse)
-    sudo zypper install -y \
+    sudo_env zypper install -y \
         gcc gcc-c++ make git bc flex bison \
         libelf-devel libopenssl-devel libdw-devel libdwarf-devel \
         pkg-config cmake ninja python3 \
         libcap-devel curl wget rsync zlib-devel ;;
   arch)
-    sudo pacman -Sy --noconfirm \
+    sudo_env pacman -Sy --noconfirm \
         base-devel git bc flex bison \
         libelf openssl elfutils libdwarf \
         pkgconf cmake ninja python \
