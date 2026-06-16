@@ -1,4 +1,4 @@
-From 2b0e2bb84a72abc5766d3bc6e1ec815ece4e67a8 Mon Sep 17 00:00:00 2001
+From 14a6df69564ccfa6e3dedfb5179f3d03d9a482ea Mon Sep 17 00:00:00 2001
 From: Mykola Lysenko <mykolal@meta.com>
 Date: Fri, 8 May 2026 21:56:04 -0700
 Subject: [PATCH] um/x86: wire up native x86 BPF JIT backend for UML
@@ -56,7 +56,7 @@ index 4354f6984..b3489f0e3 100644
  	 test_cpu_cap(c, bit)
  
 diff --git a/arch/x86/Makefile.um b/arch/x86/Makefile.um
-index c86cbd9cb..b8b5148f2 100644
+index 19c13afa4..ac194cb1c 100644
 --- a/arch/x86/Makefile.um
 +++ b/arch/x86/Makefile.um
 @@ -1,5 +1,6 @@
@@ -67,12 +67,12 @@ index c86cbd9cb..b8b5148f2 100644
  #
  # Disable SSE and other FP/SIMD instructions to match normal x86
 diff --git a/arch/x86/net/bpf_jit_comp.c b/arch/x86/net/bpf_jit_comp.c
-index ea9e707e8..b89692078 100644
+index 054e043ff..7651c3914 100644
 --- a/arch/x86/net/bpf_jit_comp.c
 +++ b/arch/x86/net/bpf_jit_comp.c
-@@ -11,15 +11,68 @@
- #include <linux/bitfield.h>
+@@ -12,15 +12,68 @@
  #include <linux/bpf.h>
+ #include <linux/bpf_verifier.h>
  #include <linux/memory.h>
 +#include <linux/percpu.h>
  #include <linux/sort.h>
@@ -139,7 +139,7 @@ index ea9e707e8..b89692078 100644
  static bool all_callee_regs_used[4] = {true, true, true, true};
  
  static u8 *emit_code(u8 *ptr, u32 bytes, unsigned int len)
-@@ -197,6 +250,18 @@ static const int reg2hex[] = {
+@@ -198,6 +251,18 @@ static const int reg2hex[] = {
  };
  
  static const int reg2pt_regs[] = {
@@ -158,7 +158,7 @@ index ea9e707e8..b89692078 100644
  	[BPF_REG_0] = offsetof(struct pt_regs, ax),
  	[BPF_REG_1] = offsetof(struct pt_regs, di),
  	[BPF_REG_2] = offsetof(struct pt_regs, si),
-@@ -207,6 +272,7 @@ static const int reg2pt_regs[] = {
+@@ -208,6 +273,7 @@ static const int reg2pt_regs[] = {
  	[BPF_REG_7] = offsetof(struct pt_regs, r13),
  	[BPF_REG_8] = offsetof(struct pt_regs, r14),
  	[BPF_REG_9] = offsetof(struct pt_regs, r15),
@@ -166,7 +166,7 @@ index ea9e707e8..b89692078 100644
  };
  
  /*
-@@ -415,6 +481,7 @@ static void emit_nops(u8 **pprog, int len)
+@@ -444,6 +510,7 @@ static void emit_nops(u8 **pprog, int len)
   */
  static int emit_call(u8 **prog, void *func, void *ip);
  
@@ -174,7 +174,7 @@ index ea9e707e8..b89692078 100644
  static void emit_fineibt(u8 **pprog, u8 *ip, u32 hash, int arity)
  {
  	u8 *prog = *pprog;
-@@ -445,11 +512,15 @@ static void emit_kcfi(u8 **pprog, u32 hash)
+@@ -474,11 +541,15 @@ static void emit_kcfi(u8 **pprog, u32 hash)
  
  	*pprog = prog;
  }
@@ -190,7 +190,7 @@ index ea9e707e8..b89692078 100644
  	switch (cfi_mode) {
  	case CFI_FINEIBT:
  		emit_fineibt(&prog, ip, hash, arity);
-@@ -463,6 +534,7 @@ static void emit_cfi(u8 **pprog, u8 *ip, u32 hash, int arity)
+@@ -492,6 +563,7 @@ static void emit_cfi(u8 **pprog, u8 *ip, u32 hash, int arity)
  		EMIT_ENDBR();
  		break;
  	}
@@ -198,7 +198,7 @@ index ea9e707e8..b89692078 100644
  
  	*pprog = prog;
  }
-@@ -671,6 +743,11 @@ static void emit_indirect_jump(u8 **pprog, int bpf_reg, u8 *ip)
+@@ -700,6 +772,11 @@ static void emit_indirect_jump(u8 **pprog, int bpf_reg, u8 *ip)
  	int reg = reg2hex[bpf_reg];
  	bool ereg = is_ereg(bpf_reg);
  
@@ -210,7 +210,7 @@ index ea9e707e8..b89692078 100644
  	if (cpu_feature_enabled(X86_FEATURE_INDIRECT_THUNK_ITS)) {
  		OPTIMIZER_HIDE_VAR(reg);
  		emit_jump(&prog, its_static_thunk(reg + 8*ereg), ip);
-@@ -688,6 +765,7 @@ static void emit_indirect_jump(u8 **pprog, int bpf_reg, u8 *ip)
+@@ -717,6 +794,7 @@ static void emit_indirect_jump(u8 **pprog, int bpf_reg, u8 *ip)
  		if (IS_ENABLED(CONFIG_MITIGATION_RETPOLINE) || IS_ENABLED(CONFIG_MITIGATION_SLS))
  			EMIT1(0xCC);		/* int3 */
  	}
@@ -218,7 +218,7 @@ index ea9e707e8..b89692078 100644
  
  	*pprog = prog;
  }
-@@ -1490,13 +1568,13 @@ bool ex_handler_bpf(const struct exception_table_entry *x, struct pt_regs *regs)
+@@ -1519,13 +1597,13 @@ bool ex_handler_bpf(const struct exception_table_entry *x, struct pt_regs *regs)
  		arena_reg = FIELD_GET(FIXUP_ARENA_REG_MASK, x->fixup);
  		off = FIELD_GET(DATA_ARENA_OFFSET_MASK, x->data);
  		addr = *(unsigned long *)((void *)regs + arena_reg) + off;
@@ -234,7 +234,7 @@ index ea9e707e8..b89692078 100644
  
  	return true;
  }
-@@ -1613,6 +1691,11 @@ static int emit_spectre_bhb_barrier(u8 **pprog, u8 *ip,
+@@ -1642,6 +1720,11 @@ static int emit_spectre_bhb_barrier(u8 **pprog, u8 *ip,
  	u8 *prog = *pprog;
  	u8 *func;
  
@@ -246,7 +246,7 @@ index ea9e707e8..b89692078 100644
  	if (cpu_feature_enabled(X86_FEATURE_CLEAR_BHB_LOOP)) {
  		/* The clearing sequence clobbers eax and ecx. */
  		EMIT1(0x50); /* push rax */
-@@ -3912,8 +3995,19 @@ bool bpf_jit_supports_kfunc_call(void)
+@@ -4051,8 +4134,19 @@ bool bpf_jit_supports_stack_args(void)
  
  void *bpf_arch_text_copy(void *dst, void *src, size_t len)
  {
@@ -318,3 +318,4 @@ index 000000000..c08303d8b
 +#endif
 -- 
 2.53.0-Meta
+
