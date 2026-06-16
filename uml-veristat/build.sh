@@ -351,8 +351,16 @@ if [ "${LLVM_NIGHTLY}" = "1" ]; then
         # Fetch the latest release tag and tarball URL from the GitHub API.
         # In CI, use GITHUB_TOKEN when available to avoid anonymous API limits.
         LLVM_RELEASE_JSON=""
-        if ! LLVM_RELEASE_JSON=$(github_api_get "https://api.github.com/repos/llvm/llvm-project/releases/latest"); then
-            warn "Could not fetch LLVM release info from /releases/latest; retrying with /releases?per_page=1"
+        # LLVM_RELEASE_TAG pins a specific release (e.g. llvmorg-18.1.8) instead
+        # of the latest. Useful when the newest prebuilt needs a newer
+        # libstdc++/glibc than this host has.
+        if [ -n "${LLVM_RELEASE_TAG:-}" ]; then
+            LLVM_RELEASE_API="https://api.github.com/repos/llvm/llvm-project/releases/tags/${LLVM_RELEASE_TAG}"
+        else
+            LLVM_RELEASE_API="https://api.github.com/repos/llvm/llvm-project/releases/latest"
+        fi
+        if ! LLVM_RELEASE_JSON=$(github_api_get "${LLVM_RELEASE_API}"); then
+            warn "Could not fetch LLVM release info from ${LLVM_RELEASE_API}; retrying with /releases?per_page=1"
             LLVM_RELEASE_LIST_JSON=""
             if LLVM_RELEASE_LIST_JSON=$(github_api_get "https://api.github.com/repos/llvm/llvm-project/releases?per_page=1"); then
                 LLVM_RELEASE_JSON=$(printf '%s' "${LLVM_RELEASE_LIST_JSON}" | python3 -c \
@@ -375,11 +383,23 @@ if [ "${LLVM_NIGHTLY}" = "1" ]; then
             LLVM_TAG=$(echo "${LLVM_RELEASE_JSON}" | python3 -c \
                 "import sys,json; print(json.load(sys.stdin)['tag_name'])")
             LLVM_VERSION=$(echo "${LLVM_TAG}" | sed 's/llvmorg-//')
-            LLVM_TARBALL_URL=$(echo "${LLVM_RELEASE_JSON}" | python3 -c \
-                "import sys,json; r=json.load(sys.stdin); \
-                 urls=[a['browser_download_url'] for a in r['assets'] \
-                       if 'Linux-X64' in a['name'] and a['name'].endswith('.tar.xz')]; \
-                 print(urls[0] if urls else '')")
+            # Accept both the new 'LLVM-<ver>-Linux-X64.tar.xz' naming and the
+            # older official 'clang+llvm-<ver>-x86_64-linux-gnu-ubuntu-<os>'
+            # naming. When a release ships several, prefer the oldest ubuntu
+            # build: it links against the oldest libstdc++/glibc and therefore
+            # runs on the widest range of hosts (newer 'Linux-X64'-only builds
+            # require GLIBCXX_3.4.30 / GCC 12+).
+            LLVM_TARBALL_URL=$(echo "${LLVM_RELEASE_JSON}" | python3 -c '
+import sys, json, re
+r = json.load(sys.stdin)
+assets = [a for a in r.get("assets", [])
+          if a["name"].endswith(".tar.xz")
+          and ("Linux-X64" in a["name"] or "x86_64-linux-gnu" in a["name"])]
+def osver(a):
+    m = re.search(r"ubuntu-(\d+)\.(\d+)", a["name"])
+    return (int(m.group(1)), int(m.group(2))) if m else (999, 0)
+assets.sort(key=osver)
+print(assets[0]["browser_download_url"] if assets else "")')
 
             if [ -z "${LLVM_TARBALL_URL}" ]; then
                 if [ -f "${CLANG}" ] && [ "${REBUILD_LLVM}" != "1" ]; then
@@ -420,11 +440,42 @@ if [ "${LLVM_NIGHTLY}" = "1" ]; then
 
                 if [ "${LLVM_TARBALL_READY}" = "1" ]; then
                     info "Extracting LLVM tarball..."
-                    rm -rf "${LLVM_INSTALL}"
-                    mkdir -p "${LLVM_INSTALL}"
-                    tar -xf "${LLVM_TARBALL}" -C "${LLVM_INSTALL}" --strip-components=1
-                    info "Clang: $(${CLANG} --version | head -1)"
-                    LLVM_COMMIT="nightly-${LLVM_VERSION}"
+                    # Extract to a staging dir and verify the new clang actually
+                    # runs on this host BEFORE replacing the current install.
+                    # Recent LLVM release binaries are built against a newer
+                    # libstdc++/glibc (e.g. GLIBCXX_3.4.30 / GCC 12) than older
+                    # hosts provide; replacing first would leave no working
+                    # compiler at all.
+                    LLVM_STAGING="${LLVM_INSTALL}.new"
+                    rm -rf "${LLVM_STAGING}"
+                    mkdir -p "${LLVM_STAGING}"
+                    tar -xf "${LLVM_TARBALL}" -C "${LLVM_STAGING}" --strip-components=1
+                    if "${LLVM_STAGING}/bin/clang" --version >/dev/null 2>&1; then
+                        rm -rf "${LLVM_INSTALL}"
+                        mv "${LLVM_STAGING}" "${LLVM_INSTALL}"
+                        info "Clang: $(${CLANG} --version | head -1)"
+                        LLVM_COMMIT="nightly-${LLVM_VERSION}"
+                    else
+                        llvm_run_err="$("${LLVM_STAGING}/bin/clang" --version 2>&1 | head -1)"
+                        rm -rf "${LLVM_STAGING}"
+                        warn "Downloaded LLVM ${LLVM_VERSION} cannot run on this host:"
+                        warn "  ${llvm_run_err}"
+                        warn "The prebuilt needs a newer libstdc++/glibc than this host provides."
+                        if [ -x "${CLANG}" ] && "${CLANG}" --version >/dev/null 2>&1 && [ "${REBUILD_LLVM}" != "1" ]; then
+                            warn "Keeping the existing working LLVM/Clang install."
+                            info "Clang: $(${CLANG} --version | head -1)"
+                            LLVM_COMMIT="reused-$(${CLANG} --version | head -1)"
+                            LLVM_TARBALL_READY=0
+                        else
+                            echo "ERROR: No usable LLVM/Clang for this host." >&2
+                            echo "  Host max GLIBCXX: $(strings /lib64/libstdc++.so.6 2>/dev/null | grep -oE 'GLIBCXX_3\.4\.[0-9]+' | sort -V | tail -1)" >&2
+                            echo "  Recovery options:" >&2
+                            echo "    - pin an older, compatible release: LLVM_RELEASE_TAG=llvmorg-<ver> ./build.sh --update --rebuild-llvm" >&2
+                            echo "    - build LLVM from source on this host: ./build.sh --llvm-source --rebuild-llvm" >&2
+                            echo "    - install a newer toolchain (GCC 12+ / libstdc++)." >&2
+                            exit 1
+                        fi
+                    fi
                 fi
             fi
         fi
