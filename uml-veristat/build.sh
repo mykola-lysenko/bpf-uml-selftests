@@ -57,7 +57,7 @@ WORKDIR="${SCRIPT_DIR}/.build"
 
 LLVM_SRC="${WORKDIR}/llvm-project"
 LLVM_BUILD="${WORKDIR}/llvm-build"
-LLVM_INSTALL="${WORKDIR}/llvm-install"
+LLVM_INSTALL="${LLVM_INSTALL:-${WORKDIR}/llvm-install}"
 PAHOLE_SRC="${WORKDIR}/dwarves"
 PAHOLE_BUILD="${WORKDIR}/pahole-build"
 PAHOLE_INSTALL="${WORKDIR}/pahole-install"
@@ -75,6 +75,38 @@ GREEN='\033[0;32m'; CYAN='\033[0;36m'; YELLOW='\033[1;33m'; NC='\033[0m'
 info() { echo -e "${GREEN}[build]${NC}  $*"; }
 step() { echo -e "${CYAN}[build]${NC}  === $* ==="; }
 warn() { echo -e "${YELLOW}[build]${NC}  $*"; }
+
+clang_works() {
+    [ -x "${CLANG}" ] && "${CLANG}" --version >/dev/null 2>&1
+}
+
+clang_version_line() {
+    "${CLANG}" --version | head -1
+}
+
+print_clang_failure() {
+    if [ -e "${CLANG}" ]; then
+        "${CLANG}" --version 2>&1 | sed 's/^/  /' | head -5 >&2 || true
+    else
+        echo "  ${CLANG}: not found" >&2
+    fi
+}
+
+version_ge() {
+    python3 - "$1" "$2" <<'PY'
+import sys
+
+def parts(v):
+    out = []
+    for p in v.split("."):
+        if not p.isdigit():
+            break
+        out.append(int(p))
+    return out
+
+print(int(parts(sys.argv[1]) >= parts(sys.argv[2])))
+PY
+}
 
 github_api_get() {
     local url="$1"
@@ -145,6 +177,9 @@ for arg in "$@"; do
             echo "  --rebuild-bpftool    Rebuild bpftool"
             echo "  --rebuild-selftests  Rebuild veristat and BPF selftests"
             echo "  --rebuild-testmod    Rebuild bpf_testmod.ko"
+            echo ""
+            echo "Environment:"
+            echo "  LLVM_INSTALL=PATH   Use an existing LLVM install prefix (default: .build/llvm-install)."
             exit 0 ;;
         *) echo "Unknown argument: ${arg}"; exit 1 ;;
     esac
@@ -340,13 +375,22 @@ esac
 if [ "${LLVM_NIGHTLY}" = "1" ]; then
     step "2/7  Downloading pre-built LLVM release"
 
-    if [ -f "${CLANG}" ] && [ "${REUSE_LLVM}" = "1" ]; then
+    if [ "${REUSE_LLVM}" = "1" ]; then
+        if ! clang_works; then
+            echo "ERROR: --reuse-llvm was requested, but the installed LLVM/Clang is not usable:" >&2
+            print_clang_failure
+            echo "Recovery options:" >&2
+            echo "  - remove ${LLVM_INSTALL} and re-run without --reuse-llvm to download a compatible prebuilt" >&2
+            echo "  - pin a compatible release: LLVM_RELEASE_TAG=llvmorg-<ver> ./build.sh --update --rebuild-llvm" >&2
+            echo "  - build LLVM from source: ./build.sh --llvm-source --rebuild-llvm" >&2
+            exit 1
+        fi
         info "Reusing existing LLVM/Clang due to --reuse-llvm."
-        info "Clang: $(${CLANG} --version | head -1)"
-        LLVM_COMMIT="reused-$(${CLANG} --version | head -1)"
-    elif [ -f "${CLANG}" ] && [ "${REBUILD_LLVM}" != "1" ] && [ "${DO_UPDATE}" != "1" ]; then
+        info "Clang: $(clang_version_line)"
+        LLVM_COMMIT="reused-$(clang_version_line)"
+    elif clang_works && [ "${REBUILD_LLVM}" != "1" ] && [ "${DO_UPDATE}" != "1" ]; then
         info "LLVM already installed — skipping. (Use --rebuild-llvm to re-download.)"
-        LLVM_COMMIT="nightly-$(${CLANG} --version | head -1 | grep -oP '\d+\.\d+\.\d+' | head -1)"
+        LLVM_COMMIT="nightly-$(clang_version_line | grep -oP '\d+\.\d+\.\d+' | head -1)"
     else
         # Fetch the latest release tag and tarball URL from the GitHub API.
         # In CI, use GITHUB_TOKEN when available to avoid anonymous API limits.
@@ -368,11 +412,11 @@ if [ "${LLVM_NIGHTLY}" = "1" ]; then
             fi
         fi
         if [ -z "${LLVM_RELEASE_JSON}" ]; then
-            if [ -f "${CLANG}" ] && [ "${REBUILD_LLVM}" != "1" ]; then
+            if clang_works && [ "${REBUILD_LLVM}" != "1" ]; then
                 warn "Could not fetch LLVM release info; reusing installed LLVM/Clang."
                 warn "Use --rebuild-llvm to make LLVM refresh failure fatal."
-                info "Clang: $(${CLANG} --version | head -1)"
-                LLVM_COMMIT="reused-$(${CLANG} --version | head -1)"
+                info "Clang: $(clang_version_line)"
+                LLVM_COMMIT="reused-$(clang_version_line)"
             else
                 echo "ERROR: Could not fetch LLVM release info from GitHub API"
                 echo "Hint: set GITHUB_TOKEN or GH_TOKEN to avoid GitHub API rate limits"
@@ -402,11 +446,11 @@ assets.sort(key=osver)
 print(assets[0]["browser_download_url"] if assets else "")')
 
             if [ -z "${LLVM_TARBALL_URL}" ]; then
-                if [ -f "${CLANG}" ] && [ "${REBUILD_LLVM}" != "1" ]; then
+                if clang_works && [ "${REBUILD_LLVM}" != "1" ]; then
                     warn "Could not find Linux-X64 tarball in LLVM release ${LLVM_TAG}; reusing installed LLVM/Clang."
                     warn "Use --rebuild-llvm to make LLVM refresh failure fatal."
-                    info "Clang: $(${CLANG} --version | head -1)"
-                    LLVM_COMMIT="reused-$(${CLANG} --version | head -1)"
+                    info "Clang: $(clang_version_line)"
+                    LLVM_COMMIT="reused-$(clang_version_line)"
                 else
                     echo "ERROR: Could not find Linux-X64 tarball in LLVM release ${LLVM_TAG}"
                     exit 1
@@ -423,12 +467,12 @@ print(assets[0]["browser_download_url"] if assets else "")')
                     info "Downloading LLVM tarball (~700 MB)..."
                     if ! curl -L --progress-bar -o "${LLVM_TARBALL}" "${LLVM_TARBALL_URL}"; then
                         rm -f "${LLVM_TARBALL}"
-                        if [ -f "${CLANG}" ] && [ "${REBUILD_LLVM}" != "1" ]; then
+                        if clang_works && [ "${REBUILD_LLVM}" != "1" ]; then
                             LLVM_TARBALL_READY=0
                             warn "Could not download LLVM tarball; reusing installed LLVM/Clang."
                             warn "Use --rebuild-llvm to make LLVM refresh failure fatal."
-                            info "Clang: $(${CLANG} --version | head -1)"
-                            LLVM_COMMIT="reused-$(${CLANG} --version | head -1)"
+                            info "Clang: $(clang_version_line)"
+                            LLVM_COMMIT="reused-$(clang_version_line)"
                         else
                             echo "ERROR: Could not download LLVM tarball"
                             exit 1
@@ -461,10 +505,10 @@ print(assets[0]["browser_download_url"] if assets else "")')
                         warn "Downloaded LLVM ${LLVM_VERSION} cannot run on this host:"
                         warn "  ${llvm_run_err}"
                         warn "The prebuilt needs a newer libstdc++/glibc than this host provides."
-                        if [ -x "${CLANG}" ] && "${CLANG}" --version >/dev/null 2>&1 && [ "${REBUILD_LLVM}" != "1" ]; then
+                        if clang_works && [ "${REBUILD_LLVM}" != "1" ]; then
                             warn "Keeping the existing working LLVM/Clang install."
-                            info "Clang: $(${CLANG} --version | head -1)"
-                            LLVM_COMMIT="reused-$(${CLANG} --version | head -1)"
+                            info "Clang: $(clang_version_line)"
+                            LLVM_COMMIT="reused-$(clang_version_line)"
                             LLVM_TARBALL_READY=0
                         else
                             echo "ERROR: No usable LLVM/Clang for this host." >&2
@@ -496,11 +540,11 @@ else
     LLVM_COMMIT=$(git -C "${LLVM_SRC}" rev-parse --short HEAD)
     info "LLVM HEAD: ${LLVM_COMMIT}"
 
-    if [ ! -f "${CLANG}" ] || [ "${REBUILD_LLVM}" = "1" ] || [ "${DO_UPDATE}" = "1" ]; then
+    if ! clang_works || [ "${REBUILD_LLVM}" = "1" ] || [ "${DO_UPDATE}" = "1" ]; then
         # Use the previously built clang as the host compiler if available.
         # LLVM main requires GCC 12+; self-hosting avoids that dependency.
         LLVM_HOST_CC=()
-        if [ -x "${CLANG}" ]; then
+        if clang_works; then
             info "Using previously built clang for self-hosted rebuild"
             LLVM_HOST_CC=(
                 -DCMAKE_C_COMPILER="${CLANG}"
@@ -513,6 +557,21 @@ else
                     info "Host compiler changed (${CACHED_CC} -> clang), wiping build dir..."
                     rm -rf "${LLVM_BUILD}"
                 fi
+            fi
+        else
+            host_cxx="${CXX:-c++}"
+            host_cxx_version="$("${host_cxx}" -dumpfullversion -dumpversion 2>/dev/null | head -1 || true)"
+            if "${host_cxx}" --version 2>/dev/null | head -1 | grep -Eq '(^| )g\+\+|GCC' &&
+               [ "$(version_ge "${host_cxx_version:-0}" 12)" != "1" ]; then
+                echo "ERROR: LLVM source build needs a working clang or GCC 12+." >&2
+                echo "  Host C++ compiler: $("${host_cxx}" --version 2>/dev/null | head -1)" >&2
+                echo "  Existing LLVM/Clang is not usable:" >&2
+                print_clang_failure
+                echo "Recovery options:" >&2
+                echo "  - install GCC 12+ / newer libstdc++ and rerun with --llvm-source --rebuild-llvm" >&2
+                echo "  - make a compatible clang available in ${LLVM_INSTALL}" >&2
+                echo "  - pin/download a compatible LLVM prebuilt with LLVM_RELEASE_TAG=llvmorg-<ver> --rebuild-llvm" >&2
+                exit 1
             fi
         fi
 
@@ -543,7 +602,7 @@ else
             2>&1 | tail -5
         ninja -C "${LLVM_BUILD}" -j"$(nproc)" clang llc lld llvm-strip llvm-objcopy
         ninja -C "${LLVM_BUILD}" install
-        info "Clang: $(${CLANG} --version | head -1)"
+        info "Clang: $(clang_version_line)"
     else
         info "Clang already built — skipping. (Use --update to rebuild.)"
     fi
