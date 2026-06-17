@@ -234,8 +234,8 @@ python3 scripts/check_arena_expectations.py
 ```
 
 That check covers the 11 top-level arena-family objects and asserts that none
-fail at file-processing time. The current expected arena result is 59 processed
-programs: 57 success rows and 2 verifier-failure rows.
+fail at file-processing time. The current expected arena result is 60 processed
+programs: 58 success rows and 2 verifier-failure rows.
 
 The top-level CI expectation check uses exact failure-bucket checks plus
 minimum aggregate thresholds from `corpus_manifest.json`. It intentionally does
