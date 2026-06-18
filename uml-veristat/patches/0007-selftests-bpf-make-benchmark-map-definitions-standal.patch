@@ -1,0 +1,85 @@
+From 86538968efcd7185e6a4cc9f7c80e2ae23c9b531 Mon Sep 17 00:00:00 2001
+From: Mykola Lysenko <mykolal@meta.com>
+Date: Thu, 18 Jun 2026 09:28:46 -0700
+Subject: [PATCH 1/2] selftests/bpf: make benchmark map definitions
+ standalone-loadable
+
+bloom_filter_bench, bpf_hashmap_lookup, and htab_mem_bench
+intentionally let their benchmark harnesses resize and retune maps before
+load. As raw .bpf.o inputs, though, the maps have zero key_size,
+value_size, or max_entries fields and cannot be opened by standalone
+loaders such as veristat.
+
+Give those benchmark maps small valid defaults. The benchmark harnesses
+still override the map attributes before loading, so runtime benchmark
+behavior is unchanged, while standalone analysis can process the objects
+without loader-specific fixups.
+
+Signed-off-by: Mykola Lysenko <mykolal@meta.com>
+---
+ tools/testing/selftests/bpf/progs/bloom_filter_bench.c | 7 +++++++
+ tools/testing/selftests/bpf/progs/bpf_hashmap_lookup.c | 3 +++
+ tools/testing/selftests/bpf/progs/htab_mem_bench.c     | 2 ++
+ 3 files changed, 12 insertions(+)
+
+diff --git a/tools/testing/selftests/bpf/progs/bloom_filter_bench.c b/tools/testing/selftests/bpf/progs/bloom_filter_bench.c
+index 7efcbdbe772d..30bdc675ef33 100644
+--- a/tools/testing/selftests/bpf/progs/bloom_filter_bench.c
++++ b/tools/testing/selftests/bpf/progs/bloom_filter_bench.c
+@@ -17,6 +17,8 @@ const __u32 nr_rand_bytes = 2500000;
+ struct {
+ 	__uint(type, BPF_MAP_TYPE_ARRAY);
+ 	__uint(key_size, sizeof(__u32));
++	__uint(value_size, 8);
++	__uint(max_entries, 1);
+ 	/* max entries and value_size will be set programmatically.
+ 	 * They are configurable from the userspace bench program.
+ 	 */
+@@ -24,6 +26,8 @@ struct {
+ 
+ struct {
+ 	__uint(type, BPF_MAP_TYPE_BLOOM_FILTER);
++	__uint(value_size, 8);
++	__uint(max_entries, 1);
+ 	/* max entries,  value_size, and # of hash functions will be set
+ 	 * programmatically. They are configurable from the userspace
+ 	 * bench program.
+@@ -33,6 +37,9 @@ struct {
+ 
+ struct {
+ 	__uint(type, BPF_MAP_TYPE_HASH);
++	__uint(key_size, 8);
++	__uint(value_size, 8);
++	__uint(max_entries, 1);
+ 	/* max entries, key_size, and value_size, will be set
+ 	 * programmatically. They are configurable from the userspace
+ 	 * bench program.
+diff --git a/tools/testing/selftests/bpf/progs/bpf_hashmap_lookup.c b/tools/testing/selftests/bpf/progs/bpf_hashmap_lookup.c
+index 1eb74ddca414..1d7568e29e5b 100644
+--- a/tools/testing/selftests/bpf/progs/bpf_hashmap_lookup.c
++++ b/tools/testing/selftests/bpf/progs/bpf_hashmap_lookup.c
+@@ -10,6 +10,9 @@ char _license[] SEC("license") = "GPL";
+ 
+ struct {
+ 	__uint(type, BPF_MAP_TYPE_HASH);
++	__uint(key_size, 4);
++	__uint(value_size, 8);
++	__uint(max_entries, 1);
+ } hash_map_bench SEC(".maps");
+ 
+ /* The number of slots to store times */
+diff --git a/tools/testing/selftests/bpf/progs/htab_mem_bench.c b/tools/testing/selftests/bpf/progs/htab_mem_bench.c
+index b1b721b14d67..1333e33b47e4 100644
+--- a/tools/testing/selftests/bpf/progs/htab_mem_bench.c
++++ b/tools/testing/selftests/bpf/progs/htab_mem_bench.c
+@@ -17,6 +17,8 @@ struct update_ctx {
+ struct {
+ 	__uint(type, BPF_MAP_TYPE_HASH);
+ 	__uint(key_size, 4);
++	__uint(value_size, 8);
++	__uint(max_entries, 1);
+ 	__uint(map_flags, BPF_F_NO_PREALLOC);
+ } htab SEC(".maps");
+ 
+-- 
+2.53.0-Meta
