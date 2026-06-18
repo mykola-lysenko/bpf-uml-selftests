@@ -39,27 +39,27 @@
       "expected_failed_process": {
         "bpf_smc.bpf.o": {
           "errno": -3,
-          "reason": "SMC struct_ops and fentry targets are absent from the current UML kernel BTF, matching selftest skip conditions outside SMC-enabled kernels"
+          "reason": "libbpf cannot find bpf_struct_ops_smc_hs_ctrl or the smc_release/smc_switch_to_fallback fentry targets in the current UML kernel BTF; the selftest only runs after SMC setup succeeds"
         },
         "struct_ops_module.bpf.o": {
           "errno": -95,
-          "reason": "selftest load mutates struct_ops maps and program autoload settings before loading; the raw object is not standalone-loadable"
+          "reason": "raw object contains intentionally incompatible testmod_zeroed struct_ops state; the selftest harness disables/mutates struct_ops maps and program autoload before loading"
         },
         "tcp_ca_kfunc.bpf.o": {
           "errno": -22,
-          "reason": "object calls TCP congestion-control kfuncs that are absent from the current UML kernel or module BTF"
+          "reason": "object calls TCP congestion-control kfuncs, for example bbr_cwnd_event_tx_start, that are absent from the current UML kernel or module BTF"
         },
         "test_map_in_map.bpf.o": {
           "errno": -22,
-          "reason": "legacy map-in-map object is not standalone-processable by veristat without the harness-created inner maps"
+          "reason": "libbpf fails to create mim_array because the legacy map-in-map object relies on the harness calling bpf_map__set_inner_map_fd() before load"
         },
         "test_select_reuseport_kern.bpf.o": {
           "errno": -22,
-          "reason": "selftest reuses a harness-created array-of-maps before load; the raw object is not standalone-loadable"
+          "reason": "libbpf fails to create outer_map because the selftest harness creates the reuseport array and calls bpf_map__reuse_fd() before load"
         },
         "test_wakeup_source.bpf.o": {
           "errno": -22,
-          "reason": "wakeup-source kfuncs are absent from the current UML kernel BTF; the selftest skips when these kfuncs are unavailable"
+          "reason": "libbpf cannot resolve bpf_wakeup_sources_get_head from the current UML kernel BTF; the selftest skips when that kfunc is unavailable"
         }
       },
       "allowed_failed_process": {
@@ -71,7 +71,7 @@
       "expected_failed_open": {
         "test_sk_assign.bpf.o": {
           "errno": -95,
-          "reason": "legacy maps-section object is not standalone-openable under libbpf"
+          "reason": "libbpf v1 refuses the legacy SEC(\"maps\") iproute2 object; test_sk_assign_libbpf.bpf.o is the standalone libbpf variant"
         }
       }
     },
@@ -93,33 +93,33 @@
       "expected_failed_process": {
         "bpf_smc.bpf.o": {
           "errno": -3,
-          "reason": "SMC struct_ops and fentry targets are absent from the current UML kernel BTF, matching selftest skip conditions outside SMC-enabled kernels"
+          "reason": "libbpf cannot find bpf_struct_ops_smc_hs_ctrl or the smc_release/smc_switch_to_fallback fentry targets in the current UML kernel BTF; the selftest only runs after SMC setup succeeds"
         },
         "struct_ops_module.bpf.o": {
           "errno": -95,
-          "reason": "selftest load mutates struct_ops maps and program autoload settings before loading; the raw object is not standalone-loadable"
+          "reason": "raw object contains intentionally incompatible testmod_zeroed struct_ops state; the selftest harness disables/mutates struct_ops maps and program autoload before loading"
         },
         "tcp_ca_kfunc.bpf.o": {
           "errno": -22,
-          "reason": "object calls TCP congestion-control kfuncs that are absent from the current UML kernel or module BTF"
+          "reason": "object calls TCP congestion-control kfuncs, for example bbr_cwnd_event_tx_start, that are absent from the current UML kernel or module BTF"
         },
         "test_map_in_map.bpf.o": {
           "errno": -22,
-          "reason": "legacy map-in-map object is not standalone-processable by veristat without the harness-created inner maps"
+          "reason": "libbpf fails to create mim_array because the legacy map-in-map object relies on the harness calling bpf_map__set_inner_map_fd() before load"
         },
         "test_select_reuseport_kern.bpf.o": {
           "errno": -22,
-          "reason": "selftest reuses a harness-created array-of-maps before load; the raw object is not standalone-loadable"
+          "reason": "libbpf fails to create outer_map because the selftest harness creates the reuseport array and calls bpf_map__reuse_fd() before load"
         },
         "test_wakeup_source.bpf.o": {
           "errno": -22,
-          "reason": "wakeup-source kfuncs are absent from the current UML kernel BTF; the selftest skips when these kfuncs are unavailable"
+          "reason": "libbpf cannot resolve bpf_wakeup_sources_get_head from the current UML kernel BTF; the selftest skips when that kfunc is unavailable"
         }
       },
       "expected_failed_open": {
         "test_sk_assign.bpf.o": {
           "errno": -95,
-          "reason": "legacy maps-section object is not standalone-openable under libbpf"
+          "reason": "libbpf v1 refuses the legacy SEC(\"maps\") iproute2 object; test_sk_assign_libbpf.bpf.o is the standalone libbpf variant"
         }
       }
     }

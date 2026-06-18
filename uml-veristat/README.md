@@ -242,20 +242,20 @@ minimum aggregate thresholds from `corpus_manifest.json`. It intentionally does
 not pin every top-level count exactly because CI builds against moving
 `bpf-next/master`. The focused arena expectation check remains exact.
 
-Reference output from the `9012cf249` `bpf-next` snapshot (`884` `.bpf.o`
+Reference output from the `e4287bf34` `bpf-next` snapshot (`919` `.bpf.o`
 files) was:
 
 | Metric | Value |
 |--------|-------|
-| Standalone input files | `873` |
-| Excluded expected-negative tests | `3` |
-| Excluded fixture-only objects | `8` |
-| Processed files | `871` |
-| Skipped files | `2` |
-| Processed programs | `4378` |
-| Successful CSV rows | `2282` |
-| Failing CSV rows | `2096` |
-| Remaining failed-to-process files | `0` |
+| Standalone input files | `902` |
+| Excluded expected-negative tests | `5` |
+| Excluded fixture-only objects | `12` |
+| Processed files | `901` |
+| Skipped files | `1` |
+| Processed programs | `4514` |
+| Successful CSV rows | `2413` |
+| Failing CSV rows | `2101` |
+| Remaining failed-to-process files | `6` |
 | Remaining failed-to-open files | `1` |
 
 ### Clean Upstream Baseline
@@ -276,7 +276,8 @@ headline corpus size is only slightly smaller, because `standalone input files`
 is just the filename-based input corpus after excluding expected-negative and
 fixture-only objects. It is not a success count.
 
-The real difference shows up in the verification results:
+A historical comparison from the `9012cf249` snapshot shows the real
+difference in the verification results:
 
 | Metric | Patched UML | Clean upstream UML |
 |--------|-------------|--------------------|
@@ -302,6 +303,8 @@ Excluded expected-negative tests:
 - `bad_struct_ops.bpf.o`
 - `struct_ops_autocreate.bpf.o`
 - `test_pinning_invalid.bpf.o`
+- `uptr_map_failure.bpf.o`
+- `wakeup_source_fail.bpf.o`
 
 Excluded fixture-only objects:
 
@@ -311,12 +314,31 @@ Excluded fixture-only objects:
 - `linked_maps2.bpf.o`
 - `linked_vars1.bpf.o`
 - `linked_vars2.bpf.o`
+- `test_subskeleton.bpf.o`
 - `test_subskeleton_lib.bpf.o`
 - `test_subskeleton_lib2.bpf.o`
+- `tracing_multi_attach.bpf.o`
+- `tracing_multi_attach_module.bpf.o`
+- `tracing_multi_intersect_attach.bpf.o`
 
-Remaining standalone file-level item:
+Remaining standalone file-level items:
 
-- `test_sk_assign.bpf.o`
+- `bpf_smc.bpf.o` (`-3`): SMC struct_ops and fentry targets are absent from
+  the current UML kernel BTF.
+- `struct_ops_module.bpf.o` (`-95`): the raw object contains intentionally
+  incompatible struct_ops state that the selftest harness disables or mutates
+  before load.
+- `tcp_ca_kfunc.bpf.o` (`-22`): TCP congestion-control kfunc BTF, for example
+  `bbr_cwnd_event_tx_start`, is absent from the current UML kernel/module BTF.
+- `test_map_in_map.bpf.o` (`-22`): the legacy object relies on the harness
+  calling `bpf_map__set_inner_map_fd()` before load.
+- `test_select_reuseport_kern.bpf.o` (`-22`): the selftest relies on a
+  harness-created reuseport array and `bpf_map__reuse_fd()` before load.
+- `test_wakeup_source.bpf.o` (`-22`): `bpf_wakeup_sources_get_head` is absent
+  from the current UML kernel BTF, matching the selftest's skip condition.
+- `test_sk_assign.bpf.o` (`-95`): the old iproute2 object uses a legacy
+  `SEC("maps")` map definition that libbpf v1 refuses; the standalone libbpf
+  variant is `test_sk_assign_libbpf.bpf.o`.
 
 After the arena range-tree fixes in `0006`, the arena family no longer fails at
 file-processing time. Arena objects now produce normal per-program verifier
