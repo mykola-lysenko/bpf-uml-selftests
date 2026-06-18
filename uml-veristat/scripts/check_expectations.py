@@ -7,7 +7,14 @@ import os
 import pathlib
 import sys
 
-from coverage_lib import MANIFEST_PATH, analyze_install, load_manifest
+from coverage_lib import (
+    MANIFEST_PATH,
+    analyze_install,
+    collect_files,
+    expand_file_selectors,
+    expand_file_specs,
+    load_manifest,
+)
 
 
 def compare_named_list(
@@ -149,6 +156,33 @@ def main() -> int:
     if corpus_expectations is None:
         raise SystemExit(f"no expectations defined for corpus: {args.corpus}")
 
+    file_list = collect_files(selftests_dir, args.corpus)
+    expected_negative_files = expand_file_selectors(
+        file_list,
+        selftests_dir,
+        set(manifest.get("expected_negative_files", [])),
+    )
+    fixture_only_files = expand_file_selectors(
+        file_list,
+        selftests_dir,
+        set(manifest.get("fixture_only_files", [])),
+    )
+    expected_failed_process = expand_file_specs(
+        file_list,
+        selftests_dir,
+        corpus_expectations.get("expected_failed_process", {}),
+    )
+    allowed_failed_process = expand_file_specs(
+        file_list,
+        selftests_dir,
+        corpus_expectations.get("allowed_failed_process", {}),
+    )
+    expected_failed_open = expand_file_specs(
+        file_list,
+        selftests_dir,
+        corpus_expectations.get("expected_failed_open", {}),
+    )
+
     result = analyze_install(
         wrapper=wrapper,
         selftests_dir=selftests_dir,
@@ -162,26 +196,26 @@ def main() -> int:
         failures,
         title="expected-negative classification",
         actual=result.excluded_expected_negative,
-        expected=manifest.get("expected_negative_files", []),
+        expected=expected_negative_files,
     )
     compare_named_list(
         failures,
         title="fixture-only classification",
         actual=result.excluded_fixture_only,
-        expected=manifest.get("fixture_only_files", []),
+        expected=fixture_only_files,
     )
     compare_failure_bucket(
         failures,
         title="failed-to-process bucket",
         actual=result.failed_process,
-        expected=corpus_expectations.get("expected_failed_process", {}),
-        allowed=corpus_expectations.get("allowed_failed_process", {}),
+        expected=expected_failed_process,
+        allowed=allowed_failed_process,
     )
     compare_failure_bucket(
         failures,
         title="failed-to-open bucket",
         actual=result.failed_open,
-        expected=corpus_expectations.get("expected_failed_open", {}),
+        expected=expected_failed_open,
     )
     compare_metrics(
         failures,

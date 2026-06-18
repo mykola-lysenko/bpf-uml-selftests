@@ -68,14 +68,61 @@ def parse_summary(table_output: str) -> tuple[int, int, int, int]:
     return tuple(int(group) for group in match.groups())
 
 
-def parse_failures(output: str) -> tuple[list[tuple[str, int]], list[tuple[str, int]]]:
+def relative_file_name(path: pathlib.Path, root: pathlib.Path | None = None) -> str:
+    if root is None:
+        return path.name
+
+    try:
+        return path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return path.name
+
+
+def selector_matches(path: pathlib.Path, root: pathlib.Path, selectors: set[str]) -> bool:
+    return relative_file_name(path, root) in selectors or path.name in selectors
+
+
+def expand_file_selectors(
+    file_list: list[pathlib.Path],
+    root: pathlib.Path,
+    selectors: set[str],
+) -> list[str]:
+    return [
+        relative_file_name(path, root)
+        for path in file_list
+        if selector_matches(path, root, selectors)
+    ]
+
+
+def expand_file_specs(
+    file_list: list[pathlib.Path],
+    root: pathlib.Path,
+    specs: dict[str, dict],
+) -> dict[str, dict]:
+    expanded: dict[str, dict] = {}
+    for selector, spec in specs.items():
+        matches = [
+            relative_file_name(path, root)
+            for path in file_list
+            if selector_matches(path, root, {selector})
+        ]
+        if matches:
+            for name in matches:
+                expanded[name] = spec
+        else:
+            expanded[selector] = spec
+    return expanded
+
+
+def parse_failures(
+    output: str,
+    root: pathlib.Path | None = None,
+) -> tuple[list[tuple[str, int]], list[tuple[str, int]]]:
     failed_process: list[tuple[str, int]] = []
     failed_open: list[tuple[str, int]] = []
-    for line in output.splitlines():
-        match = re.match(r"Failed to (process|open) '(.+?)': (-?\d+)", line)
-        if not match:
-            continue
-        entry = (pathlib.Path(match.group(2)).name, int(match.group(3)))
+    # Veristat stdout/stderr can interleave, so diagnostics are not always line-started.
+    for match in re.finditer(r"Failed to (process|open) '(.+?)': (-?\d+)", output):
+        entry = (relative_file_name(pathlib.Path(match.group(2)), root), int(match.group(3)))
         if match.group(1) == "process":
             failed_process.append(entry)
         else:
@@ -94,6 +141,7 @@ def parse_csv_counts(csv_output: str) -> tuple[int, int]:
 
 def classify_files(
     file_list: list[pathlib.Path],
+    selftests_dir: pathlib.Path,
     expected_negative_names: set[str],
     fixture_only_names: set[str],
 ) -> tuple[list[pathlib.Path], list[pathlib.Path], list[pathlib.Path]]:
@@ -102,10 +150,9 @@ def classify_files(
     fixture_only = []
 
     for path in file_list:
-        name = path.name
-        if name in expected_negative_names:
+        if selector_matches(path, selftests_dir, expected_negative_names):
             expected_negative.append(path)
-        elif name in fixture_only_names:
+        elif selector_matches(path, selftests_dir, fixture_only_names):
             fixture_only.append(path)
         else:
             positive.append(path)
@@ -160,6 +207,7 @@ def analyze_install(
     file_list = collect_files(selftests_dir, corpus)
     positive_files, expected_negative_files, fixture_only_files = classify_files(
         file_list,
+        selftests_dir,
         expected_negative_names,
         fixture_only_names,
     )
@@ -168,15 +216,15 @@ def analyze_install(
 
     table_output, csv_output = run_corpus(wrapper, positive_files, extra_env=extra_env)
     processed_files, processed_programs, skipped_files, skipped_programs = parse_summary(table_output)
-    failed_process, failed_open = parse_failures(table_output)
+    failed_process, failed_open = parse_failures(table_output, selftests_dir)
     success_rows, failure_rows = parse_csv_counts(csv_output)
 
     return CoverageResult(
         corpus=corpus,
         input_files=len(file_list),
         standalone_input_files=len(positive_files),
-        excluded_expected_negative=[path.name for path in expected_negative_files],
-        excluded_fixture_only=[path.name for path in fixture_only_files],
+        excluded_expected_negative=[relative_file_name(path, selftests_dir) for path in expected_negative_files],
+        excluded_fixture_only=[relative_file_name(path, selftests_dir) for path in fixture_only_files],
         processed_files=processed_files,
         processed_programs=processed_programs,
         skipped_files=skipped_files,
