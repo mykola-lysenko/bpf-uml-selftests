@@ -1,0 +1,130 @@
+name: Build uml-veristat distro packages
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: uml-veristat-distros-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checkpatch:
+    name: Check kernel patch style
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Check kernel patch style
+        run: bash uml-veristat/scripts/check_patch_stack.sh
+
+  package:
+    name: Build package (${{ matrix.distro }})
+    needs: checkpatch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: ubuntu-24.04
+            image: ubuntu:24.04
+          - distro: ubuntu-26.04
+            image: ubuntu:26.04
+          - distro: fedora-latest
+            image: fedora:latest
+          - distro: rocky-9
+            image: rockylinux:9
+          - distro: arch-latest
+            image: archlinux:latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build and validate package in ${{ matrix.distro }}
+        shell: bash
+        env:
+          DISTRO_ID: ${{ matrix.distro }}
+          DISTRO_IMAGE: ${{ matrix.image }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          rm -f uml-veristat/*.tar.gz
+          docker pull "${DISTRO_IMAGE}"
+          docker run --rm \
+            --cap-add SYS_PTRACE \
+            --security-opt seccomp=unconfined \
+            -e DEBIAN_FRONTEND=noninteractive \
+            -e GITHUB_TOKEN \
+            -e UML_VERISTAT_WORKDIR=/tmp/uml-veristat-build \
+            -v "${PWD}:/work" \
+            -w /work \
+            "${DISTRO_IMAGE}" \
+            bash -s <<'EOF'
+          set -euo pipefail
+
+          cd /work/uml-veristat
+
+          ./build.sh --package
+
+          LOG="$(mktemp)"
+          trap 'rm -f "$LOG"' EXIT
+
+          UML_VERBOSE=1 ./uml-veristat \
+            "$HOME/.local/share/uml-veristat/selftests/verifier_and.bpf.o" \
+            2>&1 | tee "$LOG"
+
+          if grep -Eq 'WARNING: arch/um/kernel/um_arch.c|text_poke\+' "$LOG"; then
+            echo "Unexpected UML text_poke warning in verbose-mode smoke test"
+            exit 1
+          fi
+
+          python3 scripts/check_expectations.py
+
+          echo "linux dependencies:"
+          ldd "$HOME/.local/share/uml-veristat/linux" || true
+
+          echo "veristat dependencies:"
+          ldd "$HOME/.local/share/uml-veristat/veristat" || true
+
+          ls -lh ./*.tar.gz
+          EOF
+
+      - name: Add distro label to package names
+        shell: bash
+        env:
+          DISTRO_ID: ${{ matrix.distro }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          packages=(uml-veristat/*.tar.gz)
+          if [ "${#packages[@]}" -eq 0 ]; then
+            echo "No package tarballs found"
+            exit 1
+          fi
+
+          for package in "${packages[@]}"; do
+            base="${package%.tar.gz}"
+            mv "${package}" "${base}-${DISTRO_ID}.tar.gz"
+          done
+
+      - name: Show built packages
+        run: ls -lh uml-veristat/*.tar.gz
+
+      - name: Upload uml-veristat package
+        uses: actions/upload-artifact@v4
+        with:
+          name: uml-veristat-package-${{ matrix.distro }}-${{ github.sha }}
+          path: uml-veristat/*.tar.gz
+          if-no-files-found: error
+          retention-days: 14

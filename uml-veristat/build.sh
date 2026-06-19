@@ -32,7 +32,7 @@
 #
 # Requirements:
 #   ~5 GB free disk space (~35 GB with --llvm-source),
-#   8+ CPU cores recommended, sudo for package install.
+#   8+ CPU cores recommended, sudo for package install unless running as root.
 # ==============================================================================
 
 set -euo pipefail
@@ -53,7 +53,7 @@ KERNEL_BRANCH="${KERNEL_BRANCH:-master}"
 # Directory layout
 # ------------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKDIR="${SCRIPT_DIR}/.build"
+WORKDIR="${UML_VERISTAT_WORKDIR:-${SCRIPT_DIR}/.build}"
 
 LLVM_SRC="${WORKDIR}/llvm-project"
 LLVM_BUILD="${WORKDIR}/llvm-build"
@@ -232,6 +232,7 @@ write_version_manifest() {
 Built: $(date -u +"%Y-%m-%d %H:%M UTC")
 mode: ${BUILD_FLAVOR}
 skipped_patches: ${SKIP_PATCHES_RAW}
+build_distro: ${PRETTY_NAME:-${OS_ID:-unknown}}
 bpf-next: ${KERNEL_COMMIT} (${KERNEL_VERSION})
 LLVM: ${LLVM_COMMIT}
 pahole: ${PAHOLE_TAG}
@@ -364,12 +365,24 @@ fi
 # behind a proxy. Passing the values to `env` works regardless of the sudoers
 # env_keep policy.
 sudo_env() {
-    sudo env \
-        ${http_proxy:+http_proxy="${http_proxy}" HTTP_PROXY="${http_proxy}"} \
-        ${https_proxy:+https_proxy="${https_proxy}" HTTPS_PROXY="${https_proxy}"} \
-        ${all_proxy:+all_proxy="${all_proxy}" ALL_PROXY="${all_proxy}"} \
-        ${no_proxy:+no_proxy="${no_proxy}" NO_PROXY="${no_proxy}"} \
-        "$@"
+    local -a proxy_env=()
+
+    [ -n "${http_proxy:-}" ] && proxy_env+=(http_proxy="${http_proxy}" HTTP_PROXY="${http_proxy}")
+    [ -n "${https_proxy:-}" ] && proxy_env+=(https_proxy="${https_proxy}" HTTPS_PROXY="${https_proxy}")
+    [ -n "${all_proxy:-}" ] && proxy_env+=(all_proxy="${all_proxy}" ALL_PROXY="${all_proxy}")
+    [ -n "${no_proxy:-}" ] && proxy_env+=(no_proxy="${no_proxy}" NO_PROXY="${no_proxy}")
+
+    if [ "$(id -u)" -eq 0 ]; then
+        env "${proxy_env[@]}" "$@"
+        return
+    fi
+
+    if ! command -v sudo >/dev/null 2>&1; then
+        echo "sudo is required to install build dependencies when not running as root." >&2
+        exit 1
+    fi
+
+    sudo env "${proxy_env[@]}" "$@"
 }
 
 # ------------------------------------------------------------------------------
@@ -388,7 +401,8 @@ fi
 _is_like() { echo "${OS_ID} ${OS_ID_LIKE}" | grep -qwi "$1"; }
 
 if _is_like debian || _is_like ubuntu; then       DISTRO_FAMILY="debian"
-elif _is_like fedora || _is_like rhel || _is_like centos; then DISTRO_FAMILY="fedora"
+elif _is_like fedora || _is_like rhel || _is_like centos ||
+     _is_like rocky || _is_like almalinux; then   DISTRO_FAMILY="fedora"
 elif _is_like suse || _is_like opensuse; then     DISTRO_FAMILY="suse"
 elif _is_like arch || [ "${OS_ID}" = "arch" ] || [ "${OS_ID}" = "manjaro" ]; then
                                                    DISTRO_FAMILY="arch"
@@ -409,6 +423,13 @@ case "${DISTRO_FAMILY}" in
         libcap-dev curl wget rsync zlib1g-dev ;;
   fedora)
     PKG_MGR="dnf"; command -v dnf >/dev/null 2>&1 || PKG_MGR="yum"
+    if [ "${PKG_MGR}" = "dnf" ] &&
+       (_is_like rhel || _is_like centos || _is_like rocky || _is_like almalinux); then
+        sudo_env "${PKG_MGR}" install -y dnf-plugins-core || true
+        sudo_env "${PKG_MGR}" config-manager --set-enabled crb >/dev/null 2>&1 ||
+            sudo_env "${PKG_MGR}" config-manager --set-enabled powertools >/dev/null 2>&1 ||
+            true
+    fi
     sudo_env "${PKG_MGR}" install -y \
         gcc gcc-c++ make git bc flex bison \
         elfutils-libelf-devel openssl-devel elfutils-devel libdwarf-devel \
@@ -421,6 +442,7 @@ case "${DISTRO_FAMILY}" in
         pkg-config cmake ninja python3 \
         libcap-devel curl wget rsync zlib-devel ;;
   arch)
+    sudo_env pacman -Sy --noconfirm archlinux-keyring || true
     sudo_env pacman -Sy --noconfirm \
         base-devel git bc flex bison \
         libelf openssl elfutils libdwarf \
@@ -1152,6 +1174,7 @@ Built:        $(date -u +"%Y-%m-%d %H:%M UTC")
 Mode:         ${BUILD_FLAVOR}
 Skipped:      ${SKIP_PATCHES_RAW}
 Host arch:    ${HOST_ARCH}
+Build distro: ${PRETTY_NAME:-${OS_ID:-unknown}}
 bpf-next:     ${KERNEL_COMMIT_FULL}
 bpf-next tag: ${KERNEL_VERSION}
 LLVM:         ${LLVM_COMMIT_FULL}
