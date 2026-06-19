@@ -159,9 +159,9 @@ even though JIT is enabled.
 
 `arch/x86/net/bpf_jit_comp.c` also assumes native x86 support headers, ptregs
 layout, text patching, mitigation, NOP, and per-cpu runtime symbols that UML
-does not provide. For `uml-veristat`, these paths only need to support
-load-time verifier and JIT analysis; generated code is not executed inside the
-UML guest.
+does not provide. The original `uml-veristat` path only needed load-time
+verifier and JIT analysis. Runtime `test_progs` coverage adds stricter text
+patching requirements, which are handled later by patches 0012 and 0013.
 
 UML's `text_poke()` implementation is also a warning stub. Without a UML-local
 copy path, final JIT image installation emits noisy stack traces during
@@ -386,6 +386,52 @@ size to 64 MiB. Users can still request a larger buffer explicitly with
 
 **Impact:** Prevents verbose-mode crashes in UML while preserving explicit
 large-log opt-in behavior.
+
+---
+
+## Patch 0012 — um/x86: make synthetic BPF syscall wrappers patchable
+
+**File:** `arch/x86/um/x64_syscall_wrappers.c`
+
+**Problem:** The synthetic `__x64_sys_*` wrappers provide BTF attach targets,
+but they did not reserve the 5-byte entry slot that BPF trampoline attachment
+expects to patch. Once the trampoline address is in range, attaching fentry
+programs to these wrappers fails because the first five bytes are normal
+function instructions instead of an expected NOP sequence.
+
+**Fix:** Annotate the synthetic wrappers with
+`patchable_function_entry(5, 0)` and keep prototypes so
+`-Wmissing-prototypes` remains clean.
+
+**Impact:** Makes fentry/fexit attachment to UML-provided syscall wrapper
+targets structurally possible. A focused `bloom_filter_map` runtime probe uses
+`fentry/__x64_sys_getpgid` and depends on this.
+
+---
+
+## Patch 0013 — um/x86: make BPF text pokes writable under UML
+
+**File:** `arch/x86/net/bpf_jit_comp.c`
+
+**Problem:** UML's BPF JIT compatibility glue had a memcpy-based
+`smp_text_poke_single()` shim. That is enough for some generated BPF text, but
+it panics when BPF trampoline attach tries to patch protected UML kernel text
+for fentry/fexit links.
+
+GCC emits five single-byte NOPs for `patchable_function_entry(5, 0)`, while the
+local UML NOP table used the optimized x86 5-byte NOP. BPF text-poke compares
+the bytes exactly, so the mismatch produced `-EBUSY` before the writable-text
+problem was fixed.
+
+**Fix:** Make the UML-local 5-byte NOP match the wrapper compiler output and
+temporarily make the target host mapping writable before copying text-poke
+bytes. UML cannot safely restore RX immediately in this path, so the mapping is
+left writable after the poke.
+
+**Impact:** Allows runtime BPF trampoline attachment to synthetic syscall
+wrapper targets. Together with the lower `uml-test-progs` default memory, this
+turns the focused `bloom_filter_map` probe from `-ERANGE`/`-EBUSY`/panic into a
+passing test.
 
 ## Verification Notes
 

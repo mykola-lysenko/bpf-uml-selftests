@@ -110,7 +110,7 @@ The `patches/` directory is split into two ordered folders:
 - `patches/bpf-selftests-uml/`: BPF selftests patches and extra runtime
   `test_progs` support applied after the base stack.
 
-The current full stack contains 18 patches applied to the `bpf-next` kernel
+The current full stack contains 20 patches applied to the `bpf-next` kernel
 tree to enable full BPF verification on UML:
 
 | Patch | Description | Programs fixed |
@@ -133,6 +133,8 @@ tree to enable full BPF verification on UML:
 | 0009 | Include `btf_ptr.h` in `bpf_iter_task_btf` | permissive `test_progs` build coverage |
 | 0010 | Keep `test_progs` running when the verification key cannot be registered | UML runtime selftest harness |
 | 0011 | Fix arena allocator globals for the ASM fallback path | `arena_htab_asm` |
+| 0012 | Make synthetic syscall wrappers patchable | fentry/fexit attachment to `__x64_sys_*` wrappers |
+| 0013 | Make BPF text pokes writable under UML | runtime BPF trampoline attach/detach |
 
 ### Patch-to-Selftest Correspondence
 
@@ -160,6 +162,8 @@ The table below shows the current practical correspondence.
 | 0009 | Missing selftest header include | `bpf_iter_task_btf` host-side object build under UML-generated `vmlinux.h` |
 | 0010 | Non-fatal startup verification-key registration | `test_progs --list`, `--count`, and selected runtime subsets when asymmetric key instantiation is unavailable in UML |
 | 0011 | Arena globals and explicit casts for `BPF_ARENA_FORCE_ASM` | `arena_htab_asm` runtime load and execution |
+| 0012 | Patchable 5-byte entries for synthetic syscall wrappers | fentry/fexit programs targeting UML-provided `__x64_sys_*` symbols, including `bloom_filter_map` |
+| 0013 | Writable UML BPF text-poke shim | BPF trampoline attachment to synthetic wrapper targets; removes `-EBUSY`/panic after the trampoline is within direct-call range |
 
 For upstreaming work, use the generated comparison report in
 [`docs/patch-impact.md`](/home/mykolal/bpf-uml-selftests/docs/patch-impact.md)

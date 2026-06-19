@@ -1,0 +1,89 @@
+From 54052aae8adb8b80d3ea269c78d853d46bdb3abc Mon Sep 17 00:00:00 2001
+From: Mykola Lysenko <mykolal@meta.com>
+Date: Fri, 19 Jun 2026 13:56:53 -0700
+Subject: [PATCH] um/x86: make BPF text pokes writable under UML
+
+BPF trampoline attachment patches target text through
+smp_text_poke_single(). The previous UML shim used a plain memcpy(),
+which is not sufficient for protected UML kernel text mappings.
+
+Make the host mapping writable before copying the patch bytes. Also make
+the UML-local five-byte NOP match GCC's patchable_function_entry(5, 0)
+output so BPF text-poke byte comparisons accept the synthetic wrapper
+entry slot.
+
+Signed-off-by: Mykola Lysenko <mykolal@meta.com>
+---
+ arch/x86/net/bpf_jit_comp.c | 33 ++++++++++++++++++++++++++++++---
+ 1 file changed, 30 insertions(+), 3 deletions(-)
+
+diff --git a/arch/x86/net/bpf_jit_comp.c b/arch/x86/net/bpf_jit_comp.c
+index 5ad6dbc01d5d..2ec24d084204 100644
+--- a/arch/x86/net/bpf_jit_comp.c
++++ b/arch/x86/net/bpf_jit_comp.c
+@@ -23,13 +23,17 @@
+ #include <asm/unwind.h>
+ #include <asm/vsyscall.h>
+ #include <asm/cfi.h>
++#ifdef CONFIG_UML
++#include <os.h>
++#endif
+ 
+ #ifdef CONFIG_UML
+ static const unsigned char x86_nop1[] = { BYTES_NOP1 };
+ static const unsigned char x86_nop2[] = { BYTES_NOP2 };
+ static const unsigned char x86_nop3[] = { BYTES_NOP3 };
+ static const unsigned char x86_nop4[] = { BYTES_NOP4 };
+-static const unsigned char x86_nop5[] = { BYTES_NOP5 };
++/* GCC's patchable_function_entry(5, 0) emits five single-byte NOPs. */
++static const unsigned char x86_nop5[] = { 0x90, 0x90, 0x90, 0x90, 0x90 };
+ static const unsigned char x86_nop6[] = { BYTES_NOP6 };
+ static const unsigned char x86_nop7[] = { BYTES_NOP7 };
+ static const unsigned char x86_nop8[] = { BYTES_NOP8 };
+@@ -59,18 +63,41 @@ const unsigned char * const x86_nops[ASM_NOP_MAX + 1] = {
+ enum cfi_mode cfi_mode = CFI_OFF;
+ unsigned long this_cpu_off;
+ 
++static int uml_text_poke_protect(void *addr, size_t len, int writable)
++{
++	unsigned long start = (unsigned long)addr & PAGE_MASK;
++	unsigned long end = PAGE_ALIGN((unsigned long)addr + len);
++
++	return os_protect_memory((void *)start, end - start, 1, writable, 1);
++}
++
+ void clear_bhb_loop(void)
+ {
+ }
+ 
+ void *text_poke_set(void *addr, int c, size_t len)
+ {
+-	return memset(addr, c, len);
++	/* UML cannot safely restore RX here; leave the host mapping writable. */
++	if (uml_text_poke_protect(addr, len, 1))
++		return NULL;
++	memset(addr, c, len);
++
++	return addr;
+ }
+ 
+-void smp_text_poke_single(void *addr, const void *opcode, size_t len, const void *emulate)
++static void *uml_text_poke_copy(void *addr, const void *opcode, size_t len)
+ {
++	/* UML cannot safely restore RX here; leave the host mapping writable. */
++	if (uml_text_poke_protect(addr, len, 1))
++		return NULL;
+ 	memcpy(addr, opcode, len);
++
++	return addr;
++}
++
++void smp_text_poke_single(void *addr, const void *opcode, size_t len, const void *emulate)
++{
++	uml_text_poke_copy(addr, opcode, len);
+ }
+ #endif
+ 
+-- 
+2.53.0-Meta
+
