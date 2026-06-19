@@ -56,6 +56,12 @@ Current findings
     line-buffers test_progs output and dumps any partial guest output on
     termination; validate that with chunked runs rather than another blind full
     run.
+11. fentry/fexit-style tests against the synthetic __x64_sys_* wrappers need
+    three UML runtime fixes: patchable 5-byte wrapper entries, a UML text-poke
+    path that can write protected host mappings, and UML guest memory below the
+    x86 signed 32-bit direct-call limit. With UML_MEM=1792M,
+    bloom_filter_map now passes; with 2048M, BPF trampoline allocation lands
+    just beyond the call range from UML kernel text.
 
 Permissive build skip inventory
 -------------------------------
@@ -140,8 +146,14 @@ Current chunk results
 3. maps_core:
    FAIL. hashmap, htab_reuse, map_create_failure, and queue_stack_map pass.
    Many runtime map/ringbuf tests fail at load or attach. The dmesg tail shows
-   repeated "Target call ... is out of range", so the UML x86 JIT far-call
-   support is still incomplete for some code paths.
+   repeated "Target call ... is out of range" with UML_MEM=2048M. A focused
+   bloom_filter_map probe now passes with the wrapper/text-poke fixes and
+   UML_MEM=1792M, so rerun the full maps_core chunk with the lower default
+   memory before treating the old range failures as still active. A smaller
+   rerun of bloom_filter_map, map_ops, ringbuf, and user_ringbuf shows
+   bloom_filter_map now passing; remaining failures are tracepoint -ENOENT,
+   ringbuf load -EINVAL, and user_ringbuf behavioral mismatches rather than
+   BPF trampoline attach range failures.
 4. cgroup_basic:
    FAIL. cg_storage_multi, cgroup_attach_override, cgroup_getset_retval,
    cgroup_skb_prog_run_direct_packet_access, and cgroup_storage_oob pass.
