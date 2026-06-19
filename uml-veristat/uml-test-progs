@@ -11,7 +11,7 @@
 #   TEST_PROGS       — path to the test_progs binary
 #   SELFTESTS_OUTPUT — directory containing test_progs and selftest data files
 #   UML_MODULES      — space-separated bpf_test*.ko paths; set to "" to disable
-#   UML_MEM          — UML guest memory (default: 2048M)
+#   UML_MEM          — UML guest memory (default: 1792M)
 #   UML_VERBOSE      — set to 1 to show UML boot messages
 #   UML_TEST_PROGS_PREFIX — optional shell command prefix for debugging
 # ==============================================================================
@@ -241,7 +241,9 @@ INIT_EOF
 
 chmod +x "${INIT_SCRIPT}"
 
-MEM="${UML_MEM:-2048M}"
+# Keep BPF trampoline text within x86's signed 32-bit direct-call range from
+# UML's kernel text. 2048M puts vmalloc/BPF exec memory just past that range.
+MEM="${UML_MEM:-1792M}"
 VERBOSE="${UML_VERBOSE:-0}"
 GDB_MACROS="${SCRIPT_DIR}/../gdb_demo/verifier.gdb"
 UML_EXIT=0
