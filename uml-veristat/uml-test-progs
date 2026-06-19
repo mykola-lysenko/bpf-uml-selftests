@@ -202,10 +202,11 @@ mount -t proc proc /proc 2>/dev/null || true
 mount -t sysfs sysfs /sys 2>/dev/null || true
 mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
 
-mkdir -p /sys/fs/bpf /sys/fs/cgroup /sys/kernel/debug 2>/dev/null || true
+mkdir -p /sys/fs/bpf /sys/fs/cgroup /sys/kernel/debug /sys/kernel/tracing 2>/dev/null || true
 mount -t bpf bpf /sys/fs/bpf 2>/dev/null || true
 mount -t cgroup2 cgroup2 /sys/fs/cgroup 2>/dev/null || true
 mount -t debugfs debugfs /sys/kernel/debug 2>/dev/null || true
+mount -t tracefs tracefs /sys/kernel/tracing 2>/dev/null || true
 
 if command -v ip >/dev/null 2>&1; then
     ip link set lo up 2>/dev/null || true
