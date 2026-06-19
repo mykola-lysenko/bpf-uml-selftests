@@ -1,0 +1,128 @@
+UML BPF selftests follow-ups
+============================
+
+Current objective
+-----------------
+Build and run the full BPF selftests test_progs binary inside the current
+uml-veristat UML kernel, then produce a fresh pass/fail/skip baseline.
+
+Execution checklist
+-------------------
+1. DONE: Determine why the current selftests output has test_progs.o but no full test_progs executable.
+2. DONE: Rebuild the full test_progs target with the same clang, bpftool, and UML BTF inputs used by build.sh.
+3. IN PROGRESS: Fix or document missing host build dependencies and UML-incompatible link/build failures.
+4. DONE: Add a small current-generation UML runner rather than reviving selftests/run_bpf_uml.sh wholesale.
+5. IN PROGRESS: Run focused selftest subsets first: arena is covered; core_reloc, verifier, maps, and cgroup basics still need chunked runs.
+6. Replace one monolithic full test_progs run with chunked runs and per-chunk logs.
+7. Save raw logs separately from a compact parsed pass/fail/skip summary.
+8. Compare the fresh baseline with the older selftests/artifacts/reference report and identify improvements from the current patch stack.
+
+Current findings
+----------------
+1. build.sh used make -k, but not the selftests permissive mode. That allows
+   make to continue after compile failures, but it does not guarantee a linked
+   test_progs binary. Passing BPF_STRICT_BUILD=0 enables the selftests
+   skip-on-failure rules and links a partial test_progs for runtime triage.
+2. A focused rebuild with BPF_STRICT_BUILD=0 produced:
+   uml-veristat/.build/selftests-output/test_progs
+   uml-veristat/.build/selftests-output/veristat
+3. test_progs --help runs on the host, confirming the binary is linked.
+4. One local experiment changed bpf_iter_task_btf.c to include btf_ptr.h. That
+   fixes an incomplete struct btf_ptr compile failure when UML vmlinux.h only
+   has a forward declaration. This looks like a small generic selftest cleanup,
+   but it is not required for producing a permissive test_progs binary.
+5. test_progs --list booted under UML but exited 255 before printing tests when
+   CONFIG_ASYMMETRIC_KEY_TYPE was unset. test_progs unconditionally registers
+   an asymmetric session key at startup, so the UML config needs the asymmetric
+   key type plus X.509/PKCS#7 parser support before runtime selftests can run.
+6. After enabling the asymmetric key type and parsers, add_key() reached the
+   key type but still failed with ENOPKG. CONFIG_CRYPTO_RSA is present and
+   /proc/crypto exposes rsa and sha256, but pkcs1(rsa,sha256) is still not
+   instantiated for the selftest certificate. For now, keep test_progs usable by
+   warning instead of aborting when the startup key registration fails.
+7. test_progs expects bpf_testmod.ko in its current working directory and
+   handles unloading/reloading it itself. The UML runner should make module
+   files visible from the selftests output directory rather than pre-insmoding
+   bpf_testmod before test_progs starts.
+8. The local LLVM install has working clang/llc, but optional LLVM disassembler
+   linking for test_progs fails because llvm-config references missing
+   libLLVM-23git.so metadata. build.sh should pass SKIP_LLVM=1 for selftests so
+   optional JIT disassembly support does not block linking test_progs.
+9. The focused arena/runtime smoke set now passes under UML:
+   arena_htab, arena_list, arena_strsearch, arena_atomics, arena_direct_value,
+   and queue_stack_map all pass. arena_spin_lock still skips.
+10. A monolithic full test_progs run is not a good debugging unit yet. It hit a
+    host-side timeout before producing a useful baseline. The runner now
+    line-buffers test_progs output and dumps any partial guest output on
+    termination; validate that with chunked runs rather than another blind full
+    run.
+
+Permissive build skip inventory
+-------------------------------
+Skipped BPF objects are mostly in these buckets:
+1. UML pt_regs layout mismatch for PT_REGS_* users:
+   bpf_iter_tasks.bpf.o, bpf_syscall_macro.bpf.o, loop1.bpf.o,
+   loop2.bpf.o, loop3.bpf.o, lsm.bpf.o, rcu_read_lock.bpf.o,
+   test_perf_skip.bpf.o, test_sleepable_tracepoints.bpf.o,
+   test_uprobe.bpf.o, test_uprobe_autoattach.bpf.o, test_vmlinux.bpf.o,
+   uprobe_syscall_executed.bpf.o, uretprobe_stack.bpf.o.
+2. Qdisc helper availability/header mismatch:
+   bpf_qdisc_dynptr_use_after_invalidate_clone.bpf.o,
+   bpf_qdisc_fail__incompl_ops.bpf.o,
+   bpf_qdisc_fail__invalid_dynptr.bpf.o,
+   bpf_qdisc_fail__invalid_dynptr_cross_frame.bpf.o,
+   bpf_qdisc_fail__invalid_dynptr_slice.bpf.o, bpf_qdisc_fifo.bpf.o,
+   bpf_qdisc_fq.bpf.o.
+3. Feature or config-gated areas still skipped by the permissive build:
+   cgroup_iter_memcg.bpf.o, dmabuf_iter.bpf.o, dynptr_success.bpf.o,
+   fsession_test.bpf.o, get_branch_snapshot.bpf.o,
+   get_func_args_fsession_test.bpf.o, get_func_ip_fsession_test.bpf.o,
+   get_func_ip_test.bpf.o, kprobe_multi_session_cookie.bpf.o,
+   kprobe_multi_verifier.bpf.o, kprobe_write_ctx.bpf.o, loop6.bpf.o,
+   lwt_misc.bpf.o, mptcp_sock.bpf.o, mptcp_subflow.bpf.o,
+   profiler1.bpf.o, profiler2.bpf.o, profiler3.bpf.o,
+   stacktrace_map_skip.bpf.o, test_attach_probe.bpf.o,
+   test_bpf_nf.bpf.o, test_lwt_ip_encap.bpf.o, test_overhead.bpf.o,
+   test_probe_user.bpf.o, test_urandom_usdt.bpf.o, test_usdt.bpf.o,
+   test_usdt_multispec.bpf.o, tracing_multi_session_attach.bpf.o,
+   trigger_bench.bpf.o, uprobe_multi.bpf.o, uprobe_multi_session.bpf.o,
+   uprobe_multi_session_cookie.bpf.o, uprobe_multi_session_recursive.bpf.o,
+   uprobe_multi_usdt.bpf.o, uprobe_multi_verifier.bpf.o.
+
+Skipped host-side test objects:
+attach_probe, bpf_cookie, bpf_iter, bpf_nf, bpf_qdisc, cgroup_iter_memcg,
+dmabuf_iter, dynptr, fsession_test, get_branch_snapshot, get_func_args_test,
+get_func_ip_test, kprobe_multi_test, lwt_ip_encap, lwt_misc, mptcp,
+perf_skip, rcu_read_lock, sleepable_tracepoints, stacktrace_map_skip,
+test_bpf_syscall_macro, test_lsm, test_profiler, tracing_multi, uprobe,
+uprobe_autoattach, uprobe_multi_test, uprobe_syscall, uretprobe_stack, usdt,
+and vmlinux.
+
+Runner requirements
+-------------------
+1. Reuse the installed uml-veristat kernel and modules where possible.
+2. Boot with hostfs=/ so build output paths remain visible inside UML.
+3. Mount proc, sysfs, devtmpfs, bpffs, cgroup2, and debugfs where available.
+4. Bring loopback up before network-adjacent tests.
+5. Symlink bpf_testmod.ko, bpf_test_modorder_x.ko, and bpf_test_modorder_y.ko into the selftests output directory before test execution.
+6. Keep skip/block lists explicit and narrow; start with known hang/crash candidates only after repro.
+
+Open questions
+--------------
+1. RESOLVED: build full test_progs by default in build.sh using BPF_STRICT_BUILD=0.
+2. Should selftest-run artifacts be committed as a baseline, uploaded from CI, or both?
+3. Which passing subsets are valuable enough to become regular CI, given runtime and UML limitations?
+
+Chunked execution plan
+----------------------
+1. Start with short, high-signal smoke chunks:
+   arena_htab, arena_list, arena_strsearch, arena_atomics, arena_direct_value,
+   arena_spin_lock, queue_stack_map.
+2. Run verifier and CO-RE chunks separately so verifier regressions do not get
+   mixed with runtime environment failures.
+3. Run map and cgroup chunks separately because they are most relevant to the
+   current veristat map-definition fixes.
+4. Save every chunk log under uml-veristat/.build/test-logs/ with the selected
+   test names in the filename.
+5. Only after the chunks are understood, try a full run with a generous timeout
+   and treat it as a coverage baseline, not as the first debugging signal.
