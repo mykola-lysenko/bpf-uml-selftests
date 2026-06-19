@@ -11,6 +11,9 @@
 # Environment variables (override auto-detection):
 #   UML_KERNEL   — path to the UML kernel binary
 #   VERISTAT     — path to the veristat binary
+#   UML_INSTALL_DIR — install directory to use (default: auto-discovered under
+#                  ~/.local/share/; prefers the unsuffixed uml-veristat install,
+#                  then falls back to a suffixed one such as uml-veristat-clean).
 #   UML_MODULES  — space-separated list of .ko files to insmod before veristat
 #                  Set to empty string "" to disable auto-loading of modules.
 #                  Example: UML_MODULES="/path/to/bpf_testmod.ko ..." uml-veristat ...
@@ -35,6 +38,50 @@ EOF
 }
 
 # ------------------------------------------------------------------------------
+# Resolve the install directory under ~/.local/share/.
+#
+# build.sh installs into ~/.local/share/uml-veristat[-SUFFIX], where the suffix
+# encodes the build flavor (e.g. "-clean" for --clean, "-skip-..." for partial
+# patch stacks, or a custom --install-suffix). The default (patched) build has
+# no suffix.
+#
+# Preference order:
+#   1. UML_INSTALL_DIR env var (explicit override)
+#   2. The unsuffixed default dir, if it holds a kernel
+#   3. The most recently built suffixed dir (uml-veristat-*) holding a kernel
+#
+# Echoes the chosen directory, or nothing (return 1) if none is usable.
+# ------------------------------------------------------------------------------
+INSTALL_BASE="${HOME}/.local/share"
+
+resolve_install_dir() {
+    # 1. Explicit override — honoured verbatim, even without a kernel inside.
+    if [ -n "${UML_INSTALL_DIR:-}" ]; then
+        echo "${UML_INSTALL_DIR}"; return 0
+    fi
+    # 2. Unsuffixed default flavor.
+    if [ -x "${INSTALL_BASE}/uml-veristat/linux" ]; then
+        echo "${INSTALL_BASE}/uml-veristat"; return 0
+    fi
+    # 3. Newest suffixed install that actually has a kernel.
+    local d best=""
+    for d in "${INSTALL_BASE}"/uml-veristat-*/; do
+        [ -x "${d}linux" ] || continue
+        if [ -z "${best}" ] || [ "${d}linux" -nt "${best}/linux" ]; then
+            best="${d%/}"
+        fi
+    done
+    if [ -n "${best}" ]; then
+        echo "${best}"; return 0
+    fi
+    return 1
+}
+
+# Resolved once and shared by all locators so the kernel, veristat, and modules
+# always come from the same flavor rather than being mixed across installs.
+INSTALL_DIR="$(resolve_install_dir || true)"
+
+# ------------------------------------------------------------------------------
 # Locate the UML kernel binary
 # ------------------------------------------------------------------------------
 find_uml_kernel() {
@@ -42,10 +89,9 @@ find_uml_kernel() {
     if [ -n "${UML_KERNEL:-}" ] && [ -x "${UML_KERNEL}" ]; then
         echo "${UML_KERNEL}"; return 0
     fi
-    # 2. ~/.local/share/uml-veristat/linux  (installed by build.sh)
-    local installed="${HOME}/.local/share/uml-veristat/linux"
-    if [ -x "${installed}" ]; then
-        echo "${installed}"; return 0
+    # 2. Resolved install dir (installed by build.sh)
+    if [ -n "${INSTALL_DIR}" ] && [ -x "${INSTALL_DIR}/linux" ]; then
+        echo "${INSTALL_DIR}/linux"; return 0
     fi
     # 3. Same directory as this script
     if [ -x "${SCRIPT_DIR}/linux" ]; then
@@ -62,10 +108,9 @@ find_veristat() {
     if [ -n "${VERISTAT:-}" ] && [ -x "${VERISTAT}" ]; then
         echo "${VERISTAT}"; return 0
     fi
-    # 2. ~/.local/share/uml-veristat/veristat  (installed by build.sh)
-    local installed="${HOME}/.local/share/uml-veristat/veristat"
-    if [ -x "${installed}" ]; then
-        echo "${installed}"; return 0
+    # 2. Resolved install dir (installed by build.sh)
+    if [ -n "${INSTALL_DIR}" ] && [ -x "${INSTALL_DIR}/veristat" ]; then
+        echo "${INSTALL_DIR}/veristat"; return 0
     fi
     # 3. Same directory as this script
     if [ -x "${SCRIPT_DIR}/veristat" ]; then
@@ -83,7 +128,7 @@ find_veristat() {
 #
 # Resolution order:
 #   1. UML_MODULES env var (if set, even to empty — disables auto-detection)
-#   2. ~/.local/share/uml-veristat/*.ko  (installed by build.sh)
+#   2. ${INSTALL_DIR}/*.ko  (installed by build.sh)
 #   3. Same directory as this script
 #   4. Nothing (proceed without loading any module)
 # ------------------------------------------------------------------------------
@@ -104,9 +149,10 @@ find_uml_modules() {
     local module f
     for module in "${modules[@]}"; do
         for f in \
-            "${HOME}/.local/share/uml-veristat/${module}" \
+            "${INSTALL_DIR:+${INSTALL_DIR}/${module}}" \
             "${SCRIPT_DIR}/${module}"
         do
+            [ -n "${f}" ] || continue
             if [ -f "${f}" ]; then
                 found+=("${f}")
                 break
@@ -138,8 +184,25 @@ UML_BIN=$(find_uml_kernel) || {
     echo "uml-veristat: UML kernel not found." >&2
     echo "  Run: ${SCRIPT_DIR}/build.sh" >&2
     echo "  Or set: export UML_KERNEL=/path/to/linux" >&2
+    # If suffixed installs exist (e.g. uml-veristat-clean), point the user at them.
+    suffixed=("${INSTALL_BASE}"/uml-veristat-*/)
+    if [ -e "${suffixed[0]}" ]; then
+        echo "  Found other installs — select one with UML_INSTALL_DIR:" >&2
+        for d in "${suffixed[@]}"; do
+            [ -x "${d}linux" ] && echo "    UML_INSTALL_DIR=${d%/}" >&2
+        done
+    fi
     exit 1
 }
+
+# Highlight when the resolved kernel comes from a suffixed (non-default) flavor,
+# so the user is never silently running, e.g., the --clean build.
+if [ -n "${INSTALL_DIR}" ] && [ "${UML_BIN}" = "${INSTALL_DIR}/linux" ] \
+   && [ "${INSTALL_DIR}" != "${INSTALL_BASE}/uml-veristat" ]; then
+    flavor="${INSTALL_DIR##*/uml-veristat-}"
+    [ "${flavor}" = "${INSTALL_DIR}" ] && flavor="custom"
+    echo "uml-veristat: using '${flavor}' build flavor from ${INSTALL_DIR}" >&2
+fi
 
 VERISTAT_BIN=$(find_veristat) || {
     echo "uml-veristat: veristat binary not found." >&2
