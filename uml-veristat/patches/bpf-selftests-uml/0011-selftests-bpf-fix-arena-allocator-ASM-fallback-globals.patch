@@ -14,6 +14,7 @@ __arena_global. For the ASM fallback, use explicit casts for the allocator
 metadata pointers and keep the freshly reset offset in a scalar so the
 verifier can prove the refill path makes progress.
 
+Signed-off-by: Mykola Lysenko <mykolal@meta.com>
 ---
  tools/testing/selftests/bpf/bpf_arena_alloc.h | 23 ++++++++++++++++---
  .../testing/selftests/bpf/progs/arena_htab.c  |  2 +-

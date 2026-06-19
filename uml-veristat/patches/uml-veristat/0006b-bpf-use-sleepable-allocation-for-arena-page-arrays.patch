@@ -5,12 +5,14 @@ Subject: [PATCH] bpf: use sleepable allocation for arena page arrays
 
 bpf_arena_alloc_pages() can be called from sleepable syscall-test paths.
 Those paths still allocate the temporary struct page pointer array with
-kmalloc_nolock(), which can fail even for small batches and makes arena page
-allocation return NULL before any actual page allocation is attempted.
+kmalloc_nolock(), which can fail even for small batches and makes arena
+page allocation return NULL before any actual page allocation is attempted.
 
-Use regular kmalloc_array()/kfree() when the caller is sleepable and keep the
-existing kmalloc_nolock()/kfree_nolock() path for non-sleepable callers.
+Use regular kmalloc_array()/kfree() when the caller is sleepable and keep
+the existing kmalloc_nolock()/kfree_nolock() path for non-sleepable
+callers.
 
+Signed-off-by: Mykola Lysenko <mykolal@meta.com>
 ---
  kernel/bpf/arena.c | 24 ++++++++++++++++++++----
  1 file changed, 20 insertions(+), 4 deletions(-)

@@ -8,11 +8,12 @@ UML, host kernel symbols and generated JIT images can be far enough apart
 that kfunc/helper targets do not fit in that encoding, causing otherwise
 valid programs to fail JIT lowering.
 
-For UML only, resolve call targets through bpf_jit_get_func_addr() and emit
-indirect calls through the auxiliary register for non-BPF-to-BPF calls. Keep
-BPF-to-BPF calls using the normal direct-call placeholder flow so subprogram
-relocation still works as expected.
+For UML only, resolve call targets through bpf_jit_get_func_addr() and
+emit indirect calls through the auxiliary register for non-BPF-to-BPF
+calls. Keep BPF-to-BPF calls using the normal direct-call placeholder
+flow so subprogram relocation still works as expected.
 
+Signed-off-by: Mykola Lysenko <mykolal@meta.com>
 ---
  arch/x86/net/bpf_jit_comp.c | 77 +++++++++++++++++++++++++++++++++++--
  1 file changed, 73 insertions(+), 4 deletions(-)

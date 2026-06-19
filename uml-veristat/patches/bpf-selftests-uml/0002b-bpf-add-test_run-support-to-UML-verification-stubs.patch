@@ -8,20 +8,21 @@ for load-time analysis when CONFIG_BPF_EVENTS is unavailable. Runtime
 selftests can also exercise these program types through BPF_PROG_TEST_RUN,
 but empty prog_ops leave test_run unsupported.
 
-Wire the existing tracing and raw tracepoint test_run handlers into the stub
-prog_ops so selected runtime selftests can execute under a verification-only
-UML kernel. Keep the raw tracepoint hook behind CONFIG_NET to match the
-definition site.
+Wire the existing tracing and raw tracepoint test_run handlers into the
+stub prog_ops so selected runtime selftests can execute under a
+verification-only UML kernel. Keep the raw tracepoint hook behind
+CONFIG_NET to match the definition site.
 
+Signed-off-by: Mykola Lysenko <mykolal@meta.com>
 ---
- kernel/bpf/bpf_verification_stubs.c | 21 +++++++++++++++++----
- 1 file changed, 17 insertions(+), 4 deletions(-)
+ kernel/bpf/bpf_verification_stubs.c | 19 +++++++++++++++----
+ 1 file changed, 15 insertions(+), 4 deletions(-)
 
 diff --git a/kernel/bpf/bpf_verification_stubs.c b/kernel/bpf/bpf_verification_stubs.c
-index 4dabb53d3ea4..c84619e348d2 100644
+index 4dabb53d3ea4..0172307fd34e 100644
 --- a/kernel/bpf/bpf_verification_stubs.c
 +++ b/kernel/bpf/bpf_verification_stubs.c
-@@ -80,18 +80,31 @@ static bool stub_tracing_is_valid_access(int off, int size,
+@@ -80,18 +80,29 @@ static bool stub_tracing_is_valid_access(int off, int size,
  	return bpf_tracing_btf_ctx_access(off, size, type, prog, info);
  }
  
@@ -31,29 +32,27 @@ index 4dabb53d3ea4..c84619e348d2 100644
  	.get_func_proto  = stub_tracing_func_proto,			\
  	.is_valid_access = stub_tracing_is_valid_access,		\
 -};									\
-+};
++}
 +
 +#define DEFINE_STUB_OPS(name)						\
-+DEFINE_STUB_VERIFIER_OPS(name)						\
++DEFINE_STUB_VERIFIER_OPS(name);					\
  const struct bpf_prog_ops name##_prog_ops = {}
  
 -DEFINE_STUB_OPS(tracing);
- DEFINE_STUB_OPS(kprobe);
- DEFINE_STUB_OPS(tracepoint);
- DEFINE_STUB_OPS(perf_event);
--DEFINE_STUB_OPS(raw_tracepoint);
 +DEFINE_STUB_VERIFIER_OPS(tracing);
 +const struct bpf_prog_ops tracing_prog_ops = {
 +	.test_run = bpf_prog_test_run_tracing,
 +};
-+
+ DEFINE_STUB_OPS(kprobe);
+ DEFINE_STUB_OPS(tracepoint);
+ DEFINE_STUB_OPS(perf_event);
+-DEFINE_STUB_OPS(raw_tracepoint);
 +DEFINE_STUB_VERIFIER_OPS(raw_tracepoint);
 +const struct bpf_prog_ops raw_tracepoint_prog_ops = {
 +#ifdef CONFIG_NET
 +	.test_run = bpf_prog_test_run_raw_tp,
 +#endif
 +};
-+
  DEFINE_STUB_OPS(raw_tracepoint_writable);
  
  /* --- Tracing kfunc stubs --- */
