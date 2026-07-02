@@ -435,13 +435,13 @@ case "${DISTRO_FAMILY}" in
     DNF_FLAGS=""
     [ "${PKG_MGR}" = "dnf" ] && DNF_FLAGS="--allowerasing"
     sudo_env "${PKG_MGR}" install -y ${DNF_FLAGS} \
-        gcc gcc-c++ make git bc flex bison diffutils kmod openssl \
+        gcc gcc-c++ make git bc flex bison diffutils kmod openssl xz \
         elfutils-libelf-devel openssl-devel elfutils-devel \
         pkgconf-pkg-config cmake ninja-build python3 \
         libcap-devel curl wget rsync zlib-devel ;;
   suse)
     sudo_env zypper install -y \
-        gcc gcc-c++ make git bc flex bison diffutils kmod openssl \
+        gcc gcc-c++ make git bc flex bison diffutils kmod openssl xz \
         libelf-devel libopenssl-devel libdw-devel \
         pkg-config cmake ninja python3 \
         libcap-devel curl wget rsync zlib-devel ;;
