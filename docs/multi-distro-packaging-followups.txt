@@ -23,7 +23,20 @@ Execution checklist
 3. DONE (2026-07-02) ubuntu:26.04 exists on Docker Hub and builds fine.
 4. DONE (2026-07-02) ldd output recorded below under "Runtime dependencies by
    distro".
-5. Download one artifact per distro and run the wrapper against a simple .bpf.o on a matching local/container system.
+5. DONE (2026-07-02) Downloaded all five artifacts from run 28611871823 and
+   smoke-tested each in a clean container of its matching image (same
+   docker flags as CI: SYS_PTRACE, seccomp unconfined, exec /dev/shm).
+   For every distro: sha256sums verified, the wrapper resolved linux and
+   veristat from its own extracted directory, and verifier_and.bpf.o
+   produced the expected 3-program table (2 failures, 1 success).
+   Bare-image results (nothing installed):
+   - fedora, rocky-10, arch: work out of the box; base images already
+     ship libelf/zlib/libzstd (and arch's extra libs).
+   - ubuntu 24.04/26.04: veristat fails on missing libelf.so.1 only;
+     installing libelf1t64 is sufficient (zlib1g and libzstd1 are in the
+     base image). So the .deb dependency list is effectively libelf1t64.
+   - The insmod-not-found warning fires on all module-less containers
+     and correctly does not block verification.
 6. Decide whether the distro package workflow should stay workflow_dispatch-only or also run on tags.
 
 Runtime dependencies by distro (run 28605918837, 2026-07-02)
