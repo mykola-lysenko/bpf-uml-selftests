@@ -64,6 +64,7 @@ jobs:
           docker run --rm -i \
             --cap-add SYS_PTRACE \
             --security-opt seccomp=unconfined \
+            --tmpfs /dev/shm:rw,nosuid,nodev,exec,size=2g \
             -e DEBIAN_FRONTEND=noninteractive \
             -e GITHUB_TOKEN \
             -e UML_VERISTAT_WORKDIR=/tmp/uml-veristat-build \
