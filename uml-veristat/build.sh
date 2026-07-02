@@ -417,7 +417,7 @@ case "${DISTRO_FAMILY}" in
   debian)
     sudo_env apt-get update -qq
     sudo_env apt-get install -y \
-        build-essential git bc flex bison \
+        build-essential git bc flex bison kmod openssl \
         libelf-dev libssl-dev libdw-dev \
         pkg-config cmake ninja-build python3 \
         libcap-dev curl wget rsync zlib1g-dev ;;
@@ -430,21 +430,25 @@ case "${DISTRO_FAMILY}" in
             sudo_env "${PKG_MGR}" config-manager --set-enabled powertools >/dev/null 2>&1 ||
             true
     fi
-    sudo_env "${PKG_MGR}" install -y \
-        gcc gcc-c++ make git bc flex bison diffutils \
+    # EL9+ containers preinstall curl-minimal, which conflicts with the full
+    # curl package; --allowerasing lets dnf swap it out (yum lacks the flag).
+    DNF_FLAGS=""
+    [ "${PKG_MGR}" = "dnf" ] && DNF_FLAGS="--allowerasing"
+    sudo_env "${PKG_MGR}" install -y ${DNF_FLAGS} \
+        gcc gcc-c++ make git bc flex bison diffutils kmod openssl \
         elfutils-libelf-devel openssl-devel elfutils-devel \
         pkgconf-pkg-config cmake ninja-build python3 \
         libcap-devel curl wget rsync zlib-devel ;;
   suse)
     sudo_env zypper install -y \
-        gcc gcc-c++ make git bc flex bison diffutils \
+        gcc gcc-c++ make git bc flex bison diffutils kmod openssl \
         libelf-devel libopenssl-devel libdw-devel \
         pkg-config cmake ninja python3 \
         libcap-devel curl wget rsync zlib-devel ;;
   arch)
     sudo_env pacman -Sy --noconfirm archlinux-keyring || true
     sudo_env pacman -Sy --noconfirm \
-        base-devel git bc flex bison \
+        base-devel git bc flex bison kmod \
         libelf openssl elfutils \
         pkgconf cmake ninja python \
         libcap curl wget rsync zlib ;;
