@@ -931,7 +931,21 @@ export CLANG="${CLANG}"
 export LLC="${LLC}"
 export LLVM_CONFIG="${LLVM_INSTALL}/bin/llvm-config"
 export LLVM_STRIP="${LLVM_INSTALL}/bin/llvm-strip"
-export LD="${LLVM_INSTALL}/bin/ld.lld"
+
+# Prebuilt LLVM releases dynamically link ld.lld against host libraries
+# (e.g. libxml2.so.2) that newer distros no longer ship, even when clang
+# itself runs fine. Fall back to a system linker when the prebuilt ld.lld
+# cannot execute on this host.
+BUILD_LD="${LLVM_INSTALL}/bin/ld.lld"
+if ! "${BUILD_LD}" --version >/dev/null 2>&1; then
+    if command -v ld.lld >/dev/null 2>&1 && ld.lld --version >/dev/null 2>&1; then
+        BUILD_LD="$(command -v ld.lld)"
+    else
+        BUILD_LD="$(command -v ld)"
+    fi
+    warn "Prebuilt ld.lld cannot run on this host; using system linker: ${BUILD_LD}"
+fi
+export LD="${BUILD_LD}"
 
 # --- 7a: build bpftool from the same tree ---
 BPFTOOL_BIN="${BPFTOOL_OUTPUT}/bpftool"
@@ -979,7 +993,7 @@ if [ ! -x "${VERISTAT_BIN}" ] || [ "${DO_UPDATE}" = "1" ] || [ "${REBUILD_SELFTE
         OUTPUT="${SELFTESTS_OUTPUT}/" \
         CLANG="${CLANG}" \
         LLC="${LLC}" \
-        LD="${LLVM_INSTALL}/bin/ld.lld" \
+        LD="${BUILD_LD}" \
         BPFTOOL="${BPFTOOL_BIN}" \
         VMLINUX_BTF="${UML_BINARY}" \
         ARCH=x86_64 \
