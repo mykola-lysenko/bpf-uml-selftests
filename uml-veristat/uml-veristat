@@ -196,15 +196,28 @@ done
 
 # Build the insmod section for the init script.
 # Each module path is already an absolute host path, visible inside UML via hostfs.
-# We use /usr/sbin/insmod (available on the host filesystem, therefore inside UML).
+# insmod also comes from the host filesystem, so resolve it on the host side:
+# minimal container images often ship without kmod, which would otherwise make
+# module loading a silent no-op and skew results for module-backed programs.
 # The || true ensures a failed insmod does not abort the init script — veristat
 # will still run and produce partial results, which is preferable to a hard crash.
 INSMOD_CMDS=""
 if [ -n "${MODULE_LIST}" ]; then
-    for mod in ${MODULE_LIST}; do
-        INSMOD_CMDS="${INSMOD_CMDS}/usr/sbin/insmod ${mod} 2>/dev/null || true
+    INSMOD_BIN="$(command -v insmod || true)"
+    if [ -z "${INSMOD_BIN}" ]; then
+        for candidate in /usr/sbin/insmod /sbin/insmod /usr/bin/insmod; do
+            if [ -x "${candidate}" ]; then INSMOD_BIN="${candidate}"; break; fi
+        done
+    fi
+    if [ -z "${INSMOD_BIN}" ]; then
+        echo "uml-veristat: insmod not found on the host (install kmod); modules will NOT be loaded:" >&2
+        echo "  ${MODULE_LIST}" >&2
+    else
+        for mod in ${MODULE_LIST}; do
+            INSMOD_CMDS="${INSMOD_CMDS}${INSMOD_BIN} ${mod} 2>/dev/null || true
 "
-    done
+        done
+    fi
 fi
 
 # The init script runs inside the UML guest.  Because hostfs=/ is the root,
