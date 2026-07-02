@@ -1,0 +1,39 @@
+Multi-distro uml-veristat packaging follow-ups
+==============================================
+
+Initial CI targets
+------------------
+- ubuntu:24.04
+- ubuntu:26.04
+- fedora:latest
+- rockylinux:10
+- archlinux:latest
+
+Note: rockylinux:9 was dropped from CI because EL9's libstdc++ (GCC 11,
+GLIBCXX_3.4.29) cannot run the prebuilt LLVM release binaries (LLVM 22
+needs GLIBCXX_3.4.30). EL9 users can still build locally with
+./build.sh --llvm-source.
+
+Execution checklist
+-------------------
+1. Run the "Build uml-veristat distro packages" workflow manually.
+2. Confirm all five distro jobs build a tarball and upload a distinct artifact.
+3. Check whether ubuntu:26.04 is available on GitHub Actions; if not, use ubuntu:devel until the 26.04 image is published.
+4. Inspect each job's ldd output for linux and veristat and record the runtime dependencies by distro.
+5. Download one artifact per distro and run the wrapper against a simple .bpf.o on a matching local/container system.
+6. Decide whether the distro package workflow should stay workflow_dispatch-only or also run on tags.
+
+Packaging follow-ups
+--------------------
+1. Add an explicit package staging directory to build.sh so tarballs and native packages use the same file list.
+2. Teach the wrapper to look in a system install directory, likely /usr/lib/uml-veristat, before falling back to ~/.local/share/uml-veristat.
+3. Add nfpm metadata for .deb and .rpm packages from the staged tree.
+4. Add install-and-smoke-test jobs for generated .deb and .rpm packages in clean distro containers.
+5. Decide whether Arch should stay tarball-only or get a PKGBUILD/native package path.
+6. Add release automation for tagged builds: checksums, provenance, and package artifacts attached to a GitHub release.
+
+Open questions
+--------------
+1. Should packages bundle libelf/libzstd dependencies or declare distro-native dependencies?
+2. Do we want fully static veristat builds to reduce distro compatibility risk?
+3. Should nightly package builds track bpf-next master, while release package builds pin an explicit bpf-next commit?
