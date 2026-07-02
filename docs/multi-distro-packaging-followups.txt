@@ -37,7 +37,14 @@ Execution checklist
      base image). So the .deb dependency list is effectively libelf1t64.
    - The insmod-not-found warning fires on all module-less containers
      and correctly does not block verification.
-6. Decide whether the distro package workflow should stay workflow_dispatch-only or also run on tags.
+6. DONE (2026-07-02) Trigger policy decided: the distro matrix runs on
+   pull requests only when uml-veristat/** or the workflow file itself
+   changes (docs-only PRs skip the ~13-minute 5-distro build), on v*
+   tags so releases get per-distro artifacts, and on manual
+   workflow_dispatch. The repo is public, so Actions minutes are free;
+   the filter is about PR latency and noise, not cost. Note: if branch
+   protection ever lists the matrix jobs as required checks, the path
+   filter must be revisited (skipped required checks block merging).
 
 Runtime dependencies by distro (run 28605918837, 2026-07-02)
 ------------------------------------------------------------
