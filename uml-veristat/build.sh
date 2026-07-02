@@ -585,7 +585,10 @@ print(assets[0]["browser_download_url"] if assets else "")')
                         info "Clang: $(${CLANG} --version | head -1)"
                         LLVM_COMMIT="nightly-${LLVM_VERSION}"
                     else
-                        llvm_run_err="$("${LLVM_STAGING}/bin/clang" --version 2>&1 | head -1)"
+                        # clang is expected to fail here; without || true the
+                        # command substitution's exit status aborts the script
+                        # under set -e before any diagnostic is printed.
+                        llvm_run_err="$("${LLVM_STAGING}/bin/clang" --version 2>&1 | head -1 || true)"
                         rm -rf "${LLVM_STAGING}"
                         warn "Downloaded LLVM ${LLVM_VERSION} cannot run on this host:"
                         warn "  ${llvm_run_err}"
