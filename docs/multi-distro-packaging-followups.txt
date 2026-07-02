@@ -16,12 +16,38 @@ needs GLIBCXX_3.4.30). EL9 users can still build locally with
 
 Execution checklist
 -------------------
-1. Run the "Build uml-veristat distro packages" workflow manually.
-2. Confirm all five distro jobs build a tarball and upload a distinct artifact.
-3. Check whether ubuntu:26.04 is available on GitHub Actions; if not, use ubuntu:devel until the 26.04 image is published.
-4. Inspect each job's ldd output for linux and veristat and record the runtime dependencies by distro.
+1. DONE (2026-07-02) Run the "Build uml-veristat distro packages" workflow. All
+   five distro jobs green in run 28605918837 (PR #1).
+2. DONE (2026-07-02) All five jobs upload a distinct ~68M artifact:
+   uml-veristat-package-<distro>-<sha>.
+3. DONE (2026-07-02) ubuntu:26.04 exists on Docker Hub and builds fine.
+4. DONE (2026-07-02) ldd output recorded below under "Runtime dependencies by
+   distro".
 5. Download one artifact per distro and run the wrapper against a simple .bpf.o on a matching local/container system.
 6. Decide whether the distro package workflow should stay workflow_dispatch-only or also run on tags.
+
+Runtime dependencies by distro (run 28605918837, 2026-07-02)
+------------------------------------------------------------
+linux (UML kernel):
+- ubuntu-24.04, ubuntu-26.04, fedora-latest, arch-latest: libc only
+  (linux-vdso, libc.so.6, ld-linux-x86-64.so.2).
+- rocky-10: "not a dynamic executable" — fully static. Worth
+  investigating why the EL10 toolchain links UML statically before
+  relying on it either way.
+
+veristat:
+- All distros: libelf.so.1, libz.so.1, libzstd.so.1, libc.so.6.
+- arch-latest additionally links libpcap.so.1, libnl-genl-3.so.200,
+  libnl-3.so.200, libdbus-1.so.3, libsystemd.so.0, libgcc_s.so.1.
+  The selftests Makefile feature-detection picks these up because the
+  arch base image ships the corresponding libraries. This makes the
+  arch tarball less portable than the others; if a lean, uniform
+  dependency set is wanted, pin the feature set at build time (or
+  build veristat static, see open question 2).
+
+Implication for packaging: native package dependencies are
+libelf + zlib + libzstd everywhere (plus the arch extras above);
+the UML kernel needs nothing beyond glibc.
 
 Packaging follow-ups
 --------------------
