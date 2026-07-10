@@ -30,6 +30,10 @@
 #              Contains: uml-veristat wrapper, linux binary, veristat binary,
 #              kernel .config, version.txt (full provenance), sha256sums, README.
 #
+#   SKIP_DEP_INSTALL=1  (env) Skip step 1/7 host package installation; use on
+#              already-provisioned hosts or when sudo cannot prompt for a
+#              password (e.g. non-interactive re-runs).
+#
 # Requirements:
 #   ~5 GB free disk space (~35 GB with --llvm-source),
 #   8+ CPU cores recommended, sudo for package install unless running as root.
@@ -412,6 +416,15 @@ else
 fi
 
 info "Distro family: ${DISTRO_FAMILY} (ID=${OS_ID})"
+
+# Repeat builds on an already-provisioned host do not need the package
+# manager, and sudo cannot prompt for a password in non-interactive runs
+# (CI containers run as root and are unaffected). SKIP_DEP_INSTALL=1
+# trusts the host to have the dependencies already.
+if [ "${SKIP_DEP_INSTALL:-0}" = "1" ]; then
+    info "SKIP_DEP_INSTALL=1 — assuming host build dependencies are installed."
+    DISTRO_FAMILY="none"
+fi
 
 case "${DISTRO_FAMILY}" in
   debian)
