@@ -78,6 +78,36 @@ Current findings
     pass. map_ptr now loads and runs, and its remaining failure is direct
     struct bpf_ringbuf CO-RE field-offset access: bpf_ringbuf_query() reports
     producer_pos=136, but direct rb->producer_pos still reads zero.
+15. On distros whose compiler defaults to -fcf-protection=full (Ubuntu,
+    Fedora), the UML kernel was built with a 4-byte endbr64 before every
+    function because UML makefiles, unlike native arch/x86, never pass
+    -fcf-protection=none. The endbr64 displaces the synthetic wrappers'
+    patchable_function_entry slot, so BPF trampoline attach failed with
+    -EBUSY on such hosts while working on hosts without the CET default.
+    Patch 0013b builds UML with -fcf-protection=none; map_btf, user_ringbuf,
+    and the map_in_map fentry.s paths recover on Ubuntu 24.04 hosts.
+16. verifier_arena/basic_alloc1 panicked the UML guest because segv() had no
+    path for BPF exception fixups: kernel-mode faults on user-range addresses
+    panicked before any fixup attempt, and the legacy arch_fixup() misparses
+    modern typed extable entries. In addition, fixups edit the uml_pt_regs
+    copy while the faulting context resumes from the mcontext, so the fix
+    must write the registers back or the instruction faults forever. Patch
+    0016 adds bpf_extable_fixup() (dispatching to ex_handler_bpf()) plus
+    mc_set_regs(), and verifier_arena now runs to completion: deliberate
+    use-after-free arena reads return zero as expected.
+17. With the panic fixed, remaining arena failures are the kmalloc_nolock()
+    class: *_nosleep subtests fail outright, and sleepable basic_alloc1
+    fails at page re-allocation after free (retval 8), pointing at the
+    free-side range_tree_set() node allocation. arena_kfuncs_under_bpf_lock
+    also fails. verifier_arena_large hangs the guest and needs a runner
+    denylist entry (isolated repro: no output, killed by timeout).
+18. Rechecked on the 2026-07-10 bpf-next tip: map_ptr passes, so the direct
+    struct bpf_ringbuf CO-RE field access issue (open question 4) appears
+    fixed by upstream drift. cgroup net_cls setup failures were a kernel
+    config gap; build.sh now enables CGROUP_NET_CLASSID and CGROUP_NET_PRIO,
+    after which the cgrp1_* environment works. Remaining cgrp_local_storage
+    failures are tp_btf (-3, BPF_EVENTS gap) and skel loads with -22 in
+    sleepable/RCU paths.
 
 Permissive build skip inventory
 -------------------------------
@@ -134,9 +164,13 @@ Open questions
 1. RESOLVED: build full test_progs by default in build.sh using BPF_STRICT_BUILD=0.
 2. Should selftest-run artifacts be committed as a baseline, uploaded from CI, or both?
 3. Which passing subsets are valuable enough to become regular CI, given runtime and UML limitations?
-4. What is the right fix for map_ptr direct struct bpf_ringbuf field access:
-   a light-skeleton CO-RE relocation issue, a UML BTF/type-selection issue, or
-   a selftest assumption that should avoid direct internal ringbuf fields?
+4. RESOLVED (2026-07-10): map_ptr passes on the current bpf-next tip with the
+   full patch stack; the direct struct bpf_ringbuf field access issue was
+   fixed by upstream drift (see finding 18).
+5. Why does kmalloc_nolock() fail on UML? It is the shared root cause of the
+   arena *_nosleep failures, the basic_alloc1 re-allocation failure, and the
+   preallocation workarounds in patch 0006. A root-cause fix would replace
+   further preallocation patches.
 
 Chunked execution plan
 ----------------------
@@ -152,37 +186,34 @@ Chunked execution plan
 5. Only after the chunks are understood, try a full run with a generous timeout
    and treat it as a coverage baseline, not as the first debugging signal.
 
-Current chunk results
+Current chunk results (2026-07-10, bpf-next 30f77a041, full stack incl.
+0013b and 0016, logs chunk-*-final-20260710-*.log)
 ---------------------
 1. arena_smoke:
-   PASS. arena_atomics, arena_direct_value, arena_htab llvm+asm, arena_list,
-   arena_strsearch, and queue_stack_map pass. arena_spin_lock still skips all
-   three subtests.
+   PASS (7/18, 3 skipped, 0 failed). arena_spin_lock still skips all three
+   subtests.
 2. core_reloc:
-   FAIL. core_reloc and core_reloc_btfgen fail broadly with BPF_PROG_LOAD
-   -EINVAL and raw_tp attach -ENOENT; core_reloc_raw passes. This is a runtime
-   selftest issue, not a veristat-only map-definition issue.
+   FAIL (1/36, 14 skipped, 2 failed). Unchanged: core_reloc and
+   core_reloc_btfgen fail with obj_load -EINVAL/-ESRCH and raw_tp attach
+   -ENOENT (BPF_EVENTS gap); core_reloc_raw passes.
 3. maps_core:
-   FAIL. Latest focused non-perf rerun after wrapper dispatch:
-   uml-veristat/.build/test-logs/chunk-maps-nonperf-wrapper-dispatch-20260619-142920.log.
-   map_btf and user_ringbuf now pass. map_in_map sleepable/update subtests pass,
-   while the kprobe subtests still fail with perf-backed attach -ENOENT.
-   Remaining non-perf failures are htab_update/reenter_update -EBUSY,
-   lru_bug helper rejection, and map_ptr direct ringbuf-map field access.
-   ringbuf light-skeleton load/runtime is fixed by patch 0015; latest focused
-   log is uml-veristat/.build/test-logs/chunk-helper-clean-focused-latest.log.
-   The older maps_core baseline before wrapper dispatch is:
-   uml-veristat/.build/test-logs/chunk-maps_core-rebuilt-20260619-141307.log.
+   FAIL (8/59, 14 skipped, 5 failed). map_btf, map_ptr, ringbuf, and
+   user_ringbuf pass after the -fcf-protection fix (0013b) and upstream
+   drift. Remaining failures are all known classes: btf_map_in_map and
+   ringbuf_multi raw_tp attach -ENOENT and map_in_map kprobe -ENOENT
+   (BPF_EVENTS gap), htab_update fentry to a non-wrapper kernel function
+   -EBUSY (no ftrace entry NOPs), lru_bug helper rejection -EINVAL.
 4. cgroup_basic:
-   FAIL. cg_storage_multi, cgroup_attach_override, cgroup_getset_retval,
-   cgroup_skb_prog_run_direct_packet_access, and cgroup_storage_oob pass.
-   Failures split between attach -ENOENT, missing userland/kernel setup
-   (ip netns, net_cls, clone), and helper availability in cgrp_local_storage
-   sleepable paths.
+   FAIL (5/17, 1 failed). cg_storage_multi, cgroup_attach_override,
+   cgroup_getset_retval, cgroup_skb_prog_run_direct_packet_access, and
+   cgroup_storage_oob pass. After enabling CGROUP_NET_CLASSID the cgrp1_*
+   environment works; cgrp_local_storage still fails in tp_btf (-3,
+   BPF_EVENTS) and sleepable/RCU skel loads (-22).
 5. verifier_arena:
-   CRASH. verifier_arena/basic_alloc1 panics UML during
-   bpf_prog_test_run_syscall with a user-memory access at 0x1e0bae000.
+   FAIL (2/21, 1 failed) — no longer crashes after patch 0016.
+   verifier_arena_globals1/2 pass. Remaining verifier_arena subtest
+   failures are the kmalloc_nolock class (finding 17).
+   verifier_arena_large hangs the guest and must stay denylisted
+   (-d verifier_arena_large).
 6. verifier_map_noarena:
-   PASS. verifier_cgroup_storage, verifier_map_in_map, verifier_map_ptr,
-   verifier_map_ptr_mixing, verifier_map_ret_val, and verifier_ringbuf pass
-   with only expected unprivileged skips.
+   PASS (6/41, 32 expected unprivileged skips, 0 failed).
