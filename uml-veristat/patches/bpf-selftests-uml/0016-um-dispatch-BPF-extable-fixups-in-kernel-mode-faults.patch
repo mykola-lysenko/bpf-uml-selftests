@@ -1,0 +1,172 @@
+From 0d206342cd8dfe82fbbc78c0ca416c68cb5178a6 Mon Sep 17 00:00:00 2001
+From: Mykola Lysenko <mykolal@meta.com>
+Date: Fri, 10 Jul 2026 15:27:39 -0700
+Subject: [PATCH] um: dispatch BPF extable fixups in kernel-mode faults
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+JIT'ed BPF programs rely on exception fixups for deliberately faulting
+loads (BPF_PROBE_MEM and arena accesses): the fault is expected to
+zero the destination register and skip the access. UML's segv() had no
+path for this — a kernel-mode fault on a user-range address panicked
+with "Kernel tried to access user memory" before any fixup attempt,
+which made verifier_arena/basic_alloc1 panic the guest, and the legacy
+arch_fixup() would misparse modern typed extable entries anyway.
+
+Add bpf_extable_fixup(), which searches the BPF extables and
+dispatches to ex_handler_bpf(), and try it both before the user-range
+panic and before arch_fixup() in the generic kernel-fault path.
+
+ex_handler_bpf() edits the uml_pt_regs copy, but the faulting context
+resumes from the mcontext, so the same instruction would fault forever
+without writing the fixed registers back. Add mc_set_regs(), the
+inverse of get_regs_from_mc() for the GP registers and instruction
+pointer, and apply it after a successful fixup.
+
+With this, verifier_arena no longer panics the UML guest: deliberate
+use-after-free arena reads return zero as expected and the suite runs
+to completion.
+
+Signed-off-by: Mykola Lysenko <mykolal@meta.com>
+---
+ arch/um/include/shared/arch.h   |  1 +
+ arch/um/kernel/trap.c           | 38 +++++++++++++++++++++++++++++++++
+ arch/x86/um/os-Linux/mcontext.c | 33 ++++++++++++++++++++++++++++
+ 3 files changed, 72 insertions(+)
+
+diff --git a/arch/um/include/shared/arch.h b/arch/um/include/shared/arch.h
+index cc398a21a..d8eff74fe 100644
+--- a/arch/um/include/shared/arch.h
++++ b/arch/um/include/shared/arch.h
+@@ -13,5 +13,6 @@ extern int arch_fixup(unsigned long address, struct uml_pt_regs *regs);
+ extern void arch_examine_signal(int sig, struct uml_pt_regs *regs);
+ 
+ void mc_set_rip(void *_mc, void *target);
++void mc_set_regs(void *_mc, struct uml_pt_regs *regs);
+ 
+ #endif
+diff --git a/arch/um/kernel/trap.c b/arch/um/kernel/trap.c
+index 177615820..aeda0640a 100644
+--- a/arch/um/kernel/trap.c
++++ b/arch/um/kernel/trap.c
+@@ -3,6 +3,7 @@
+  * Copyright (C) 2000 - 2007 Jeff Dike (jdike@{addtoit,linux.intel}.com)
+  */
+ 
++#include <linux/extable.h>
+ #include <linux/mm.h>
+ #include <linux/sched/signal.h>
+ #include <linux/hardirq.h>
+@@ -10,6 +11,7 @@
+ #include <linux/uaccess.h>
+ #include <linux/sched/debug.h>
+ #include <asm/current.h>
++#include <asm/extable.h>
+ #include <asm/tlbflush.h>
+ #include <arch.h>
+ #include <as-layout.h>
+@@ -17,6 +19,38 @@
+ #include <os.h>
+ #include <skas.h>
+ 
++/*
++ * JIT'ed BPF programs rely on exception fixups for deliberately
++ * faulting loads (BPF_PROBE_MEM and arena accesses): the fault is
++ * expected to zero the destination register and skip the access
++ * instead of being fatal. Their extable entries are relative and
++ * typed, so they must be dispatched through ex_handler_bpf() rather
++ * than arch_fixup(), which predates typed fixups and would misread
++ * them.
++ *
++ * The handler edits the uml_pt_regs copy; the faulting context resumes
++ * from the mcontext, so the fixed registers must be written back to it
++ * or the same instruction faults again forever.
++ */
++static int bpf_extable_fixup(unsigned long ip, struct uml_pt_regs *regs,
++			     void *mc)
++{
++	const struct exception_table_entry *ex;
++
++	if (!mc)
++		return 0;
++
++	ex = search_bpf_extables(ip);
++	if (!ex)
++		return 0;
++
++	if (!ex_handler_bpf(ex, container_of(regs, struct pt_regs, regs)))
++		return 0;
++
++	mc_set_regs(mc, regs);
++	return 1;
++}
++
+ /*
+  * NOTE: UML does not have exception tables. As such, this is almost a copy
+  * of the code in mm/memory.c, only adjusting the logic to simply check whether
+@@ -347,6 +381,8 @@ unsigned long segv(struct faultinfo fi, unsigned long ip, int is_user,
+ 		panic("Segfault with no mm");
+ 	}
+ 	else if (!is_user && address > PAGE_SIZE && address < TASK_SIZE) {
++		if (bpf_extable_fixup(ip, regs, mc))
++			goto out;
+ 		show_regs(container_of(regs, struct pt_regs, regs));
+ 		panic("Kernel tried to access user memory at addr 0x%lx, ip 0x%lx",
+ 		       address, ip);
+@@ -367,6 +403,8 @@ unsigned long segv(struct faultinfo fi, unsigned long ip, int is_user,
+ 
+ 	if (!err)
+ 		goto out;
++	else if (!is_user && bpf_extable_fixup(ip, regs, mc))
++		goto out;
+ 	else if (!is_user && arch_fixup(ip, regs))
+ 		goto out;
+ 
+diff --git a/arch/x86/um/os-Linux/mcontext.c b/arch/x86/um/os-Linux/mcontext.c
+index b1580df80..5a9e02e7d 100644
+--- a/arch/x86/um/os-Linux/mcontext.c
++++ b/arch/x86/um/os-Linux/mcontext.c
+@@ -58,6 +58,39 @@ void mc_set_rip(void *_mc, void *target)
+ #endif
+ }
+ 
++/*
++ * Inverse of get_regs_from_mc() for the general-purpose registers and
++ * the instruction pointer: exception fixups (e.g. BPF extable handlers)
++ * edit the uml_pt_regs copy, and the result must be written back to the
++ * mcontext for the faulting context to resume with the fixed state.
++ * Segment registers and flags are deliberately left untouched.
++ */
++void mc_set_regs(void *_mc, struct uml_pt_regs *regs)
++{
++	mcontext_t *mc = _mc;
++
++#ifdef CONFIG_X86_32
++#define COPY2(X, Y) (mc->gregs[REG_##Y] = regs->gp[X])
++#define COPY(X) (mc->gregs[REG_##X] = regs->gp[X])
++	COPY(EDI); COPY(ESI); COPY(EBP);
++	COPY2(UESP, ESP); /* sic */
++	COPY(EBX); COPY(EDX); COPY(ECX); COPY(EAX);
++	COPY(EIP);
++#undef COPY2
++#undef COPY
++#else
++#define COPY2(X, Y) (mc->gregs[REG_##Y] = regs->gp[(X) / sizeof(unsigned long)])
++#define COPY(X) (mc->gregs[REG_##X] = regs->gp[(X) / sizeof(unsigned long)])
++	COPY(R8); COPY(R9); COPY(R10); COPY(R11);
++	COPY(R12); COPY(R13); COPY(R14); COPY(R15);
++	COPY(RDI); COPY(RSI); COPY(RBP); COPY(RBX);
++	COPY(RDX); COPY(RAX); COPY(RCX); COPY(RSP);
++	COPY(RIP);
++#undef COPY2
++#undef COPY
++#endif
++}
++
+ /* Same thing, but the copy macros are turned around. */
+ void get_mc_from_regs(struct uml_pt_regs *regs, mcontext_t *mc, int single_stepping)
+ {
+-- 
+2.43.0
+
