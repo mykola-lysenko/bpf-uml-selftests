@@ -892,6 +892,8 @@ CONFIG_ARGS=(
     --disable BPF_JIT_ALWAYS_ON
     --enable  CGROUPS
     --enable  CGROUP_BPF
+    --enable  CGROUP_NET_CLASSID
+    --enable  CGROUP_NET_PRIO
     --enable  NET
     --enable  INET
     --enable  IPV6
