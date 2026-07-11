@@ -24,8 +24,8 @@ Current findings
    test_progs binary. Passing BPF_STRICT_BUILD=0 enables the selftests
    skip-on-failure rules and links a partial test_progs for runtime triage.
 2. A focused rebuild with BPF_STRICT_BUILD=0 produced:
-   uml-veristat/.build/selftests-output/test_progs
-   uml-veristat/.build/selftests-output/veristat
+   .build/selftests-output/test_progs
+   .build/selftests-output/veristat
 3. test_progs --help runs on the host, confirming the binary is linked.
 4. One local experiment changed bpf_iter_task_btf.c to include btf_ptr.h. That
    fixes an incomplete struct btf_ptr compile failure when UML vmlinux.h only
@@ -230,7 +230,7 @@ Chunked execution plan
    mixed with runtime environment failures.
 3. Run map and cgroup chunks separately because they are most relevant to the
    current veristat map-definition fixes.
-4. Save every chunk log under uml-veristat/.build/test-logs/ with the selected
+4. Save every chunk log under .build/test-logs/ with the selected
    test names in the filename.
 5. Only after the chunks are understood, try a full run with a generous timeout
    and treat it as a coverage baseline, not as the first debugging signal.
