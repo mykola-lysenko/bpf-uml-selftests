@@ -123,6 +123,17 @@ Current findings
     veristat arena corpus, and the top-level corpus all pass without them.
     They were workarounds for the kmalloc_nolock() failure fixed at the
     root. The stack shrinks by two kernel patches.
+21. The verifier_arena_large hang was an infinite fault loop in segv()'s
+    vmalloc-range branch: kernel faults in [start_vm, end_vm) sync TLBs and
+    retry unconditionally, so a deliberately faulting BPF load on an
+    unmapped arena page whose kernel address lands in the vmalloc window
+    re-faults forever (perf sampling of the spinning UML process showed the
+    bpf_prog_test_run_syscall -> um_tlb_sync loop). The smaller
+    verifier_arena arena placed pages outside that window and took the
+    panic path 0016 already fixed. Patch 0016b checks for a present PTE
+    after the sync and runs the BPF extable fixup when the fault is
+    unresolvable. All six verifier_arena_large subtests pass; the chunk no
+    longer needs denylisting.
 
 Permissive build skip inventory
 -------------------------------
@@ -186,9 +197,10 @@ Open questions
    host CPU features (no X86_FEATURE_CX16 -> no __CMPXCHG_DOUBLE) and lacked
    HAVE_ALIGNED_STRUCT_PAGE. Fixed by patch 0017 (see finding 19). Follow-up:
    re-evaluate whether patch 0006's preallocation is still needed.
-6. Why does verifier_arena_large hang the UML guest? It is not the
-   kmalloc_nolock() issue (persists after patch 0017) and produces no
-   output before the host-side timeout.
+6. RESOLVED (2026-07-10): verifier_arena_large hung in segv()'s
+   vmalloc-range sync-and-retry loop, which never consulted the BPF
+   extable fixup for unresolvable faults. Fixed by patch 0016b (see
+   finding 21); the chunk passes and needs no denylist entry.
 
 Chunked execution plan
 ----------------------
@@ -228,9 +240,9 @@ Current chunk results (2026-07-10, bpf-next 30f77a041, full stack incl.
    environment works; cgrp_local_storage still fails in tp_btf (-3,
    BPF_EVENTS) and sleepable/RCU skel loads (-22).
 5. verifier_arena:
-   PASS after patches 0016 and 0017: all 20 verifier_arena subtests pass
-   (logs chunk-verifier_arena-cx16-*.log), and verifier_arena_globals1/2
-   pass. verifier_arena_large hangs the guest for a separate reason and
-   must stay denylisted (-d verifier_arena_large, open question 6).
+   PASS after patches 0016, 0016b, and 0017: all verifier_arena subtests
+   pass, verifier_arena_globals1/2 pass, and verifier_arena_large passes
+   all six subtests (previously a guest hang; see finding 21). No arena
+   denylist entries are needed.
 6. verifier_map_noarena:
    PASS (6/41, 32 expected unprivileged skips, 0 failed).

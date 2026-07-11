@@ -510,6 +510,27 @@ arena reads return zero as expected.
 
 ---
 
+## Patch 0016b — um: run BPF extable fixups for unresolvable vmalloc-range faults
+
+**File:** `arch/um/kernel/trap.c`
+
+**Problem:** `segv()` treats any kernel-mode fault in `[start_vm, end_vm)`
+as a lazy TLB flush: sync and retry, unconditionally. A deliberately
+faulting BPF load on an unmapped arena page whose kernel address lands in
+the vmalloc window therefore re-faults through that branch forever — the
+0016 fixup paths never run. This hung the guest on verifier_arena_large
+(4GB arena), while the smaller verifier_arena arena happened to place its
+pages outside the window and took the panic path 0016 fixed.
+
+**Fix:** After a successful `um_tlb_sync()`, check whether the faulting
+address has a present PTE. If not, attempt the BPF extable fixup; the
+legacy retry is preserved for non-BPF faults.
+
+**Impact:** All six verifier_arena_large subtests pass; the chunk no longer
+needs a denylist entry.
+
+---
+
 ## Patch 0017 — um: probe host CPU features to enable cmpxchg128 and kmalloc_nolock
 
 **Files:** `arch/x86/um/host_cpu_features.c` (new), `arch/x86/um/Makefile`,
