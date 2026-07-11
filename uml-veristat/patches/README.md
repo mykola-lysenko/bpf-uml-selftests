@@ -91,111 +91,19 @@ after this change.
 
 ---
 
-### 0002 — `bpf: add UML verification stubs for kernels without perf events`
+### 0002 — REMOVED (superseded by 0018/0019)
 
-**Problem:** `CONFIG_BPF_EVENTS` depends on `PERF_EVENTS` and
-`KPROBE_EVENTS`/`UPROBE_EVENTS`. On UML these hardware-dependent subsystems are
-unavailable, so `BPF_PROG_TYPE_KPROBE`, `TRACEPOINT`, `PERF_EVENT`,
-`RAW_TRACEPOINT`, `RAW_TRACEPOINT_WRITABLE`, and `TRACING` are not registered.
-`BPF_PROG_LOAD` returns `-EINVAL` for these types, causing veristat to report
-failures for all tracing-type BPF programs.
-
-Similarly, `BPF_MAP_TYPE_STACK_TRACE` is not registered and the
-`bpf_get_stackid()`/`bpf_get_stack()` helpers are unavailable, causing veristat
-to fail on programs that use stack trace maps (`pyperf*`, `strobemeta*`,
-`stacktrace_*`).
-
-Also, `bpf_trace_printk()` and `bpf_trace_vprintk()` are normally provided by
-`kernel/trace/bpf_trace.c`, which is compiled under `CONFIG_BPF_EVENTS`. UML's
-verification-only config intentionally has no `BPF_EVENTS`, so the weak
-`bpf_get_trace_printk_proto()`/`bpf_get_trace_vprintk_proto()` fallbacks return
-`NULL`. That makes otherwise valid `bpf_printk()` users fail during verification
-with `program of this type cannot use helper bpf_trace_printk#6`.
-
-**Fix:** Add hidden UML-only verification stub configs:
-
-- `CONFIG_BPF_VERIFICATION_STUBS`, available only for UML kernels with
-  `BPF_SYSCALL`, `BPF_JIT`, and no `PERF_EVENTS`/`BPF_EVENTS`
-- `CONFIG_BPF_LSM_VERIFICATION_STUBS`, additionally gated on `CONFIG_SECURITY`
-  so LSM program/map types are only advertised when the matching stub symbols
-  are compiled
-
-Together these configs:
-
-1. Provides minimal `bpf_verifier_ops` and `bpf_prog_ops` for all six tracing
-   program types, using a `DEFINE_STUB_OPS()` macro to eliminate boilerplate.
-   The stubs delegate to `bpf_base_func_proto()` for helper access and
-   `bpf_tracing_btf_ctx_access()` for context type checking.
-
-2. Compiles `stackmap.c` and provides stub callchain buffer functions so
-   `BPF_MAP_TYPE_STACK_TRACE` maps can be created. The execution-time stubs
-   use `WARN_ON_ONCE` since veristat never runs programs.
-
-3. Registers `BPF_MAP_TYPE_STACK_TRACE` in `bpf_types.h` under
-   `CONFIG_BPF_VERIFICATION_STUBS`, mirroring the existing
-   `CONFIG_PERF_EVENTS` guard.
-
-4. Provides verification-only `bpf_trace_printk()` and `bpf_trace_vprintk()`
-   helper prototypes. The stubs return `-EOPNOTSUPP` if ever executed; they
-   exist only so veristat can validate programs that call `bpf_printk()`.
-
-5. Registers `BPF_PROG_TYPE_LSM`, `BPF_MAP_TYPE_INODE_STORAGE`, BPF LSM attach
-   target symbols, and selected LSM kfunc BTF entries only when
-   `CONFIG_BPF_LSM_VERIFICATION_STUBS` is enabled.
-
-**Files changed:**
-- `kernel/bpf/bpf_verification_stubs.c` (new — stub ops + callchain/LSM stubs)
-- `kernel/bpf/Kconfig` (add hidden verification stub configs)
-- `kernel/bpf/Makefile` (add `bpf_verification_stubs.o`, compile `stackmap.o`)
-- `kernel/bpf/stackmap.c` (guard perf_event-specific functions)
-- `include/linux/bpf_types.h` (register tracing/stack/LSM types under the stub
-  configs)
-- `include/linux/perf_event.h` (declare callchain stub symbols)
-
-**Result:** veristat can verify tracing program types, stack-trace users, and
-`bpf_printk()` users on UML kernels that deliberately do not enable
-`CONFIG_BPF_EVENTS`. This also keeps arena spin-lock diagnostics intact while
-allowing `arena_spin_lock.bpf.o` to pass under `uml-veristat`.
-
----
-
-**Folded in (former 0002b):** test_run support for the stubbed program
-types, so BPF_PROG_TEST_RUN executes them under UML instead of
-returning -EOPNOTSUPP.
-
-**Folded in (former 0015 — probe read helpers):**
-
-**File:** `kernel/bpf/bpf_verification_stubs.c`
-
-**Problem:** UML verification kernels intentionally build without
-`CONFIG_BPF_EVENTS`, so they do not link `kernel/trace/bpf_trace.o`. That
-leaves the weak `bpf_probe_read_kernel*` helper prototypes in
-`kernel/bpf/helpers.c` without function pointers.
-
-`BPF_PROG_TYPE_SYSCALL` delegates these helpers to the tracing helper
-prototype path. Generated light-skeleton loader programs use
-`bpf_probe_read_kernel()` to read their loader context before they create and
-load the real BPF object. Without the helper implementation, the loader program
-itself is rejected with:
-
-```text
-program of this type cannot use helper bpf_probe_read_kernel#113
-```
-
-**Fix:** Provide `bpf_probe_read_kernel()` and
-`bpf_probe_read_kernel_str()` implementations from the UML verification-stub
-object, mirroring the helper prototypes normally supplied by
-`kernel/trace/bpf_trace.c`.
-
-**Impact:** Allows light-skeleton syscall loader programs to execute in the
-no-`BPF_EVENTS` UML configuration. Focused runtime probes show all five
-`ringbuf` subtests pass after this change. `map_ptr` also gets past lskel load
-and test-run setup; its remaining failure is a separate CO-RE relocation issue
-for direct `struct bpf_ringbuf` field-offset access.
-
----
-
----
+The former 0002 provided hidden UML-only verification stubs (tracing
+program-type ops, stack-trace map registration, trace_printk and
+probe-read helper prototypes, test_run support, and an LSM verification
+surface) so BPF_PROG_LOAD could reach the verifier on kernels without
+PERF_EVENTS/BPF_EVENTS. Patches 0018 (software perf events for UML) and
+0019 (BPF_EVENTS without kprobe/uprobe events) make the real
+implementations available instead: bpf_trace.c, real stackmap, and real
+CONFIG_BPF_LSM. The stub configs self-disabled once BPF_EVENTS existed,
+and removing the patch was validated as behavior-identical — with the
+real paths, ~270 additional corpus programs verify and core_reloc passes
+at runtime, which stubs could never provide.
 
 ### 0003 — `um: fix stub binary page alignment by removing -Wl,-n`
 
@@ -588,6 +496,45 @@ x86 headers UML already uses.
 **Impact:** All 20 verifier_arena subtests pass, including `*_nosleep`
 variants and re-allocation after free. Supersedes the former 0006/0006b
 preallocation workarounds.
+
+---
+
+## Patch 0018 — um: add software perf events support
+
+**Files:** `arch/um/Kconfig`, `arch/x86/um/asm/perf_event.h` (new)
+
+**Problem:** UML never selected `HAVE_PERF_EVENTS`, leaving it one of five
+architectures without perf (with m68k, microblaze, nios2, openrisc). The
+perf software core needs no PMU: hrtimer sampling, software events, and
+tracepoint events all work, and UML has functional high-resolution timers.
+
+**Fix:** `select HAVE_PERF_EVENTS` plus a minimal `asm/perf_event.h`
+override — the native x86 header's `perf_arch_fetch_caller_regs()` writes
+named `struct pt_regs` fields UML's register layout lacks; generic
+fallbacks and the weak callchain symbols cover the rest.
+
+**Impact:** perf software events in UML guests, tracefs event id files
+appear, and the perf plumbing `CONFIG_BPF_EVENTS` needs exists.
+
+---
+
+## Patch 0019 — bpf: allow BPF_EVENTS without kprobe or uprobe events
+
+**File:** `kernel/trace/Kconfig`
+
+**Problem:** `BPF_EVENTS` requires `(KPROBE_EVENTS || UPROBE_EVENTS)` on
+top of `PERF_EVENTS`, but nothing in the tracepoint/raw-tracepoint/
+perf-event portions of `bpf_trace.c` needs probe support — those sections
+are already conditionally compiled. The dependency locks BPF tracing out
+of kernels with tracepoints and perf but no kprobes/uprobes, such as UML.
+
+**Fix:** Drop the probe-events leg and `select TRACING` directly
+(precedent: `GENERIC_TRACER`), which the probe-event configs previously
+selected transitively.
+
+**Impact:** Real raw_tp/tp_btf/tracepoint BPF attach on UML: core_reloc
+145/145 subtests pass, ringbuf_multi and btf_map_in_map recover, real
+BPF_LSM becomes available, and the entire 0002 stub layer is obsolete.
 
 ---
 

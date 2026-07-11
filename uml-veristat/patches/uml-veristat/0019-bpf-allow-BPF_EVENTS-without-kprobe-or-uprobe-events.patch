@@ -1,0 +1,42 @@
+From 21d69ab2f490ff14485f471b95893d8344f88a21 Mon Sep 17 00:00:00 2001
+From: Mykola Lysenko <mykolal@meta.com>
+Date: Sat, 11 Jul 2026 14:12:07 -0700
+Subject: [PATCH] bpf: allow BPF_EVENTS without kprobe or uprobe events
+
+CONFIG_BPF_EVENTS requires (KPROBE_EVENTS || UPROBE_EVENTS) on top of
+PERF_EVENTS, but nothing in the tracepoint, raw tracepoint, or
+perf-event portions of kernel/trace/bpf_trace.c needs kprobe or
+uprobe support: the kprobe- and uprobe-specific sections are already
+compiled conditionally under CONFIG_KPROBE_EVENTS, CONFIG_UPROBES,
+and CONFIG_FPROBE. The dependency shuts BPF tracing out of kernels
+that have tracepoints and perf but no probe support, such as UML.
+
+Drop the probe-events leg and select TRACING directly (the same way
+GENERIC_TRACER does), which BPF_EVENTS relied on the probe-event
+configs to select transitively. bpf_trace.c builds unchanged; kprobe
+and uprobe program types remain registered and simply cannot attach
+on kernels without the underlying probe infrastructure, which is
+already their behavior at runtime.
+
+Signed-off-by: Mykola Lysenko <mykolal@meta.com>
+---
+ kernel/trace/Kconfig | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/kernel/trace/Kconfig b/kernel/trace/Kconfig
+index 084f34dc6..ed9f04f5d 100644
+--- a/kernel/trace/Kconfig
++++ b/kernel/trace/Kconfig
+@@ -852,7 +852,8 @@ config EPROBE_EVENTS
+ 
+ config BPF_EVENTS
+ 	depends on BPF_SYSCALL
+-	depends on (KPROBE_EVENTS || UPROBE_EVENTS) && PERF_EVENTS
++	depends on PERF_EVENTS
++	select TRACING
+ 	bool
+ 	default y
+ 	help
+-- 
+2.43.0
+

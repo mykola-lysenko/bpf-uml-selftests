@@ -40,6 +40,12 @@ Current findings
    /proc/crypto exposes rsa and sha256, but pkcs1(rsa,sha256) is still not
    instantiated for the selftest certificate. For now, keep test_progs usable by
    warning instead of aborting when the startup key registration fails.
+   RESOLVED (2026-07-11): the missing piece was CONFIG_CRYPTO_SHA256 (the
+   sha256 shash needed to instantiate the pkcs1(rsa,sha256) signature
+   template; the manager was already enabled). With it in build.sh's
+   CONFIG_ARGS, add_key() succeeds and the warn-instead-of-abort patch
+   (former 0010) was dropped from the stack — another environment fix
+   replacing an upstream-code change, like the 0008 wrapper log-size.
 7. test_progs expects bpf_testmod.ko in its current working directory and
    handles unloading/reloading it itself. The UML runner should make module
    files visible from the selftests output directory rather than pre-insmoding
@@ -123,6 +129,19 @@ Current findings
     veristat arena corpus, and the top-level corpus all pass without them.
     They were workarounds for the kmalloc_nolock() failure fixed at the
     root. The stack shrinks by two kernel patches.
+21a. (2026-07-11) UML now has software perf events and real BPF_EVENTS:
+    patch 0018 selects HAVE_PERF_EVENTS (one Kconfig line + a 12-line
+    asm/perf_event.h), and patch 0019 drops BPF_EVENTS' historical
+    (KPROBE_EVENTS || UPROBE_EVENTS) leg and selects TRACING directly.
+    With PERF_EVENTS, FTRACE_SYSCALLS, and BPF_LSM enabled in build.sh,
+    raw_tp/tp_btf/tracepoint attach works through the real kernel paths:
+    core_reloc passes all 145 subtests (was 2 failures), ringbuf_multi
+    and btf_map_in_map recover, maps_core drops to 3 known failures, and
+    the corpus gains ~270 success rows (2734 total). The 0002
+    verification stubs self-disabled and were removed from the stack
+    after validating identical corpus and chunk results without them.
+    Remaining structural gaps: kprobes, uprobes, ftrace function
+    tracing (fentry to arbitrary functions), and hardware perf.
 21. The verifier_arena_large hang was an infinite fault loop in segv()'s
     vmalloc-range branch: kernel faults in [start_vm, end_vm) sync TLBs and
     retry unconditionally, so a deliberately faulting BPF load on an

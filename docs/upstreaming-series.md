@@ -124,27 +124,43 @@ Suggested posting shape:
 - Send `0007b` as a tiny veristat correctness fix with before/after examples
   from percpu cgroup storage objects.
 
-## Series D: UML BPF Verification RFC
+## Series D: UML software perf events + BPF_EVENTS Kconfig fix
 
-Status: not ready as a normal merge series; should be RFC until framing and
-review concerns are resolved.
+Status: replaced the verification-stubs RFC entirely (2026-07-11). The
+former `0002` (hidden UML-only verification stubs, our largest and
+hardest-to-defend patch) was REMOVED from the stack: with real perf and
+BPF_EVENTS available, its Kconfig self-disabled and every stubbed surface
+is now served by the real implementations (bpf_trace.c, real stackmap,
+real BPF_LSM), with ~270 additional corpus programs verifying and
+core_reloc passing at runtime.
 
 Patches:
 
-- `0002-bpf-add-verification-stubs-for-UML-kernels-without-P.patch`
-  - Audience: BPF, UML, tracing, and LSM reviewers.
-  - Rationale: hidden UML-only configs let static-analysis loads reach the
-    verifier for program types and helpers that UML cannot execute.
-  - Dependency: none for build, but it is easier to justify after smaller
-    generic fixes have landed.
-  - Review risk: stubs must not imply runtime support for tracing, LSM,
-    stack-trace, or trace-printk execution paths.
+- `0018-um-add-software-perf-events-support.patch`
+  - Audience: UML maintainers.
+  - Rationale: UML is one of only five architectures without
+    HAVE_PERF_EVENTS (with m68k, microblaze, nios2, openrisc); the perf
+    software core needs no PMU and UML has working hrtimers. One Kconfig
+    select plus a 12-line asm/perf_event.h (the native header's
+    perf_arch_fetch_caller_regs uses named pt_regs fields UML lacks).
+  - Value beyond BPF: perf tooling in UML guests, tracefs event id files.
+
+- `0019-bpf-allow-BPF_EVENTS-without-kprobe-or-uprobe-events.patch`
+  - Audience: BPF and tracing maintainers.
+  - Rationale: BPF_EVENTS requires (KPROBE_EVENTS || UPROBE_EVENTS), but
+    bpf_trace.c's kprobe/uprobe sections are already conditionally
+    compiled; the dependency locks tracepoint/raw_tp BPF out of kernels
+    with perf + tracepoints but no probe support. Drop the leg and select
+    TRACING directly (precedent: GENERIC_TRACER), which the probe-event
+    configs used to provide transitively.
+  - Review risk: tracing maintainers may prefer a different Kconfig
+    shape; the technical content is two lines.
 
 Suggested posting shape:
 
-- Send as RFC with measured `veristat` impact and explicit non-goals.
-- Cover letter must state that accepted programs are for static analysis only
-  and are not attached or executed.
+- Post 0018 to linux-um and 0019 to bpf-next (cross-Cc), together or
+  0018 first. Lead with measured results: real raw_tp/tp_btf attach on
+  UML, core_reloc 145/145 subtests, +267 corpus programs verified.
 
 ## Series E: UML x86 BPF JIT RFC
 

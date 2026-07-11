@@ -1,0 +1,62 @@
+From 744bf5e3fdd60df8695b38f671c0fb662cbab626 Mon Sep 17 00:00:00 2001
+From: Mykola Lysenko <mykolal@meta.com>
+Date: Sat, 11 Jul 2026 14:11:50 -0700
+Subject: [PATCH] um: add software perf events support
+
+UML never selected HAVE_PERF_EVENTS, leaving it one of only five
+architectures without perf support (with m68k, microblaze, nios2, and
+openrisc). The perf core itself is software: hrtimer-based sampling,
+software events, and tracepoint events need no PMU, and UML has
+working high-resolution timers backed by host timers.
+
+Select HAVE_PERF_EVENTS and provide a minimal asm/perf_event.h. The
+native x86 header cannot be reused because its
+perf_arch_fetch_caller_regs() writes named struct pt_regs fields that
+UML's register layout does not have; the generic fallbacks cover
+everything else, and the weak perf_callchain_{kernel,user} symbols
+apply until UML grows callchain support.
+
+This gives UML guests working perf software events and, together with
+tracepoints, the perf plumbing that CONFIG_BPF_EVENTS needs for
+tracepoint and raw-tracepoint BPF program attachment.
+
+Signed-off-by: Mykola Lysenko <mykolal@meta.com>
+---
+ arch/um/Kconfig              |  1 +
+ arch/x86/um/asm/perf_event.h | 12 ++++++++++++
+ 2 files changed, 13 insertions(+)
+ create mode 100644 arch/x86/um/asm/perf_event.h
+
+diff --git a/arch/um/Kconfig b/arch/um/Kconfig
+index a75b2206e..c6eec2152 100644
+--- a/arch/um/Kconfig
++++ b/arch/um/Kconfig
+@@ -27,6 +27,7 @@ config UML
+ 	select HAVE_DEBUG_KMEMLEAK
+ 	select HAVE_DEBUG_BUGVERBOSE
+ 	select HAVE_PAGE_SIZE_4KB
++	select HAVE_PERF_EVENTS
+ 	select NO_DMA if !UML_DMA_EMULATION
+ 	select OF_EARLY_FLATTREE if OF
+ 	select GENERIC_IRQ_SHOW
+diff --git a/arch/x86/um/asm/perf_event.h b/arch/x86/um/asm/perf_event.h
+new file mode 100644
+index 000000000..f85fe536e
+--- /dev/null
++++ b/arch/x86/um/asm/perf_event.h
+@@ -0,0 +1,12 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef _ASM_UM_PERF_EVENT_H
++#define _ASM_UM_PERF_EVENT_H
++
++/*
++ * UML has no PMU and uses the software perf core only. The generic
++ * fallbacks in linux/perf_event.h cover everything an arch may
++ * provide; in particular the native x86 perf_arch_fetch_caller_regs
++ * cannot be used because UML's struct pt_regs has no named fields.
++ */
++
++#endif /* _ASM_UM_PERF_EVENT_H */
+-- 
+2.43.0
+

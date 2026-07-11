@@ -919,6 +919,10 @@ CONFIG_ARGS=(
     --set-str SYSTEM_TRUSTED_KEYS ""
     --enable  CRYPTO
     --enable  CRYPTO_RSA
+    # test_progs registers an asymmetric session key at startup; verifying
+    # the key's X.509 signature instantiates pkcs1(rsa,sha256), which needs
+    # the sha256 shash in addition to RSA and the crypto manager.
+    --enable  CRYPTO_SHA256
     --enable  XFRM_INTERFACE
     --enable  FS_VERITY
     --enable  MEMCG
@@ -940,13 +944,14 @@ CONFIG_ARGS=(
     --set-val NR_CPUS 8
     --enable  KALLSYMS_ALL
     --enable  XDP_SOCKETS
+    # Software perf events (patch 0018) + the relaxed BPF_EVENTS (patch
+    # 0019) give UML real tracepoint/raw_tp BPF support; FTRACE_SYSCALLS
+    # provides the syscall tracepoints many selftests attach to, and
+    # BPF_LSM becomes available once BPF_EVENTS exists.
+    --enable  PERF_EVENTS
+    --enable  FTRACE_SYSCALLS
+    --enable  BPF_LSM
 )
-if [ "${APPLY_PATCHES}" = "1" ]; then
-    CONFIG_ARGS+=(
-        --enable BPF_VERIFICATION_STUBS
-        --enable BPF_LSM_VERIFICATION_STUBS
-    )
-fi
 scripts/config "${CONFIG_ARGS[@]}"
 
 # Re-run olddefconfig to resolve any new dependencies introduced above.
