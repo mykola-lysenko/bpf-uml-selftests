@@ -18,8 +18,11 @@
 # Usage:
 #   ./build.sh [--update] [--package]
 #
-#   --update        Re-fetch bpf-next and LLVM to latest tip and rebuild.
-#                  Without this flag, existing builds are reused (idempotent).
+#   --update        Re-fetch bpf-next and LLVM to latest tip, rebuild, and
+#                  rewrite the bpf-next-commit pin file. Commit the pin bump
+#                  together with any corpus_manifest.json updates the new tip
+#                  requires. Without this flag, builds use the pinned commit
+#                  and are reproducible (CI and developers build the same tree).
 #
 #   --llvm-source   Build LLVM/Clang from source instead of downloading a
 #                  pre-built release.  Requires GCC 12+ or a previous clang
@@ -758,6 +761,42 @@ elif [ "${DO_UPDATE}" = "1" ]; then
     git -C "${LINUX_DIR}" reset --hard "origin/${KERNEL_BRANCH}"
 fi
 
+# ------------------------------------------------------------------------------
+# bpf-next commit pinning.
+#
+# The pin file makes builds reproducible: CI and every developer build the
+# same upstream commit, and corpus expectations cannot silently drift with
+# the nightly bpf-next tip. --update is the explicit refresh verb: it moves
+# the checkout to the branch tip and rewrites the pin file, and the pin bump
+# is expected to be committed together with any corpus_manifest.json and
+# patch-context updates the new tip requires.
+# ------------------------------------------------------------------------------
+PIN_FILE="${SCRIPT_DIR}/bpf-next-commit"
+PINNED_SHA=""
+
+if [ "${DO_UPDATE}" = "1" ] || [ ! -f "${PIN_FILE}" ]; then
+    # Pin the upstream branch tip, never the local HEAD: the checkout may
+    # already have the patch stack applied on top of the base commit.
+    PINNED_SHA=$(git -C "${LINUX_DIR}" rev-parse "origin/${KERNEL_BRANCH}" 2>/dev/null ||
+                 git -C "${LINUX_DIR}" rev-parse HEAD)
+    printf '%s\n' "${PINNED_SHA}" > "${PIN_FILE}"
+    info "Pinned bpf-next to ${PINNED_SHA} (commit ${PIN_FILE} with any manifest updates)"
+else
+    PINNED_SHA=$(tr -d '[:space:]' < "${PIN_FILE}")
+    if ! git -C "${LINUX_DIR}" cat-file -e "${PINNED_SHA}^{commit}" 2>/dev/null; then
+        info "Fetching pinned bpf-next commit ${PINNED_SHA}..."
+        git -C "${LINUX_DIR}" fetch --depth=1 origin "${PINNED_SHA}" ||
+            git -C "${LINUX_DIR}" fetch --depth=500 origin "${KERNEL_BRANCH}"
+        git -C "${LINUX_DIR}" cat-file -e "${PINNED_SHA}^{commit}" 2>/dev/null || {
+            echo "ERROR: pinned bpf-next commit ${PINNED_SHA} is not reachable." >&2
+            echo "  Refresh the pin with: ./build.sh --update" >&2
+            exit 1
+        }
+    fi
+    git -C "${LINUX_DIR}" reset --hard "${PINNED_SHA}" >/dev/null
+    info "Using pinned bpf-next commit ${PINNED_SHA}"
+fi
+
 KERNEL_COMMIT=$(git -C "${LINUX_DIR}" rev-parse --short HEAD)
 KERNEL_VERSION=$(make -C "${LINUX_DIR}" -s kernelversion 2>/dev/null || echo "unknown")
 info "bpf-next: ${KERNEL_COMMIT}  (${KERNEL_VERSION})"
@@ -822,7 +861,9 @@ should_skip_patch() {
     return 1
 }
 if [ -d "${PATCHES_DIR}" ]; then
-    UPSTREAM_REF="origin/${KERNEL_BRANCH}"
+    # The pinned commit is the canonical clean base for patch application;
+    # fall back to the branch tip only when no pin is in play.
+    UPSTREAM_REF="${PINNED_SHA:-origin/${KERNEL_BRANCH}}"
     if ! git -C "${LINUX_DIR}" rev-parse --verify "${UPSTREAM_REF}" >/dev/null 2>&1; then
         UPSTREAM_REF="HEAD"
     fi

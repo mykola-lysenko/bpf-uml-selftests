@@ -82,4 +82,9 @@ Open questions
 --------------
 1. Should packages bundle libelf/libzstd dependencies or declare distro-native dependencies?
 2. Do we want fully static veristat builds to reduce distro compatibility risk?
-3. Should nightly package builds track bpf-next master, while release package builds pin an explicit bpf-next commit?
+3. RESOLVED (2026-07-11): all builds now pin an explicit bpf-next commit
+   (uml-veristat/bpf-next-commit), making CI and local builds reproducible.
+   ./build.sh --update is the explicit refresh verb: it moves to the branch
+   tip and rewrites the pin, and the bump is committed together with corpus
+   manifest updates as a reviewable refresh PR. Decided after upstream
+   corpus drift (a new fsession.multi selftest) broke a PR's CI mid-flight.
