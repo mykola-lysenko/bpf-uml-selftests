@@ -23,7 +23,7 @@
   "corpora": {
     "top-level": {
       "expected_metrics": {
-        "skipped_files": 1,
+        "skipped_files": 2,
         "skipped_programs": 0
       },
       "minimum_metrics": {
@@ -72,6 +72,10 @@
         "test_sk_assign.bpf.o": {
           "errno": -95,
           "reason": "libbpf v1 refuses the legacy SEC(\"maps\") iproute2 object; test_sk_assign_libbpf.bpf.o is the standalone libbpf variant"
+        },
+        "tracing_multi_session_attach.bpf.o": {
+          "errno": -2,
+          "reason": "new upstream fsession.multi section type; libbpf cannot resolve the fsession attach type without fprobe/ftrace support, which UML lacks"
         }
       }
     },
