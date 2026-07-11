@@ -1,0 +1,128 @@
+From 3a611e125909bd8e8f8a5473456b906ccaf483fb Mon Sep 17 00:00:00 2001
+From: Mykola Lysenko <mykolal@meta.com>
+Date: Fri, 10 Jul 2026 16:59:11 -0700
+Subject: [PATCH] um: probe host CPU features to enable cmpxchg128 and
+ kmalloc_nolock
+
+UML initializes boot_cpu_data.x86_capability to all-zero and never
+probes the host CPU, so every boot_cpu_has() check fails. Generic
+kernel code keys real functionality on those bits: the slab allocator
+enables freelist ABA protection (__CMPXCHG_DOUBLE) only when
+system_has_cmpxchg128() reports X86_FEATURE_CX16, and without that
+flag kmalloc_nolock() returns NULL unconditionally for non-debug
+caches. On UML this made every kmalloc_nolock() user fail: BPF arena
+range-tree updates, non-sleepable arena page allocation, and the
+arena free path all returned errors that do not occur on native
+kernels.
+
+Probe CPUID leaf 1 on the host during setup_arch() -- before slab
+init reads system_has_freelist_aba() -- and set X86_FEATURE_CX16 when
+the host supports cmpxchg16b, which UML can execute directly since it
+runs on the host CPU. Also select HAVE_ALIGNED_STRUCT_PAGE, without
+which mm/slab.h compiles the freelist ABA support out regardless of
+CPU features. The cmpxchg128 primitives themselves come from the
+shared x86 headers UML already uses.
+
+All 20 verifier_arena subtests pass under UML with this change,
+including the *_nosleep variants and re-allocation after free, which
+previously failed through the kmalloc_nolock() NULL path.
+
+Signed-off-by: Mykola Lysenko <mykolal@meta.com>
+---
+ arch/um/Kconfig                 |  1 +
+ arch/um/include/shared/arch.h   |  1 +
+ arch/um/kernel/um_arch.c        |  3 +++
+ arch/x86/um/Makefile            |  2 +-
+ arch/x86/um/host_cpu_features.c | 29 +++++++++++++++++++++++++++++
+ 5 files changed, 35 insertions(+), 1 deletion(-)
+ create mode 100644 arch/x86/um/host_cpu_features.c
+
+diff --git a/arch/um/Kconfig b/arch/um/Kconfig
+index d9541d13d..a75b2206e 100644
+--- a/arch/um/Kconfig
++++ b/arch/um/Kconfig
+@@ -18,6 +18,7 @@ config UML
+ 	select ARCH_HAS_STRNCPY_FROM_USER
+ 	select ARCH_HAS_STRNLEN_USER
+ 	select ARCH_HAS_STRICT_KERNEL_RWX
++	select HAVE_ALIGNED_STRUCT_PAGE
+ 	select HAVE_ARCH_AUDITSYSCALL
+ 	select HAVE_ARCH_KASAN if X86_64
+ 	select HAVE_ARCH_KASAN_VMALLOC if HAVE_ARCH_KASAN
+diff --git a/arch/um/include/shared/arch.h b/arch/um/include/shared/arch.h
+index d8eff74fe..190c5d0fc 100644
+--- a/arch/um/include/shared/arch.h
++++ b/arch/um/include/shared/arch.h
+@@ -11,6 +11,7 @@
+ extern void arch_check_bugs(void);
+ extern int arch_fixup(unsigned long address, struct uml_pt_regs *regs);
+ extern void arch_examine_signal(int sig, struct uml_pt_regs *regs);
++void um_probe_host_cpu_features(void);
+ 
+ void mc_set_rip(void *_mc, void *target);
+ void mc_set_regs(void *_mc, struct uml_pt_regs *regs);
+diff --git a/arch/um/kernel/um_arch.c b/arch/um/kernel/um_arch.c
+index 2141f5f1f..8bb5e1eb4 100644
+--- a/arch/um/kernel/um_arch.c
++++ b/arch/um/kernel/um_arch.c
+@@ -418,6 +418,9 @@ void __init setup_arch(char **cmdline_p)
+ 	setup_hostinfo(host_info, sizeof host_info);
+ 	prefill_possible_map();
+ 
++	/* Must run before slab init reads system_has_freelist_aba(). */
++	um_probe_host_cpu_features();
++
+ 	if (os_getrandom(rng_seed, sizeof(rng_seed), 0) == sizeof(rng_seed)) {
+ 		add_bootloader_randomness(rng_seed, sizeof(rng_seed));
+ 		memzero_explicit(rng_seed, sizeof(rng_seed));
+diff --git a/arch/x86/um/Makefile b/arch/x86/um/Makefile
+index 8bfac9ce8..fc56dfd29 100644
+--- a/arch/x86/um/Makefile
++++ b/arch/x86/um/Makefile
+@@ -9,7 +9,7 @@ else
+ 	BITS := 64
+ endif
+ 
+-obj-y = bugs_$(BITS).o delay.o fault.o \
++obj-y = bugs_$(BITS).o delay.o fault.o host_cpu_features.o \
+ 	ptrace.o ptrace_$(BITS).o ptrace_user.o setjmp_$(BITS).o signal.o \
+ 	stub_segv.o \
+ 	sys_call_table_$(BITS).o sysrq_$(BITS).o tls_$(BITS).o \
+diff --git a/arch/x86/um/host_cpu_features.c b/arch/x86/um/host_cpu_features.c
+new file mode 100644
+index 000000000..37237b53e
+--- /dev/null
++++ b/arch/x86/um/host_cpu_features.c
+@@ -0,0 +1,29 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * UML never probes the host CPU, so boot_cpu_data.x86_capability stays
++ * all-zero and every boot_cpu_has() check fails. Some generic kernel
++ * code keys real functionality on those bits: the slab allocator only
++ * enables freelist ABA protection (__CMPXCHG_DOUBLE) when
++ * system_has_cmpxchg128() reports X86_FEATURE_CX16, and without it
++ * kmalloc_nolock() returns NULL unconditionally.
++ *
++ * Probe CPUID leaf 1 on the host and record the features UML can use
++ * directly because it executes on the host CPU anyway.
++ */
++#include <linux/bits.h>
++#include <linux/init.h>
++#include <asm/cpufeature.h>
++#include <asm/processor.h>
++
++void __init um_probe_host_cpu_features(void)
++{
++	u32 eax = 1, ebx, ecx, edx;
++
++	asm volatile("cpuid"
++		     : "+a" (eax), "=b" (ebx), "=c" (ecx), "=d" (edx));
++
++	/* CPUID.01H:ECX.CMPXCHG16B[bit 13] */
++	if (ecx & BIT(13))
++		set_bit(X86_FEATURE_CX16,
++			(unsigned long *)boot_cpu_data.x86_capability);
++}
+-- 
+2.43.0
+
