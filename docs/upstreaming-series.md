@@ -39,10 +39,12 @@ Patches:
     UML.
   - Dependency: none.
 
-- `0001-um-x86-add-__x64_sys_-wrappers-for-BPF-selftest-comp.patch`
+- `0001-um-x86-add-BPF-attachable-__x64_sys_-syscall-wrappers.patch`
   - Audience: UML and BPF maintainers.
   - Rationale: exposes expected x86-64 syscall wrapper BTF attach targets on
-    UML.
+    UML, with patchable entries and syscall dispatch so fentry/fexit
+    programs actually execute (consolidated from the former 0001 + 0012 +
+    0014 on 2026-07-11).
   - Dependency: none, but expect review on whether adding wrapper symbols for
     BTF attach compatibility is the preferred UML interface.
 
@@ -150,24 +152,19 @@ Status: needs patch splitting before posting.
 
 Patches:
 
-- `0003b-um-x86-select-HAVE_EBPF_JIT-for-UML-on-64-bit.patch`
-  - Audience: UML and BPF maintainers.
-  - Rationale: 64-bit UML runs on an x86-64 host and can use the native x86 BPF
-    JIT for load-time capability checks.
-  - Dependency: should not land by itself unless the real backend wiring is
-    accepted.
-
-- `0003c-um-x86-wire-up-native-bpf-jit-backend-for-UML.patch`
+- `0003b-um-x86-wire-up-native-x86-BPF-JIT-backend-for-UML.patch`
   - Audience: UML, x86, and BPF maintainers.
-  - Rationale: links the native x86 BPF JIT backend into UML and provides the
-    minimal compatibility shims needed for verification and JIT analysis.
-  - Dependency: requires `0003b`.
-  - Review risk: currently too broad; it mixes build wiring, register layout,
-    header compatibility, runtime shims, and final backend enablement.
+  - Rationale: links the native x86 BPF JIT backend into UML with the
+    minimal compatibility shims, the HAVE_EBPF_JIT Kconfig enablement, and
+    far-call support (consolidated from the former 0003b + 0003c + 0003d on
+    2026-07-11; they were never independently useful).
+  - Review risk: broad; it mixes build wiring, register layout, header
+    compatibility, runtime shims, and final backend enablement.
 
 Suggested posting shape:
 
-- Split `0003c` into buildable pieces before sending:
+- For upstream, split back into buildable pieces along review-surface lines
+  (the local stack intentionally keeps them as one tested unit):
   - UML/x86 register and header compatibility.
   - UML-local NOP, CFI, BHB, per-cpu, and text-copy shims.
   - `arch/x86/net/` build wiring for UML.
@@ -177,6 +174,10 @@ Suggested posting shape:
 
 ## Current Priority
 
-The next concrete cleanup item is to rework `0003c` into smaller buildable
-patches. That is the largest reviewability risk in the current stack and is
-already called out separately in `docs/upstreaming-cleanup.md`.
+The next concrete cleanup item is to rework the merged `0003b` JIT patch
+into smaller buildable patches for posting. That is the largest
+reviewability risk in the current stack and is already called out
+separately in `docs/upstreaming-cleanup.md`. A second cleanup candidate is
+rewriting `0009b`: with the 0016 extable fixups in place, its ~60-insn
+emitted range check could shrink to a two-compare span check that lets
+gap addresses fault and be fixed up.

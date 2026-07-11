@@ -1,0 +1,214 @@
+From 6aa07a29f74631b42e62cb0edf4fb2674505cc5f Mon Sep 17 00:00:00 2001
+From: Mykola Lysenko <mykolal@meta.com>
+Date: Sat, 11 Jul 2026 09:43:50 -0700
+Subject: [PATCH] um/x86: add BPF-attachable __x64_sys_* syscall wrappers
+
+BPF selftests compiled for x86-64 use the __x64_ syscall prefix when
+attaching fentry/kprobe/raw_tp programs (SYS_PREFIX in bpf_misc.h). On
+native x86-64 kernels ARCH_HAS_SYSCALL_WRAPPER generates a real
+__x64_sys_<name>() for every syscall, and those functions appear in
+kernel BTF as BTF_KIND_FUNC entries that libbpf resolves at object
+open time. UML does not use syscall wrappers, so the BTF entries are
+absent and libbpf fails with -ESRCH.
+
+Add minimal __x64_sys_* wrappers for the five syscalls the BPF
+selftests reference via SYS_PREFIX: getpgid, nanosleep, prctl,
+prlimit64, and setdomainname. Each has the canonical x86-64 syscall
+wrapper signature so pahole emits the correct BTF_KIND_FUNC entry;
+arguments are extracted with UPT_SYSCALL_ARGn().
+
+For the wrappers to be usable as runtime fentry/fexit targets, not
+just verification-time attach targets, two more pieces are needed:
+
+1. Annotate the wrappers with patchable_function_entry(5, 0) so BPF
+   trampoline attachment finds the 5-byte NOP slot it expects to
+   patch at function entry.
+
+2. Route the five covered syscall numbers through the wrappers in the
+   UML syscall path before falling back to the normal syscall table.
+   The wrappers delegate to the same sys_* implementations, so
+   syscall behavior is unchanged while attached BPF trampolines
+   observe the wrapper entry and actually execute.
+
+Signed-off-by: Mykola Lysenko <mykolal@meta.com>
+---
+ arch/um/kernel/skas/syscall.c      | 38 +++++++++++++---
+ arch/x86/um/Makefile               |  2 +-
+ arch/x86/um/asm/syscall.h          | 13 ++++++
+ arch/x86/um/x64_syscall_wrappers.c | 71 ++++++++++++++++++++++++++++++
+ 4 files changed, 117 insertions(+), 7 deletions(-)
+ create mode 100644 arch/x86/um/x64_syscall_wrappers.c
+
+diff --git a/arch/um/kernel/skas/syscall.c b/arch/um/kernel/skas/syscall.c
+index ba7494f9b..2e41000f1 100644
+--- a/arch/um/kernel/skas/syscall.c
++++ b/arch/um/kernel/skas/syscall.c
+@@ -14,6 +14,31 @@
+ #include <asm/unistd.h>
+ #include <asm/delay.h>
+ 
++static bool maybe_call_x64_syscall_wrapper(struct pt_regs *regs, int syscall,
++					   unsigned long *ret)
++{
++#ifdef CONFIG_X86_64
++	switch (syscall) {
++	case __NR_getpgid:
++		*ret = __x64_sys_getpgid(regs);
++		return true;
++	case __NR_nanosleep:
++		*ret = __x64_sys_nanosleep(regs);
++		return true;
++	case __NR_prctl:
++		*ret = __x64_sys_prctl(regs);
++		return true;
++	case __NR_prlimit64:
++		*ret = __x64_sys_prlimit64(regs);
++		return true;
++	case __NR_setdomainname:
++		*ret = __x64_sys_setdomainname(regs);
++		return true;
++	}
++#endif
++	return false;
++}
++
+ void handle_syscall(struct uml_pt_regs *r)
+ {
+ 	struct pt_regs *regs = container_of(r, struct pt_regs, regs);
+@@ -45,12 +70,13 @@ void handle_syscall(struct uml_pt_regs *r)
+ 	if (syscall >= 0 && syscall < __NR_syscalls) {
+ 		unsigned long ret;
+ 
+-		ret = (*sys_call_table[syscall])(UPT_SYSCALL_ARG1(&regs->regs),
+-						 UPT_SYSCALL_ARG2(&regs->regs),
+-						 UPT_SYSCALL_ARG3(&regs->regs),
+-						 UPT_SYSCALL_ARG4(&regs->regs),
+-						 UPT_SYSCALL_ARG5(&regs->regs),
+-						 UPT_SYSCALL_ARG6(&regs->regs));
++		if (!maybe_call_x64_syscall_wrapper(regs, syscall, &ret))
++			ret = (*sys_call_table[syscall])(UPT_SYSCALL_ARG1(&regs->regs),
++							 UPT_SYSCALL_ARG2(&regs->regs),
++							 UPT_SYSCALL_ARG3(&regs->regs),
++							 UPT_SYSCALL_ARG4(&regs->regs),
++							 UPT_SYSCALL_ARG5(&regs->regs),
++							 UPT_SYSCALL_ARG6(&regs->regs));
+ 
+ 		PT_REGS_SET_SYSCALL_RETURN(regs, ret);
+ 
+diff --git a/arch/x86/um/Makefile b/arch/x86/um/Makefile
+index f9ea75bf4..8bfac9ce8 100644
+--- a/arch/x86/um/Makefile
++++ b/arch/x86/um/Makefile
+@@ -26,7 +26,7 @@ subarch-y += ../kernel/sys_ia32.o
+ 
+ else
+ 
+-obj-y += mem_64.o syscalls_64.o vdso/
++obj-y += mem_64.o syscalls_64.o x64_syscall_wrappers.o vdso/
+ 
+ subarch-y = ../lib/csum-partial_64.o ../lib/memcpy_64.o \
+ 	../lib/memmove_64.o ../lib/memset_64.o
+diff --git a/arch/x86/um/asm/syscall.h b/arch/x86/um/asm/syscall.h
+index d6208d0fa..9a750e1f8 100644
+--- a/arch/x86/um/asm/syscall.h
++++ b/arch/x86/um/asm/syscall.h
+@@ -11,6 +11,19 @@ typedef asmlinkage long (*sys_call_ptr_t)(unsigned long, unsigned long,
+ 
+ extern const sys_call_ptr_t sys_call_table[];
+ 
++struct pt_regs;
++
++asmlinkage long __attribute__((patchable_function_entry(5, 0)))
++__x64_sys_getpgid(const struct pt_regs *regs);
++asmlinkage long __attribute__((patchable_function_entry(5, 0)))
++__x64_sys_nanosleep(const struct pt_regs *regs);
++asmlinkage long __attribute__((patchable_function_entry(5, 0)))
++__x64_sys_prctl(const struct pt_regs *regs);
++asmlinkage long __attribute__((patchable_function_entry(5, 0)))
++__x64_sys_prlimit64(const struct pt_regs *regs);
++asmlinkage long __attribute__((patchable_function_entry(5, 0)))
++__x64_sys_setdomainname(const struct pt_regs *regs);
++
+ static inline int syscall_get_arch(struct task_struct *task)
+ {
+ #ifdef CONFIG_X86_32
+diff --git a/arch/x86/um/x64_syscall_wrappers.c b/arch/x86/um/x64_syscall_wrappers.c
+new file mode 100644
+index 000000000..879fe3dea
+--- /dev/null
++++ b/arch/x86/um/x64_syscall_wrappers.c
+@@ -0,0 +1,71 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * UML x86-64: __x64_sys_* wrappers for BPF selftest compatibility
++ *
++ * BPF selftests compiled for x86-64 use the "__x64_" SYS_PREFIX when
++ * attaching fentry/kprobe/raw_tp programs (see bpf_misc.h).  On native
++ * x86-64 kernels, ARCH_HAS_SYSCALL_WRAPPER generates a real
++ *   asmlinkage long __x64_sys_<name>(const struct pt_regs *regs)
++ * function for every syscall.  These functions appear in the kernel BTF
++ * as BTF_KIND_FUNC entries, which libbpf resolves at BPF object open time.
++ *
++ * UML does not use syscall wrappers, so these BTF entries are absent and
++ * libbpf fails with -ESRCH.
++ *
++ * This file provides minimal __x64_sys_* wrapper functions for the five
++ * syscalls that BPF selftests reference via SYS_PREFIX.  Each wrapper has
++ * the canonical x86-64 syscall wrapper signature so that pahole emits the
++ * correct BTF_KIND_FUNC entry.  The bodies extract arguments using the
++ * UPT_SYSCALL_ARGn() macros (di=arg1, si=arg2, dx=arg3, r10=arg4,
++ * r8=arg5, r9=arg6) and delegate to the underlying sys_* function.
++ */
++
++#include <linux/kernel.h>
++#include <linux/syscalls.h>
++#include <linux/time.h>
++#include <linux/resource.h>
++#include <asm/ptrace.h>
++#include <asm/syscall.h>
++#include <sysdep/ptrace.h>
++
++asmlinkage long __attribute__((patchable_function_entry(5, 0)))
++__x64_sys_getpgid(const struct pt_regs *regs)
++{
++	return sys_getpgid((pid_t)UPT_SYSCALL_ARG1(&regs->regs));
++}
++
++asmlinkage long __attribute__((patchable_function_entry(5, 0)))
++__x64_sys_nanosleep(const struct pt_regs *regs)
++{
++	return sys_nanosleep((struct __kernel_timespec __user *)
++			     UPT_SYSCALL_ARG1(&regs->regs),
++			     (struct __kernel_timespec __user *)
++			     UPT_SYSCALL_ARG2(&regs->regs));
++}
++
++asmlinkage long __attribute__((patchable_function_entry(5, 0)))
++__x64_sys_prctl(const struct pt_regs *regs)
++{
++	return sys_prctl((int)UPT_SYSCALL_ARG1(&regs->regs),
++			 UPT_SYSCALL_ARG2(&regs->regs),
++			 UPT_SYSCALL_ARG3(&regs->regs),
++			 UPT_SYSCALL_ARG4(&regs->regs),
++			 UPT_SYSCALL_ARG5(&regs->regs));
++}
++
++asmlinkage long __attribute__((patchable_function_entry(5, 0)))
++__x64_sys_prlimit64(const struct pt_regs *regs)
++{
++	return sys_prlimit64((pid_t)UPT_SYSCALL_ARG1(&regs->regs),
++			     (unsigned int)UPT_SYSCALL_ARG2(&regs->regs),
++			     (const struct rlimit64 __user *)
++			     UPT_SYSCALL_ARG3(&regs->regs),
++			     (struct rlimit64 __user *)UPT_SYSCALL_ARG4(&regs->regs));
++}
++
++asmlinkage long __attribute__((patchable_function_entry(5, 0)))
++__x64_sys_setdomainname(const struct pt_regs *regs)
++{
++	return sys_setdomainname((char __user *)UPT_SYSCALL_ARG1(&regs->regs),
++				 (int)UPT_SYSCALL_ARG2(&regs->regs));
++}
+-- 
+2.43.0
+
