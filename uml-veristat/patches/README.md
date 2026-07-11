@@ -20,7 +20,11 @@ organizational; the full package and CI path still uses both folders unless
 
 ## Patches
 
-### 0001 — `um/x86: add __x64_sys_* wrappers for BPF selftest compatibility`
+### 0001 — `um/x86: add BPF-attachable __x64_sys_* syscall wrappers`
+
+(Also folds in the former 0012 and 0014, below: the wrappers are
+patchable and dispatched, so they work as runtime fentry/fexit
+targets, not just BTF attach targets.)
 
 **Problem:** BPF selftests compiled for x86-64 use the `__x64_` syscall prefix
 when attaching `fentry`/`kprobe`/`raw_tp` programs (controlled by `SYS_PREFIX`
@@ -41,6 +45,49 @@ are extracted using `UPT_SYSCALL_ARGn()` macros.
 **Files changed:**
 - `arch/x86/um/x64_syscall_wrappers.c` (new)
 - `arch/x86/um/Makefile` (add `x64_syscall_wrappers.o`)
+
+---
+
+**Folded in (former 0012 — patchable wrapper entries):**
+
+**File:** `arch/x86/um/x64_syscall_wrappers.c`
+
+**Problem:** The synthetic `__x64_sys_*` wrappers provide BTF attach targets,
+but they did not reserve the 5-byte entry slot that BPF trampoline attachment
+expects to patch. Once the trampoline address is in range, attaching fentry
+programs to these wrappers fails because the first five bytes are normal
+function instructions instead of an expected NOP sequence.
+
+**Fix:** Annotate the synthetic wrappers with
+`patchable_function_entry(5, 0)` and keep prototypes so
+`-Wmissing-prototypes` remains clean.
+
+**Impact:** Makes fentry/fexit attachment to UML-provided syscall wrapper
+targets structurally possible. A focused `bloom_filter_map` runtime probe uses
+`fentry/__x64_sys_getpgid` and depends on this.
+
+---
+
+**Folded in (former 0014 — route syscalls through wrappers):**
+
+**File:** `arch/um/kernel/skas/syscall.c`
+
+**Problem:** The synthetic `__x64_sys_*` wrappers are BTF-visible and
+patchable after patches 0001 and 0012, but the UML syscall path still called
+the underlying `sys_*` table entries directly. fentry/fexit programs could
+attach to the wrappers successfully and still never execute.
+
+**Fix:** Route the five syscall numbers covered by the synthetic wrapper set
+through those wrappers before falling back to the normal UML syscall table
+path. The wrappers delegate to the same `sys_*` implementations, so syscall
+behavior remains unchanged while BPF trampoline attachments observe the wrapper
+entry.
+
+**Impact:** Makes runtime fentry/fexit tests that require the attached program
+to actually fire pass. Focused probes show `map_btf` and `user_ringbuf` pass
+after this change.
+
+---
 
 ---
 
@@ -112,6 +159,44 @@ allowing `arena_spin_lock.bpf.o` to pass under `uml-veristat`.
 
 ---
 
+**Folded in (former 0002b):** test_run support for the stubbed program
+types, so BPF_PROG_TEST_RUN executes them under UML instead of
+returning -EOPNOTSUPP.
+
+**Folded in (former 0015 — probe read helpers):**
+
+**File:** `kernel/bpf/bpf_verification_stubs.c`
+
+**Problem:** UML verification kernels intentionally build without
+`CONFIG_BPF_EVENTS`, so they do not link `kernel/trace/bpf_trace.o`. That
+leaves the weak `bpf_probe_read_kernel*` helper prototypes in
+`kernel/bpf/helpers.c` without function pointers.
+
+`BPF_PROG_TYPE_SYSCALL` delegates these helpers to the tracing helper
+prototype path. Generated light-skeleton loader programs use
+`bpf_probe_read_kernel()` to read their loader context before they create and
+load the real BPF object. Without the helper implementation, the loader program
+itself is rejected with:
+
+```text
+program of this type cannot use helper bpf_probe_read_kernel#113
+```
+
+**Fix:** Provide `bpf_probe_read_kernel()` and
+`bpf_probe_read_kernel_str()` implementations from the UML verification-stub
+object, mirroring the helper prototypes normally supplied by
+`kernel/trace/bpf_trace.c`.
+
+**Impact:** Allows light-skeleton syscall loader programs to execute in the
+no-`BPF_EVENTS` UML configuration. Focused runtime probes show all five
+`ringbuf` subtests pass after this change. `map_ptr` also gets past lskel load
+and test-run setup; its remaining failure is a separate CO-RE relocation issue
+for direct `struct bpf_ringbuf` field-offset access.
+
+---
+
+---
+
 ### 0003 — `um: fix stub binary page alignment by removing -Wl,-n`
 
 **Problem:** The UML stub binary was built with `-Wl,-n` in
@@ -129,7 +214,10 @@ page-aligned LOAD segments.
 
 ---
 
-### 0003b — `um/x86: enable eBPF JIT support and default-on JIT for UML`
+### 0003b — `um/x86: wire up native x86 BPF JIT backend for UML`
+
+(One merged patch: the Kconfig enablement below, the backend wiring
+that was 0003c, and far-call support that was 0003d.)
 
 **Problem:** `CONFIG_BPF_JIT` cannot be enabled on UML x86-64 because
 `HAVE_EBPF_JIT` was not selected for the architecture. Without
@@ -148,7 +236,7 @@ as a regular Linux process on an x86-64 host.
 
 ---
 
-### 0003c — `um/x86: wire up native x86 BPF JIT backend for UML`
+**Backend wiring (former 0003c):**
 
 **Problem:** After enabling `CONFIG_BPF_JIT` for UML x86-64, the kernel still
 uses the weak generic BPF JIT stubs from `kernel/bpf/core.c`. UML's build path
@@ -200,6 +288,8 @@ successful BPF verification.
 - `arch/x86/um/asm/nops.h` (new)
 - `arch/x86/um/asm/segment.h`
 - `arch/x86/um/asm/vsyscall.h` (new)
+
+---
 
 ---
 
@@ -367,26 +457,6 @@ large-log opt-in behavior.
 
 ---
 
-## Patch 0012 — um/x86: make synthetic BPF syscall wrappers patchable
-
-**File:** `arch/x86/um/x64_syscall_wrappers.c`
-
-**Problem:** The synthetic `__x64_sys_*` wrappers provide BTF attach targets,
-but they did not reserve the 5-byte entry slot that BPF trampoline attachment
-expects to patch. Once the trampoline address is in range, attaching fentry
-programs to these wrappers fails because the first five bytes are normal
-function instructions instead of an expected NOP sequence.
-
-**Fix:** Annotate the synthetic wrappers with
-`patchable_function_entry(5, 0)` and keep prototypes so
-`-Wmissing-prototypes` remains clean.
-
-**Impact:** Makes fentry/fexit attachment to UML-provided syscall wrapper
-targets structurally possible. A focused `bloom_filter_map` runtime probe uses
-`fentry/__x64_sys_getpgid` and depends on this.
-
----
-
 ## Patch 0013 — um/x86: make BPF text pokes writable under UML
 
 **File:** `arch/x86/net/bpf_jit_comp.c`
@@ -413,59 +483,6 @@ passing test.
 
 ---
 
-## Patch 0014 — um/x86: route selected syscalls through BPF wrappers
-
-**File:** `arch/um/kernel/skas/syscall.c`
-
-**Problem:** The synthetic `__x64_sys_*` wrappers are BTF-visible and
-patchable after patches 0001 and 0012, but the UML syscall path still called
-the underlying `sys_*` table entries directly. fentry/fexit programs could
-attach to the wrappers successfully and still never execute.
-
-**Fix:** Route the five syscall numbers covered by the synthetic wrapper set
-through those wrappers before falling back to the normal UML syscall table
-path. The wrappers delegate to the same `sys_*` implementations, so syscall
-behavior remains unchanged while BPF trampoline attachments observe the wrapper
-entry.
-
-**Impact:** Makes runtime fentry/fexit tests that require the attached program
-to actually fire pass. Focused probes show `map_btf` and `user_ringbuf` pass
-after this change.
-
----
-
-## Patch 0015 — bpf: add probe read helpers to UML verification stubs
-
-**File:** `kernel/bpf/bpf_verification_stubs.c`
-
-**Problem:** UML verification kernels intentionally build without
-`CONFIG_BPF_EVENTS`, so they do not link `kernel/trace/bpf_trace.o`. That
-leaves the weak `bpf_probe_read_kernel*` helper prototypes in
-`kernel/bpf/helpers.c` without function pointers.
-
-`BPF_PROG_TYPE_SYSCALL` delegates these helpers to the tracing helper
-prototype path. Generated light-skeleton loader programs use
-`bpf_probe_read_kernel()` to read their loader context before they create and
-load the real BPF object. Without the helper implementation, the loader program
-itself is rejected with:
-
-```text
-program of this type cannot use helper bpf_probe_read_kernel#113
-```
-
-**Fix:** Provide `bpf_probe_read_kernel()` and
-`bpf_probe_read_kernel_str()` implementations from the UML verification-stub
-object, mirroring the helper prototypes normally supplied by
-`kernel/trace/bpf_trace.c`.
-
-**Impact:** Allows light-skeleton syscall loader programs to execute in the
-no-`BPF_EVENTS` UML configuration. Focused runtime probes show all five
-`ringbuf` subtests pass after this change. `map_ptr` also gets past lskel load
-and test-run setup; its remaining failure is a separate CO-RE relocation issue
-for direct `struct bpf_ringbuf` field-offset access.
-
----
-
 ## Patch 0013b — um/x86: build with -fcf-protection=none
 
 **File:** `arch/x86/Makefile.um`
@@ -487,6 +504,8 @@ work regardless of the build distro's compiler defaults.
 ---
 
 ## Patch 0016 — um: dispatch BPF extable fixups in kernel-mode faults
+
+(One merged patch; also covers the vmalloc-range fault path, formerly 0016b.)
 
 **Files:** `arch/um/kernel/trap.c`, `arch/x86/um/os-Linux/mcontext.c`,
 `arch/um/include/shared/arch.h`
@@ -510,7 +529,7 @@ arena reads return zero as expected.
 
 ---
 
-## Patch 0016b — um: run BPF extable fixups for unresolvable vmalloc-range faults
+**Folded in (former 0016b — vmalloc-range faults):**
 
 **File:** `arch/um/kernel/trap.c`
 
@@ -528,6 +547,8 @@ legacy retry is preserved for non-BPF faults.
 
 **Impact:** All six verifier_arena_large subtests pass; the chunk no longer
 needs a denylist entry.
+
+---
 
 ---
 

@@ -36,7 +36,20 @@ This is the current cleanup list to work through before shaping the local
      kmalloc_nolock() being disabled on UML for lack of host CPU feature
      probing, fixed at the root by patch 0017.
 
-6. Investigate tolerated top-level corpus drift.
+6. (done 2026-07-11) Consolidate the stack into upstream-shaped units.
+   - 25 patch files reduced to 18 with byte-identical kernel tree output
+     (plus two style blank lines): 0001+0012+0014 (syscall wrappers),
+     0002+0002b+0015 (verification stubs), 0003b+0003c+0003d (JIT
+     backend), 0016+0016b (extable fixups).
+   - Audited all generic selftest/libbpf/veristat patches against the
+     bpf-next tip: none are obsolete; upstream has not independently
+     fixed any of them.
+   - 0009b cannot be dropped (it fixes PROBE_MEM zeroing of valid UML
+     kernel addresses), but is a rewrite candidate: with 0016's extable
+     fixups, the emitted range check can shrink to a two-compare span
+     check.
+
+7. Investigate tolerated top-level corpus drift.
    - `getpeername_unix_prog.bpf.o`, `getsockname_unix_prog.bpf.o`, and
      `sendmsg_unix_prog.bpf.o` were traced to duplicate
      `BPF_CORE_TYPE_ID_TARGET` candidates for `struct sockaddr_un`; keep these

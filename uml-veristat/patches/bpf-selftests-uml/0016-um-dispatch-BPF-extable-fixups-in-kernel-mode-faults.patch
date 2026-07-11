@@ -1,6 +1,6 @@
-From 0d206342cd8dfe82fbbc78c0ca416c68cb5178a6 Mon Sep 17 00:00:00 2001
+From 760932a23d0bd77949aa93928d15b983c83c7be1 Mon Sep 17 00:00:00 2001
 From: Mykola Lysenko <mykolal@meta.com>
-Date: Fri, 10 Jul 2026 15:27:39 -0700
+Date: Sat, 11 Jul 2026 09:43:55 -0700
 Subject: [PATCH] um: dispatch BPF extable fixups in kernel-mode faults
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -28,12 +28,20 @@ With this, verifier_arena no longer panics the UML guest: deliberate
 use-after-free arena reads return zero as expected and the suite runs
 to completion.
 
+The vmalloc-range branch needs the same treatment: segv() retries
+any kernel-mode fault in [start_vm, end_vm) after a TLB sync,
+unconditionally, so a deliberately faulting BPF load on an unmapped
+arena page whose kernel address lands in the vmalloc window
+re-faults forever. After a successful um_tlb_sync(), check whether
+the address has a present PTE; if not, attempt the BPF extable
+fixup before falling back to the legacy retry.
+
 Signed-off-by: Mykola Lysenko <mykolal@meta.com>
 ---
  arch/um/include/shared/arch.h   |  1 +
- arch/um/kernel/trap.c           | 38 +++++++++++++++++++++++++++++++++
- arch/x86/um/os-Linux/mcontext.c | 33 ++++++++++++++++++++++++++++
- 3 files changed, 72 insertions(+)
+ arch/um/kernel/trap.c           | 53 +++++++++++++++++++++++++++++++++
+ arch/x86/um/os-Linux/mcontext.c | 33 ++++++++++++++++++++
+ 3 files changed, 87 insertions(+)
 
 diff --git a/arch/um/include/shared/arch.h b/arch/um/include/shared/arch.h
 index cc398a21a..d8eff74fe 100644
@@ -47,7 +55,7 @@ index cc398a21a..d8eff74fe 100644
  
  #endif
 diff --git a/arch/um/kernel/trap.c b/arch/um/kernel/trap.c
-index 177615820..aeda0640a 100644
+index 177615820..9dddbef1b 100644
 --- a/arch/um/kernel/trap.c
 +++ b/arch/um/kernel/trap.c
 @@ -3,6 +3,7 @@
@@ -105,7 +113,36 @@ index 177615820..aeda0640a 100644
  /*
   * NOTE: UML does not have exception tables. As such, this is almost a copy
   * of the code in mm/memory.c, only adjusting the logic to simply check whether
-@@ -347,6 +381,8 @@ unsigned long segv(struct faultinfo fi, unsigned long ip, int is_user,
+@@ -312,6 +346,7 @@ unsigned long segv(struct faultinfo fi, unsigned long ip, int is_user,
+ 	int err;
+ 	int is_write = FAULT_WRITE(fi);
+ 	unsigned long address = FAULT_ADDRESS(fi);
++	pte_t *pte;
+ 
+ 	if (!is_user && regs)
+ 		current->thread.segv_regs = container_of(regs, struct pt_regs, regs);
+@@ -327,6 +362,20 @@ unsigned long segv(struct faultinfo fi, unsigned long ip, int is_user,
+ 			report_enomem();
+ 		if (err)
+ 			panic("Failed to sync kernel TLBs: %d", err);
++
++		/*
++		 * If the address still has no present mapping after the
++		 * sync, retrying the access cannot make progress. For a
++		 * deliberately faulting BPF load (e.g. an unmapped arena
++		 * page inside the vmalloc range) the fixup must run here,
++		 * or the same instruction re-faults through this branch
++		 * forever.
++		 */
++		pte = virt_to_pte(&init_mm, address);
++		if (!pte || !pte_present(*pte)) {
++			if (bpf_extable_fixup(ip, regs, mc))
++				goto out;
++		}
+ 		goto out;
+ 	}
+ 	else if (current->pagefault_disabled) {
+@@ -347,6 +396,8 @@ unsigned long segv(struct faultinfo fi, unsigned long ip, int is_user,
  		panic("Segfault with no mm");
  	}
  	else if (!is_user && address > PAGE_SIZE && address < TASK_SIZE) {
@@ -114,7 +151,7 @@ index 177615820..aeda0640a 100644
  		show_regs(container_of(regs, struct pt_regs, regs));
  		panic("Kernel tried to access user memory at addr 0x%lx, ip 0x%lx",
  		       address, ip);
-@@ -367,6 +403,8 @@ unsigned long segv(struct faultinfo fi, unsigned long ip, int is_user,
+@@ -367,6 +418,8 @@ unsigned long segv(struct faultinfo fi, unsigned long ip, int is_user,
  
  	if (!err)
  		goto out;
