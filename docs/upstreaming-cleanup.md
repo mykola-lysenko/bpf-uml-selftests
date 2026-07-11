@@ -45,9 +45,10 @@ This is the current cleanup list to work through before shaping the local
      bpf-next tip: none are obsolete; upstream has not independently
      fixed any of them.
    - 0009b cannot be dropped (it fixes PROBE_MEM zeroing of valid UML
-     kernel addresses), but is a rewrite candidate: with 0016's extable
-     fixups, the emitted range check can shrink to a two-compare span
-     check.
+     kernel addresses). It was rewritten (2026-07-11) from a ~60-insn
+     hand-rolled emitted check into the native single-compare guard
+     structure with UML span constants; holes inside the span rely on
+     the 0016 extable fixups.
 
 7. Investigate tolerated top-level corpus drift.
    - `getpeername_unix_prog.bpf.o`, `getsockname_unix_prog.bpf.o`, and

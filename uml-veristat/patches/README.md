@@ -291,6 +291,26 @@ successful BPF verification.
 
 ---
 
+### 0009b — `um/x86: bound BPF probe memory to UML kernel address ranges`
+
+**File:** `arch/x86/net/bpf_jit_comp.c`
+
+**Problem:** The x86 BPF JIT guards `BPF_PROBE_MEM` loads with an inline
+span check so non-kernel addresses read as zero instead of faulting: the
+address must be above `TASK_SIZE_MAX + PAGE_SIZE` and below
+`VSYSCALL_ADDR`. UML kernel memory is mapped inside the host process
+below TASK_SIZE, so valid kernel loads fail the native check and are
+silently zeroed — breaking direct BTF pointer loads such as map_ptr's
+`struct bpf_ringbuf` field reads.
+
+**Fix:** Keep the native single-compare guard structure but parametrize
+the span: on UML accept `[uml_physmem, end_vm)`, embedded as JIT-time
+immediates (both bounds are fixed at boot). Unmapped holes inside the
+span fault and are resolved by the 0016 BPF extable fixups.
+
+(Rewritten 2026-07-11 from a ~60-instruction hand-rolled four-branch
+emitted check into this small delta on the native guard.)
+
 ---
 
 ### 0004 — `selftests/bpf: fix bpf_testmod.c compilation on UML`

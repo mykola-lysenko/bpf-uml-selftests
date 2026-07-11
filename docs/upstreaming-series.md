@@ -177,7 +177,11 @@ Suggested posting shape:
 The next concrete cleanup item is to rework the merged `0003b` JIT patch
 into smaller buildable patches for posting. That is the largest
 reviewability risk in the current stack and is already called out
-separately in `docs/upstreaming-cleanup.md`. A second cleanup candidate is
-rewriting `0009b`: with the 0016 extable fixups in place, its ~60-insn
-emitted range check could shrink to a two-compare span check that lets
-gap addresses fault and be fixed up.
+separately in `docs/upstreaming-cleanup.md`.
+
+Done (2026-07-11): `0009b` was rewritten from a hand-rolled ~60-insn
+emitted range check into the native guard structure with UML span
+constants ([uml_physmem, end_vm) as JIT-time immediates, inverted jump
+sense). Unmapped holes inside the span fault and are resolved by the 0016
+extable fixups. Net -59 lines in bpf_jit_comp.c; the patch is now a small,
+reviewable delta to the native check rather than parallel infrastructure.

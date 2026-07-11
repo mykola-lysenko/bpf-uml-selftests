@@ -1,0 +1,88 @@
+From d102c3868ed5de90b0481daa13a7ce21848d89bd Mon Sep 17 00:00:00 2001
+From: Mykola Lysenko <mykolal@meta.com>
+Date: Sat, 11 Jul 2026 10:30:04 -0700
+Subject: [PATCH] um/x86: bound BPF probe memory to UML kernel address ranges
+
+The x86 BPF JIT guards BPF_PROBE_MEM loads with an inline span check
+so that non-kernel addresses read as zero instead of faulting: the
+address must be above TASK_SIZE_MAX + PAGE_SIZE and below
+VSYSCALL_ADDR. UML kernel memory is mapped inside the host process
+below TASK_SIZE, so valid kernel loads fail the native check and are
+silently zeroed. This broke direct BTF pointer loads, for example
+map_ptr's direct struct bpf_ringbuf field reads.
+
+Keep the native single-compare guard structure but parametrize the
+span: on UML accept [uml_physmem, end_vm), which covers physmem and
+the vmalloc area. Both bounds are fixed at boot, long before any
+program is JITed, so they are embedded as immediates. Unmapped holes
+inside the span (the physmem/vmalloc gap, freed vmalloc pages) fault
+and are resolved by the BPF exception fixup, matching how deliberate
+arena faults are already handled.
+
+Signed-off-by: Mykola Lysenko <mykolal@meta.com>
+---
+ arch/x86/net/bpf_jit_comp.c | 31 +++++++++++++++++++++++++------
+ 1 file changed, 25 insertions(+), 6 deletions(-)
+
+diff --git a/arch/x86/net/bpf_jit_comp.c b/arch/x86/net/bpf_jit_comp.c
+index 84f12498a..9bd1a6af7 100644
+--- a/arch/x86/net/bpf_jit_comp.c
++++ b/arch/x86/net/bpf_jit_comp.c
+@@ -24,6 +24,9 @@
+ #include <asm/vsyscall.h>
+ #include <asm/cfi.h>
++#ifdef CONFIG_UML
++#include <as-layout.h>
++#endif
+ 
+ #ifdef CONFIG_UML
+ static const unsigned char x86_nop1[] = { BYTES_NOP1 };
+ static const unsigned char x86_nop2[] = { BYTES_NOP2 };
+@@ -2507,14 +2511,29 @@ st:			insn_off = insn->off;
+ 				 *   src_reg + insn->off > TASK_SIZE_MAX + PAGE_SIZE
+ 				 *   and
+ 				 *   src_reg + insn->off < VSYSCALL_ADDR
++				 *
++				 * UML kernel memory lives inside the host
++				 * process below TASK_SIZE, so accept the
++				 * [uml_physmem, end_vm) span instead. Both
++				 * bounds are fixed at boot, long before any
++				 * program is JITed. Unmapped holes inside the
++				 * span fault and are resolved by the BPF
++				 * exception fixup.
+ 				 */
+-
++#ifdef CONFIG_UML
++				u64 span_base = uml_physmem;
++				u64 limit = end_vm - uml_physmem;
++				u8 jcc_to_load = X86_JB;
++#else
++				u64 span_base = VSYSCALL_ADDR;
+ 				u64 limit = TASK_SIZE_MAX + PAGE_SIZE - VSYSCALL_ADDR;
++				u8 jcc_to_load = X86_JA;
++#endif
+ 				u8 *end_of_jmp;
+ 
+-				/* movabsq r10, VSYSCALL_ADDR */
+-				emit_mov_imm64(&prog, BPF_REG_AX, (long)VSYSCALL_ADDR >> 32,
+-					       (u32)(long)VSYSCALL_ADDR);
++				/* movabsq r10, span_base */
++				emit_mov_imm64(&prog, BPF_REG_AX, (long)span_base >> 32,
++					       (u32)(long)span_base);
+ 
+ 				/* mov src_reg, r11 */
+ 				EMIT_mov(AUX_REG, src_reg);
+@@ -2537,8 +2556,8 @@ st:			insn_off = insn->off;
+ 				maybe_emit_mod(&prog, AUX_REG, BPF_REG_AX, true);
+ 				EMIT2(0x39, add_2reg(0xC0, AUX_REG, BPF_REG_AX));
+ 
+-				/* if unsigned '>', goto load */
+-				EMIT2(X86_JA, 0);
++				/* if the address is in the kernel span, goto load */
++				EMIT2(jcc_to_load, 0);
+ 				end_of_jmp = prog;
+ 
+ 				/* xor dst_reg, dst_reg */
+-- 
+2.43.0
+
