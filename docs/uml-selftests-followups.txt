@@ -108,6 +108,18 @@ Current findings
     after which the cgrp1_* environment works. Remaining cgrp_local_storage
     failures are tp_btf (-3, BPF_EVENTS gap) and skel loads with -22 in
     sleepable/RCU paths.
+19. kmalloc_nolock() failed on UML because boot_cpu_data.x86_capability is
+    never populated: system_has_cmpxchg128() keys on X86_FEATURE_CX16, so
+    slab caches never got __CMPXCHG_DOUBLE and kmalloc_nolock() returned
+    NULL unconditionally (mm/slub.c requires freelist ABA support). UML also
+    lacked HAVE_ALIGNED_STRUCT_PAGE, which compiles the ABA support out
+    entirely. Patch 0017 probes host CPUID leaf 1 in setup_arch() and
+    selects HAVE_ALIGNED_STRUCT_PAGE; with it, all 20 verifier_arena
+    subtests pass (including *_nosleep and re-allocation after free) with
+    no regressions in the other chunks. This likely makes the patch 0006
+    preallocation workarounds unnecessary — re-evaluate them when reshaping
+    the stack for upstream. The verifier_arena_large hang is unaffected and
+    has a separate cause.
 
 Permissive build skip inventory
 -------------------------------
@@ -167,10 +179,13 @@ Open questions
 4. RESOLVED (2026-07-10): map_ptr passes on the current bpf-next tip with the
    full patch stack; the direct struct bpf_ringbuf field access issue was
    fixed by upstream drift (see finding 18).
-5. Why does kmalloc_nolock() fail on UML? It is the shared root cause of the
-   arena *_nosleep failures, the basic_alloc1 re-allocation failure, and the
-   preallocation workarounds in patch 0006. A root-cause fix would replace
-   further preallocation patches.
+5. RESOLVED (2026-07-10): kmalloc_nolock() failed because UML never probes
+   host CPU features (no X86_FEATURE_CX16 -> no __CMPXCHG_DOUBLE) and lacked
+   HAVE_ALIGNED_STRUCT_PAGE. Fixed by patch 0017 (see finding 19). Follow-up:
+   re-evaluate whether patch 0006's preallocation is still needed.
+6. Why does verifier_arena_large hang the UML guest? It is not the
+   kmalloc_nolock() issue (persists after patch 0017) and produces no
+   output before the host-side timeout.
 
 Chunked execution plan
 ----------------------
@@ -210,10 +225,9 @@ Current chunk results (2026-07-10, bpf-next 30f77a041, full stack incl.
    environment works; cgrp_local_storage still fails in tp_btf (-3,
    BPF_EVENTS) and sleepable/RCU skel loads (-22).
 5. verifier_arena:
-   FAIL (2/21, 1 failed) — no longer crashes after patch 0016.
-   verifier_arena_globals1/2 pass. Remaining verifier_arena subtest
-   failures are the kmalloc_nolock class (finding 17).
-   verifier_arena_large hangs the guest and must stay denylisted
-   (-d verifier_arena_large).
+   PASS after patches 0016 and 0017: all 20 verifier_arena subtests pass
+   (logs chunk-verifier_arena-cx16-*.log), and verifier_arena_globals1/2
+   pass. verifier_arena_large hangs the guest for a separate reason and
+   must stay denylisted (-d verifier_arena_large, open question 6).
 6. verifier_map_noarena:
    PASS (6/41, 32 expected unprivileged skips, 0 failed).
