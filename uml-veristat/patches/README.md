@@ -287,40 +287,17 @@ by target type ID. Other relocation kinds keep the existing ambiguity checks.
 **Files changed:**
 - `tools/lib/bpf/relo_core.c`
 
-## Patch 0006 — bpf: preallocate arena range-tree nodes in sleepable paths
+## Patches 0006/0006b — REMOVED (superseded by 0017)
 
-**Files:** `kernel/bpf/arena.c`, `kernel/bpf/range_tree.c`,
-`kernel/bpf/range_tree.h`
-
-**Problem:** After veristat preserves arena maps' required zero `key_size` and
-`value_size`, arena objects reach kernel map creation but can fail before any
-real arena verifier work happens. Arena maps track free pages in a
-`range_tree`, and runtime range-tree updates use `kmalloc_nolock()` because
-they can run under `arena->spinlock`.
-
-Two sleepable arena paths can also need a new `range_node`:
-
-1. `arena_map_alloc()` seeds the empty tree with the full free range.
-2. `arena_vm_fault()` can split a free range when libbpf mmap()s the arena and
-   copies initial `__arena` data into the mapping.
-
-On UML, `kmalloc_nolock()` can fail in both places. The first case returns
-`-ENOMEM` from map creation. The second case returns `VM_FAULT_SIGSEGV` while
-copying arena globals through the user VMA.
-
-**Fix:** Add allocation ownership to `range_node` so nodes allocated from
-sleepable paths are freed with `kfree()`. Use `range_tree_init_full()` to seed
-the initial full range with one `GFP_KERNEL_ACCOUNT` node in normal sleepable
-context. Add `range_tree_clear_with_node()` and let `arena_vm_fault()`
-preallocate one split node before retaking `arena->spinlock`.
-
-Existing runtime callers keep using `range_tree_clear()` and
-`range_tree_set()` unchanged, preserving the `kmalloc_nolock()` behavior for
-normal arena mutations.
-
-**Impact:** Arena maps can be created on UML, and arena objects with global
-data at non-edge offsets now process normally, including `arena_htab.bpf.o`,
-`arena_spin_lock.bpf.o`, and `verifier_arena_globals1.bpf.o`.
+The former `0006` (preallocate arena range-tree nodes in sleepable paths) and
+`0006b` (use sleepable allocation for arena page arrays) worked around
+`kmalloc_nolock()` returning NULL on UML. That was a symptom, not a UML
+limitation: UML never populated `boot_cpu_data.x86_capability`, so slab
+freelist ABA protection (`__CMPXCHG_DOUBLE`, gated on `X86_FEATURE_CX16`)
+was never enabled and `kmalloc_nolock()` failed by design. Patch `0017`
+fixes the root cause by probing host CPU features, after which the arena
+allocation, fault, and free paths work unmodified: the full verifier_arena
+suite and the veristat arena corpus pass without these patches.
 
 ---
 
@@ -486,6 +463,77 @@ no-`BPF_EVENTS` UML configuration. Focused runtime probes show all five
 `ringbuf` subtests pass after this change. `map_ptr` also gets past lskel load
 and test-run setup; its remaining failure is a separate CO-RE relocation issue
 for direct `struct bpf_ringbuf` field-offset access.
+
+---
+
+## Patch 0013b — um/x86: build with -fcf-protection=none
+
+**File:** `arch/x86/Makefile.um`
+
+**Problem:** Native x86 kernel builds pass `-fcf-protection=none` unless
+`CONFIG_X86_KERNEL_IBT` re-enables branch protection, but the UML makefiles
+never set the flag. Toolchains defaulting to `-fcf-protection=full` (Ubuntu,
+Fedora) prepend a 4-byte `endbr64` to every kernel function, displacing the
+synthetic wrappers' `patchable_function_entry(5, 0)` slot. BPF text-poke then
+finds `endbr64` where it expects NOPs and trampoline attach fails with
+`-EBUSY` — but only on hosts whose compiler enables CET by default.
+
+**Fix:** Pass `-fcf-protection=none` for UML builds, matching native x86.
+UML cannot use CET, so the markers were dead weight.
+
+**Impact:** `map_btf`, `user_ringbuf`, and `map_in_map` `fentry.s` attach
+work regardless of the build distro's compiler defaults.
+
+---
+
+## Patch 0016 — um: dispatch BPF extable fixups in kernel-mode faults
+
+**Files:** `arch/um/kernel/trap.c`, `arch/x86/um/os-Linux/mcontext.c`,
+`arch/um/include/shared/arch.h`
+
+**Problem:** JIT'ed BPF programs rely on exception fixups for deliberately
+faulting loads (`BPF_PROBE_MEM`, arena accesses): the fault should zero the
+destination register and skip the access. UML's `segv()` panicked on
+kernel-mode user-range faults before attempting any fixup
+(`verifier_arena/basic_alloc1` panicked the guest), and the legacy
+`arch_fixup()` misparses modern typed extable entries. Fixups also edit a
+`uml_pt_regs` copy while the faulting context resumes from the mcontext, so
+without a write-back the same instruction faults forever.
+
+**Fix:** Add `bpf_extable_fixup()`, dispatching to `ex_handler_bpf()`, tried
+both before the user-range panic and before `arch_fixup()`; add
+`mc_set_regs()` (inverse of `get_regs_from_mc()`) to write the fixed
+registers back to the mcontext.
+
+**Impact:** verifier_arena runs to completion; deliberate use-after-free
+arena reads return zero as expected.
+
+---
+
+## Patch 0017 — um: probe host CPU features to enable cmpxchg128 and kmalloc_nolock
+
+**Files:** `arch/x86/um/host_cpu_features.c` (new), `arch/x86/um/Makefile`,
+`arch/um/kernel/um_arch.c`, `arch/um/include/shared/arch.h`,
+`arch/um/Kconfig`
+
+**Problem:** UML initializes `boot_cpu_data.x86_capability` to all-zero and
+never probes the host CPU, so every `boot_cpu_has()` check fails. The slab
+allocator enables freelist ABA protection (`__CMPXCHG_DOUBLE`) only when
+`system_has_cmpxchg128()` reports `X86_FEATURE_CX16`, and UML also lacked
+`HAVE_ALIGNED_STRUCT_PAGE`, which compiles the ABA support out. Without the
+flag, `kmalloc_nolock()` returns NULL unconditionally, breaking BPF arena
+range-tree updates, non-sleepable arena allocation, and the arena free path.
+
+**Fix:** Probe CPUID leaf 1 during `setup_arch()` (before slab init) and set
+`X86_FEATURE_CX16` when the host supports `cmpxchg16b`; select
+`HAVE_ALIGNED_STRUCT_PAGE`. The cmpxchg128 primitives come from the shared
+x86 headers UML already uses.
+
+**Impact:** All 20 verifier_arena subtests pass, including `*_nosleep`
+variants and re-allocation after free. Supersedes the former 0006/0006b
+preallocation workarounds.
+
+---
 
 ## Verification Notes
 

@@ -116,10 +116,13 @@ Current findings
     entirely. Patch 0017 probes host CPUID leaf 1 in setup_arch() and
     selects HAVE_ALIGNED_STRUCT_PAGE; with it, all 20 verifier_arena
     subtests pass (including *_nosleep and re-allocation after free) with
-    no regressions in the other chunks. This likely makes the patch 0006
-    preallocation workarounds unnecessary — re-evaluate them when reshaping
-    the stack for upstream. The verifier_arena_large hang is unaffected and
-    has a separate cause.
+    no regressions in the other chunks. The verifier_arena_large hang is
+    unaffected and has a separate cause.
+20. Patches 0006/0006b (arena preallocation) removed from the stack: with
+    patch 0017 in place, the full verifier_arena suite, arena_smoke, the
+    veristat arena corpus, and the top-level corpus all pass without them.
+    They were workarounds for the kmalloc_nolock() failure fixed at the
+    root. The stack shrinks by two kernel patches.
 
 Permissive build skip inventory
 -------------------------------

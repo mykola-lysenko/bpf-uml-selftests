@@ -31,7 +31,10 @@ This is the current cleanup list to work through before shaping the local
 5. Add native-side validation for generic BPF fixes.
    - Cover the libbpf duplicate-base-BTF relocation behavior with focused
      selftests.
-   - Validate arena range-tree preallocation outside the UML-only workflow.
+   - (done 2026-07-10) Arena range-tree preallocation (0006/0006b) was
+     dropped from the stack entirely: the failures were caused by
+     kmalloc_nolock() being disabled on UML for lack of host CPU feature
+     probing, fixed at the root by patch 0017.
 
 6. Investigate tolerated top-level corpus drift.
    - `getpeername_unix_prog.bpf.o`, `getsockname_unix_prog.bpf.o`, and

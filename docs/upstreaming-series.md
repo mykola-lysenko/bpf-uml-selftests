@@ -78,19 +78,16 @@ Patches:
   - Validation needed: CO-RE relocation selftest for duplicate compatible
     target-type IDs.
 
-- `0006-bpf-preallocate-arena-range-tree-nodes-in-sleepable-paths.patch`
-  - Audience: BPF arena maintainers.
-  - Rationale: sleepable arena allocation and mmap-fault paths should not rely
-    on non-sleepable range-tree node allocation.
-  - Dependency: none.
-  - Validation needed: native arena coverage showing map creation and arena
-    global-data mmap copying continue to pass.
+- `0006`/`0006b` (arena preallocation): REMOVED from the stack (2026-07-10).
+  They worked around `kmalloc_nolock()` returning NULL on UML, which was a
+  missing-host-CPU-feature-probing problem fixed at the root by `0017`.
+  Nothing to upstream from them; the underlying UML gap is covered by the
+  `0017` RFC in Series A/C territory.
 
 Suggested posting shape:
 
 - Post `0005` and `0005b` as a two-patch libbpf series after adding focused
   tests.
-- Post `0006` as a separate BPF arena patch with native selftest evidence.
 
 ## Series C: selftests/bpf veristat Fixes
 
