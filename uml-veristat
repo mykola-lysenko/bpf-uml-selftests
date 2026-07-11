@@ -354,7 +354,7 @@ chmod +x "${INIT_SCRIPT}"
 # Boot UML and capture output
 # ------------------------------------------------------------------------------
 VERBOSE="${UML_VERBOSE:-0}"
-GDB_MACROS="${SCRIPT_DIR}/../gdb_demo/verifier.gdb"
+GDB_MACROS="${SCRIPT_DIR}/gdb_demo/verifier.gdb"
 UML_EXIT=0
 
 # Base args shared by both modes

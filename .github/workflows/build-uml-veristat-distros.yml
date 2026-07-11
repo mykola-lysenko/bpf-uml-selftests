@@ -3,7 +3,13 @@ name: Build uml-veristat distro packages
 on:
   pull_request:
     paths:
-      - 'uml-veristat/**'
+      - 'build.sh'
+      - 'uml-veristat'
+      - 'uml-test-progs'
+      - 'patches/**'
+      - 'scripts/**'
+      - 'corpus_manifest.json'
+      - 'bpf-next-commit'
       - '.github/workflows/build-uml-veristat-distros.yml'
   push:
     tags:
@@ -27,7 +33,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Check kernel patch style
-        run: bash uml-veristat/scripts/check_patch_stack.sh
+        run: bash scripts/check_patch_stack.sh
 
   package:
     name: Build package (${{ matrix.distro }})
@@ -65,7 +71,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          rm -f uml-veristat/*.tar.gz
+          rm -f ./*.tar.gz
           docker pull "${DISTRO_IMAGE}"
           docker run --rm -i \
             --cap-add SYS_PTRACE \
@@ -80,7 +86,7 @@ jobs:
             bash -s <<'EOF'
           set -euo pipefail
 
-          cd /work/uml-veristat
+          cd /work
 
           ./build.sh --package
 
@@ -114,7 +120,7 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          packages=(uml-veristat/*.tar.gz)
+          packages=(./*.tar.gz)
           if [ "${#packages[@]}" -eq 0 ]; then
             echo "No package tarballs found"
             exit 1
@@ -126,12 +132,12 @@ jobs:
           done
 
       - name: Show built packages
-        run: ls -lh uml-veristat/*.tar.gz
+        run: ls -lh ./*.tar.gz
 
       - name: Upload uml-veristat package
         uses: actions/upload-artifact@v4
         with:
           name: uml-veristat-package-${{ matrix.distro }}-${{ github.sha }}
-          path: uml-veristat/*.tar.gz
+          path: ./*.tar.gz
           if-no-files-found: error
           retention-days: 14

@@ -1,6 +1,6 @@
 # Build workspace (created by run_bpf_uml.sh)
 bpf_uml_workspace/
-uml-veristat/.build/
+.build/
 
 # Editor and OS artifacts
 *.swp
@@ -9,4 +9,3 @@ uml-veristat/.build/
 .DS_Store
 __pycache__/
 *.profraw
-uml-veristat/.claude/

@@ -23,10 +23,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Check kernel patch style
-        run: bash uml-veristat/scripts/check_patch_stack.sh
+        run: bash scripts/check_patch_stack.sh
 
       - name: Build uml-veristat package
-        working-directory: uml-veristat
         env:
           DEBIAN_FRONTEND: noninteractive
           GITHUB_TOKEN: ${{ github.token }}
@@ -40,7 +39,7 @@ jobs:
           LOG="$(mktemp)"
           trap 'rm -f "$LOG"' EXIT
 
-          UML_VERBOSE=1 ./uml-veristat/uml-veristat \
+          UML_VERBOSE=1 ./uml-veristat \
             "$HOME/.local/share/uml-veristat/selftests/verifier_and.bpf.o" \
             2>&1 | tee "$LOG"
 
@@ -50,15 +49,15 @@ jobs:
           fi
 
       - name: Check expectation-aware regression baseline
-        run: python3 uml-veristat/scripts/check_expectations.py
+        run: python3 scripts/check_expectations.py
 
       - name: Show built packages
-        run: ls -lh uml-veristat/*.tar.gz
+        run: ls -lh ./*.tar.gz
 
       - name: Upload uml-veristat package
         uses: actions/upload-artifact@v4
         with:
           name: uml-veristat-package-${{ github.sha }}
-          path: uml-veristat/*.tar.gz
+          path: ./*.tar.gz
           if-no-files-found: error
           retention-days: 14

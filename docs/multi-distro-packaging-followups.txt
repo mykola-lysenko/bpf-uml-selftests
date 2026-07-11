@@ -38,7 +38,7 @@ Execution checklist
    - The insmod-not-found warning fires on all module-less containers
      and correctly does not block verification.
 6. DONE (2026-07-02) Trigger policy decided: the distro matrix runs on
-   pull requests only when uml-veristat/** or the workflow file itself
+   pull requests only when project files or the workflow file itself
    changes (docs-only PRs skip the ~13-minute 5-distro build), on v*
    tags so releases get per-distro artifacts, and on manual
    workflow_dispatch. The repo is public, so Actions minutes are free;
@@ -83,7 +83,7 @@ Open questions
 1. Should packages bundle libelf/libzstd dependencies or declare distro-native dependencies?
 2. Do we want fully static veristat builds to reduce distro compatibility risk?
 3. RESOLVED (2026-07-11): all builds now pin an explicit bpf-next commit
-   (uml-veristat/bpf-next-commit), making CI and local builds reproducible.
+   (bpf-next-commit), making CI and local builds reproducible.
    ./build.sh --update is the explicit refresh verb: it moves to the branch
    tip and rewrites the pin, and the bump is committed together with corpus
    manifest updates as a reviewable refresh PR. Decided after upstream

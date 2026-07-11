@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./build.sh)",
+      "Bash(tee /tmp/build-rerun.log)",
+      "Read(//home/prozak/.local/share/uml-veristat/**)",
+      "Read(//tmp/**)",
+      "Read(//home/prozak/.local/share/uml-veristat-clean/**)",
+      "Read(//home/prozak/.local/share/**)",
+      "Bash(sudo -n true)",
+      "Bash(git checkout *)",
+      "Bash(git --no-pager diff --stat)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(gh auth *)",
+      "Bash(gh run *)",
+      "Bash(git fetch *)",
+      "Bash(gh api *)",
+      "Bash(echo \"exit=$? size=$\\(wc -c </tmp/job-log.txt \\)\")",
+      "Bash(git --no-pager grep -n \"docker run\" .github/workflows/build-uml-veristat-distros.yml)"
+    ]
+  }
+}
