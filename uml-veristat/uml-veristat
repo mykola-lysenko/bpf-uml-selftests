@@ -227,6 +227,39 @@ for arg in "${VERISTAT_ARGS[@]}"; do
 done
 
 # ------------------------------------------------------------------------------
+# Default the verifier log size to fit the guest.
+#
+# veristat probes the kernel for big-log support and then defaults verbose
+# logs to roughly 1 GiB. On native hosts that allocation is mostly virtual
+# memory, but it can exhaust a small fixed-size UML guest before any log
+# output is produced. Derive a default from the guest memory instead (an
+# eighth of it, capped at 256 MiB). An explicit --log-size always wins.
+# ------------------------------------------------------------------------------
+MEM="${UML_MEM:-512M}"
+
+mem_to_bytes() {
+    case "$1" in
+        *K|*k) echo $(( ${1%?} * 1024 )) ;;
+        *M|*m) echo $(( ${1%?} * 1024 * 1024 )) ;;
+        *G|*g) echo $(( ${1%?} * 1024 * 1024 * 1024 )) ;;
+        *) echo "$1" ;;
+    esac
+}
+
+HAS_LOG_SIZE=0
+for a in "${ARGS[@]}"; do
+    case "${a}" in
+        --log-size|--log-size=*) HAS_LOG_SIZE=1; break ;;
+    esac
+done
+if [ "${HAS_LOG_SIZE}" = "0" ]; then
+    LOG_SIZE=$(( $(mem_to_bytes "${MEM}") / 8 ))
+    LOG_SIZE_MAX=$(( 256 * 1024 * 1024 ))
+    [ "${LOG_SIZE}" -gt "${LOG_SIZE_MAX}" ] && LOG_SIZE="${LOG_SIZE_MAX}"
+    ARGS=("--log-size" "${LOG_SIZE}" "${ARGS[@]}")
+fi
+
+# ------------------------------------------------------------------------------
 # Create a temporary working directory on the host.
 #
 # UML is booted with hostfs=/ (the entire host filesystem mounted read-write
@@ -320,7 +353,6 @@ chmod +x "${INIT_SCRIPT}"
 # ------------------------------------------------------------------------------
 # Boot UML and capture output
 # ------------------------------------------------------------------------------
-MEM="${UML_MEM:-512M}"
 VERBOSE="${UML_VERBOSE:-0}"
 GDB_MACROS="${SCRIPT_DIR}/../gdb_demo/verifier.gdb"
 UML_EXIT=0

@@ -49,6 +49,10 @@ This is the current cleanup list to work through before shaping the local
      hand-rolled emitted check into the native single-compare guard
      structure with UML span constants; holes inside the span rely on
      the 0016 extable fixups.
+   - 0008 (veristat log-size cap) dropped (2026-07-11): the uml-veristat
+     wrapper now injects an environment-sized --log-size instead of
+     patching veristat's default, since the failure was UML's fixed
+     guest memory, not a veristat defect. Stack is at 17 patches.
 
 7. Investigate tolerated top-level corpus drift.
    - `getpeername_unix_prog.bpf.o`, `getsockname_unix_prog.bpf.o`, and

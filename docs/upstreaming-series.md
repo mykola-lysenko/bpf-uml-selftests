@@ -109,11 +109,13 @@ Patches:
     storage maps, which require `max_entries == 0` just like cgroup storage.
   - Dependency: none.
 
-- `0008-selftests-bpf-veristat-cap-auto-log-size-to-avoid-o.patch`
-  - Audience: BPF selftests maintainers.
-  - Rationale: the automatic verbose log-size probe can choose an impractical
-    default for constrained runners; explicit larger sizes remain available.
-  - Dependency: none.
+- `0008` (veristat auto log-size cap): REMOVED from the stack (2026-07-11).
+  The 1 GiB auto default is mostly virtual memory on native hosts; the
+  failure it prevented was UML's fixed guest memory. The uml-veristat
+  wrapper now injects an environment-sized --log-size (UML_MEM/8, capped
+  at 256 MiB) unless the caller passes one, which is the right layer for
+  environment policy. Nothing to upstream unless native RSS measurements
+  ever show real multi-hundred-MB logs.
 
 Suggested posting shape:
 
@@ -121,8 +123,6 @@ Suggested posting shape:
   objects self-describing, not changing veristat policy.
 - Send `0007b` as a tiny veristat correctness fix with before/after examples
   from percpu cgroup storage objects.
-- Hold `0008` unless we can show a generic constrained-runner failure mode
-  outside UML.
 
 ## Series D: UML BPF Verification RFC
 
