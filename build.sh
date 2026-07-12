@@ -785,8 +785,26 @@ else
     PINNED_SHA=$(tr -d '[:space:]' < "${PIN_FILE}")
     if ! git -C "${LINUX_DIR}" cat-file -e "${PINNED_SHA}^{commit}" 2>/dev/null; then
         info "Fetching pinned bpf-next commit ${PINNED_SHA}..."
-        git -C "${LINUX_DIR}" fetch --depth=1 origin "${PINNED_SHA}" ||
-            git -C "${LINUX_DIR}" fetch --depth=500 origin "${KERNEL_BRANCH}"
+        # kernel.org's git frontends are load-balanced and inconsistent:
+        # only some allow fetching by SHA, and deepening a shallow clone
+        # ("error processing shallow info") is also unreliable. Retry the
+        # SHA fetch to land on a permissive frontend, tolerate every
+        # fallback failing, and let the final cat-file gate decide.
+        for _attempt in 1 2 3 4 5; do
+            if git -C "${LINUX_DIR}" fetch --depth=1 origin "${PINNED_SHA}" 2>/dev/null; then
+                break
+            fi
+            sleep 2
+        done
+        # The BPF CI's GitHub mirror serves reachable-SHA fetches reliably,
+        # unlike the kernel.org frontends; prefer it over expensive deepening.
+        git -C "${LINUX_DIR}" cat-file -e "${PINNED_SHA}^{commit}" 2>/dev/null ||
+            git -C "${LINUX_DIR}" fetch --depth=1 \
+                https://github.com/kernel-patches/bpf.git "${PINNED_SHA}" || true
+        git -C "${LINUX_DIR}" cat-file -e "${PINNED_SHA}^{commit}" 2>/dev/null ||
+            git -C "${LINUX_DIR}" fetch --depth=2000 origin "${KERNEL_BRANCH}" || true
+        git -C "${LINUX_DIR}" cat-file -e "${PINNED_SHA}^{commit}" 2>/dev/null ||
+            git -C "${LINUX_DIR}" fetch --unshallow origin "${KERNEL_BRANCH}" || true
         git -C "${LINUX_DIR}" cat-file -e "${PINNED_SHA}^{commit}" 2>/dev/null || {
             echo "ERROR: pinned bpf-next commit ${PINNED_SHA} is not reachable." >&2
             echo "  Refresh the pin with: ./build.sh --update" >&2
