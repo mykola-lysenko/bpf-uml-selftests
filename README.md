@@ -71,9 +71,9 @@ The wrapper will:
 3. Wait until you resume the guest by creating the trigger file it prints
 
 This reuses the same host-attach model documented in
-[`gdb_demo/`](/home/mykolal/bpf-uml-selftests/gdb_demo), but against the real
+[`gdb_demo/`](gdb_demo), but against the real
 installed `uml-veristat` kernel and binaries. The recommended
-[`verifier.gdb`](/home/mykolal/bpf-uml-selftests/gdb_demo/verifier.gdb) script
+[`verifier.gdb`](gdb_demo/verifier.gdb) script
 now includes the usual UML signal handling and default verifier breakpoints.
 
 ### Environment Variables
@@ -172,9 +172,9 @@ The table below shows the current practical correspondence.
 | 0015 | Kernel probe-read helpers in the no-`BPF_EVENTS` UML verification-stub config | Generated light-skeleton loader programs for runtime tests such as `ringbuf`; these loader programs use `BPF_PROG_TYPE_SYSCALL` and call `bpf_probe_read_kernel()` before creating/loading the real object |
 
 For upstreaming work, use the generated comparison report in
-[`docs/patch-impact.md`](/home/mykolal/bpf-uml-selftests/docs/patch-impact.md)
+[`docs/patch-impact.md`](docs/patch-impact.md)
 and the machine-readable snapshots under
-[`reports/patch-impact/`](/home/mykolal/bpf-uml-selftests/reports/patch-impact)
+[`reports/patch-impact/`](reports/patch-impact)
 instead of hand-maintaining patch impact notes.
 
 ## Verification Model
@@ -264,7 +264,7 @@ The default report now separates the top-level corpus into:
 
 The corpus classification and expected regression baseline live in the
 machine-readable manifest
-[`corpus_manifest.json`](/home/mykolal/bpf-uml-selftests/corpus_manifest.json).
+[`corpus_manifest.json`](corpus_manifest.json).
 To assert that the current installed build still matches the expected file
 bucket and errno baseline, run:
 

@@ -12,7 +12,7 @@ This is the current cleanup list to work through before shaping the local
 
 2. Split upstream submissions by review surface. (done)
    - The proposed split is documented in
-     [`docs/upstreaming-series.md`](/home/mykolal/bpf-uml-selftests/docs/upstreaming-series.md).
+     [`docs/upstreaming-series.md`](docs/upstreaming-series.md).
    - Keep the local patch order for CI, but post smaller upstream series by
      subsystem and review risk.
 

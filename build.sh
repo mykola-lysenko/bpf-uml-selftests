@@ -1378,7 +1378,7 @@ The wrapper script looks for linux and veristat in the same directory
 as itself first, then falls back to ~/.local/share/uml-veristat/.
 
 See version.txt for the exact bpf-next commit this was built from.
-To rebuild from source: https://github.com/mykola-lysenko/bpf-uml-selftests
+To rebuild from source: https://github.com/mykola-lysenko/uml-veristat
 REOF
 
     # --- SHA-256 integrity manifest ---
