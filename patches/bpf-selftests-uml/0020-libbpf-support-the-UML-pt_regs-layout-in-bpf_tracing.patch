@@ -1,0 +1,102 @@
+From 8173a124f4fb461123a8b726e6f7d60f173b0355 Mon Sep 17 00:00:00 2001
+From: Mykola Lysenko <mykolal@meta.com>
+Date: Sun, 12 Jul 2026 18:25:04 -0700
+Subject: [PATCH] libbpf: support the UML pt_regs layout in bpf_tracing.h
+
+BPF programs targeting __TARGET_ARCH_x86 access struct pt_regs by its
+named x86 fields, but User-Mode Linux wraps the registers in
+struct uml_pt_regs, whose gp[] array is indexed by the host
+user_regs_struct layout. Selftest programs using PT_REGS_* macros
+therefore fail to compile against a UML vmlinux.h even though UML is
+x86 in every other respect (calling convention, syscall wrapper
+prefix, semantics).
+
+Add a __UML_PT_REGS__ layout override inside the x86 target section
+mapping the register tokens to their gp[] slots, and give the
+selftests Makefile an EXTRA_BPF_CFLAGS hook so a UML corpus build can
+pass -D__UML_PT_REGS__ without disturbing the userspace build arch.
+
+Signed-off-by: Mykola Lysenko <mykolal@meta.com>
+---
+ tools/lib/bpf/bpf_tracing.h          | 37 ++++++++++++++++++++++++----
+ tools/testing/selftests/bpf/Makefile |  1 +
+ 2 files changed, 33 insertions(+), 5 deletions(-)
+
+diff --git a/tools/lib/bpf/bpf_tracing.h b/tools/lib/bpf/bpf_tracing.h
+index dbe32a5d0..fdf10bc6f 100644
+--- a/tools/lib/bpf/bpf_tracing.h
++++ b/tools/lib/bpf/bpf_tracing.h
+@@ -84,6 +84,30 @@
+ 
+ #if defined(__KERNEL__) || defined(__VMLINUX_H__)
+ 
++#if defined(__UML_PT_REGS__)
++
++/*
++ * User-Mode Linux on x86-64: same System V AMD64 calling convention,
++ * but struct pt_regs wraps struct uml_pt_regs, whose gp[] array is
++ * indexed by the host user_regs_struct layout (see
++ * arch/x86/um/shared/sysdep/ptrace_64.h).
++ */
++#define __PT_PARM1_REG regs.gp[14] /* di */
++#define __PT_PARM2_REG regs.gp[13] /* si */
++#define __PT_PARM3_REG regs.gp[12] /* dx */
++#define __PT_PARM4_REG regs.gp[11] /* cx */
++#define __PT_PARM5_REG regs.gp[9]  /* r8 */
++#define __PT_PARM6_REG regs.gp[8]  /* r9 */
++#define __PT_PARM4_SYSCALL_REG regs.gp[7] /* r10 */
++
++#define __PT_RET_REG regs.gp[19] /* sp */
++#define __PT_FP_REG regs.gp[4]   /* bp */
++#define __PT_RC_REG regs.gp[10]  /* ax */
++#define __PT_SP_REG regs.gp[19]  /* sp */
++#define __PT_IP_REG regs.gp[16]  /* ip */
++
++#else /* !__UML_PT_REGS__ */
++
+ #define __PT_PARM1_REG di
+ #define __PT_PARM2_REG si
+ #define __PT_PARM3_REG dx
+@@ -94,12 +118,7 @@
+  * Syscall uses r10 for PARM4. See arch/x86/entry/entry_64.S:entry_SYSCALL_64
+  * comments in Linux sources. And refer to syscall(2) manpage.
+  */
+-#define __PT_PARM1_SYSCALL_REG __PT_PARM1_REG
+-#define __PT_PARM2_SYSCALL_REG __PT_PARM2_REG
+-#define __PT_PARM3_SYSCALL_REG __PT_PARM3_REG
+ #define __PT_PARM4_SYSCALL_REG r10
+-#define __PT_PARM5_SYSCALL_REG __PT_PARM5_REG
+-#define __PT_PARM6_SYSCALL_REG __PT_PARM6_REG
+ 
+ #define __PT_RET_REG sp
+ #define __PT_FP_REG bp
+@@ -107,6 +126,14 @@
+ #define __PT_SP_REG sp
+ #define __PT_IP_REG ip
+ 
++#endif /* __UML_PT_REGS__ */
++
++#define __PT_PARM1_SYSCALL_REG __PT_PARM1_REG
++#define __PT_PARM2_SYSCALL_REG __PT_PARM2_REG
++#define __PT_PARM3_SYSCALL_REG __PT_PARM3_REG
++#define __PT_PARM5_SYSCALL_REG __PT_PARM5_REG
++#define __PT_PARM6_SYSCALL_REG __PT_PARM6_REG
++
+ #else
+ 
+ #ifdef __i386__
+diff --git a/tools/testing/selftests/bpf/Makefile b/tools/testing/selftests/bpf/Makefile
+index b642ee489..bb89854bf 100644
+--- a/tools/testing/selftests/bpf/Makefile
++++ b/tools/testing/selftests/bpf/Makefile
+@@ -465,6 +465,7 @@ endif
+ 
+ CLANG_SYS_INCLUDES = $(call get_sys_includes,$(CLANG),$(CLANG_TARGET_ARCH))
+ BPF_CFLAGS = -g -Wall -Werror -D__TARGET_ARCH_$(SRCARCH) $(MENDIAN)	\
++	     $(EXTRA_BPF_CFLAGS)						\
+ 	     -I$(INCLUDE_DIR) -I$(CURDIR) -I$(APIDIR)			\
+ 	     -I$(CURDIR)/libarena/include				\
+ 	     -I$(abspath $(OUTPUT)/../usr/include)			\
+-- 
+2.43.0
+

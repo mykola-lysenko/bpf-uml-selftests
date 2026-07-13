@@ -156,6 +156,20 @@ Current findings
     grows to 2835 verified programs. The remaining 32 skips are
     structural: uprobes/usdt, UML pt_regs layout, and dmabuf hardware
     (see the refreshed inventory below).
+23. (2026-07-12) The UML pt_regs compile bucket was eliminated by a
+    layout override rather than a new target arch: BPF programs keep
+    __TARGET_ARCH_x86 (UML is x86 in calling convention, SYS_PREFIX,
+    and semantics), and patch 0020 adds a __UML_PT_REGS__ conditional
+    inside bpf_tracing.h's x86 section mapping the register tokens to
+    struct pt_regs' regs.gp[] slots, plus an EXTRA_BPF_CFLAGS hook in
+    the selftests Makefile; build.sh passes -D__UML_PT_REGS__. An
+    earlier attempt with a separate __TARGET_ARCH_um was abandoned:
+    24 selftest sources key behavior on __TARGET_ARCH_x86 (notably
+    SYS_PREFIX = __x64_, which must keep matching the UML syscall
+    wrappers). Result: compile skips 32 -> 4, corpus 954 standalone
+    files / 2976 verified programs (April baseline: 2282). Manifest
+    additions: test_usdt_multispec failed-to-open -2 (USDT spec needs
+    uprobes), skipped_files 3.
 21. The verifier_arena_large hang was an infinite fault loop in segv()'s
     vmalloc-range branch: kernel faults in [start_vm, end_vm) sync TLBs and
     retry unconditionally, so a deliberately faulting BPF load on an
@@ -170,24 +184,14 @@ Current findings
 
 Permissive build skip inventory
 -------------------------------
-Skipped BPF objects (32 as of 2026-07-12, bpf-next 520d7d794 with the
-full stack and tier-3 configs; regenerate with a comm(1) diff of
-progs/*.c names vs .build/selftests-output/*.bpf.o):
-1. uprobe/usdt support missing on UML (11):
-   test_probe_user.bpf.o, test_uprobe.bpf.o, test_uprobe_autoattach.bpf.o,
-   test_urandom_usdt.bpf.o, test_usdt.bpf.o, test_usdt_multispec.bpf.o,
-   uprobe_multi.bpf.o, uprobe_multi_usdt.bpf.o, uprobe_multi_verifier.bpf.o,
-   uprobe_syscall_executed.bpf.o, uretprobe_stack.bpf.o.
-2. UML pt_regs layout mismatch for PT_REGS_* users (20):
-   bpf_iter_tasks.bpf.o, bpf_syscall_macro.bpf.o, get_func_ip_test.bpf.o,
-   kprobe_multi_verifier.bpf.o, kprobe_write_ctx.bpf.o, loop1.bpf.o,
-   loop2.bpf.o, loop3.bpf.o, loop6.bpf.o, lsm.bpf.o, profiler1.bpf.o,
-   profiler2.bpf.o, profiler3.bpf.o, rcu_read_lock.bpf.o,
-   test_attach_probe.bpf.o, test_overhead.bpf.o, test_perf_skip.bpf.o,
-   test_sleepable_tracepoints.bpf.o, test_vmlinux.bpf.o, trigger_bench.bpf.o.
-   A UML-aware PT_REGS variant in libbpf's bpf_tracing.h could recover
-   this whole bucket generically.
-3. Hardware dependent (1): dmabuf_iter.bpf.o (no DMA-BUF devices).
+Skipped BPF objects (4 as of 2026-07-12, with tier-3 configs and the
+__UML_PT_REGS__ layout fix; regenerate with a comm(1) diff of progs/*.c
+names vs .build/selftests-output/*.bpf.o):
+1. Hardware dependent: dmabuf_iter.bpf.o (no DMA-BUF devices).
+2. Direct pt_regs named-field access in test source (not PT_REGS_*
+   macros): kprobe_write_ctx.bpf.o.
+3. Remaining uprobe-specific compile issues: test_uprobe.bpf.o,
+   test_usdt.bpf.o.
 
 Skipped host-side test objects:
 attach_probe, bpf_cookie, bpf_iter, bpf_nf, bpf_qdisc, cgroup_iter_memcg,

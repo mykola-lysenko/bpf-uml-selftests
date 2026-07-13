@@ -1175,6 +1175,7 @@ if [ ! -x "${VERISTAT_BIN}" ] || [ ! -x "${TEST_PROGS_BIN}" ] || \
         ARCH=x86_64 \
         TEST_KMODS= \
         SKIP_LLVM=1 \
+        EXTRA_BPF_CFLAGS=-D__UML_PT_REGS__ \
         BPF_STRICT_BUILD=0 \
         -j"$(nproc)" \
         -k 2>&1 || SELFTESTS_MAKE_STATUS=$?

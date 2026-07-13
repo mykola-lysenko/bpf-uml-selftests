@@ -23,7 +23,7 @@
   "corpora": {
     "top-level": {
       "expected_metrics": {
-        "skipped_files": 2,
+        "skipped_files": 3,
         "skipped_programs": 0
       },
       "minimum_metrics": {
@@ -76,6 +76,10 @@
         "tracing_multi_session_attach.bpf.o": {
           "errno": -2,
           "reason": "new upstream fsession.multi section type; libbpf cannot resolve the fsession attach type without fprobe/ftrace support, which UML lacks"
+        },
+        "test_usdt_multispec.bpf.o": {
+          "errno": -2,
+          "reason": "USDT spec resolution requires uprobe support, which UML lacks; newly in-corpus since the __UML_PT_REGS__ layout fix let the object compile"
         }
       }
     },
