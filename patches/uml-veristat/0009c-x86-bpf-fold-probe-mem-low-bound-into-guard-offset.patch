@@ -1,0 +1,96 @@
+From: Mykola Lysenko <mykolal@meta.com>
+Subject: [PATCH] um/x86: fold probe-memory low bound into the guard offset add
+
+The x86 BPF JIT guards every BPF_PROBE_MEM / BPF_PROBE_MEMSX load with an
+inline address-range check.  It computes (src_reg + insn->off - span_base)
+in r11 and compares it against a precomputed limit, materializing
+span_base in r10 with a movabsq and then doing a separate "add off"
+followed by "sub r10".
+
+span_base is fixed at boot and insn->off is an s16, so the quantity
+(insn->off - span_base) is a compile-time-foldable constant per guard
+site.  For the mainline base (VSYSCALL_ADDR, a small negative constant)
+and for a low UML physmem base it fits a sign-extended imm32, so the
+whole low-bound handling collapses to a single "add r11, imm32".
+
+Fold it: drop the span_base movabsq and the sub, emitting one add with
+the combined immediate.  This removes up to 2 instructions / 10 bytes per
+guard site on the hot path.  These guards dominate BTF/CO-RE pointer
+reads in tracing and LSM programs, where a single program can carry
+hundreds of guard sites.  The compare against limit and the fault-fixup
+path are unchanged.  When the folded immediate would not fit imm32 (e.g.
+a high UML physmem base) the code falls back to the previous explicit
+span_base load and subtract, so behavior is identical in every case.
+
+Signed-off-by: Mykola Lysenko <mykolal@meta.com>
+---
+ arch/x86/net/bpf_jit_comp.c | 51 +++++++++++++++++++++++++++++--------
+ 1 file changed, 40 insertions(+), 11 deletions(-)
+
+diff --git a/arch/x86/net/bpf_jit_comp.c b/arch/x86/net/bpf_jit_comp.c
+--- a/arch/x86/net/bpf_jit_comp.c
++++ b/arch/x86/net/bpf_jit_comp.c
+@@ -2408,23 +2408,52 @@ populate_extable:
+ 				u8 jcc_to_load = X86_JA;
+ #endif
+ 				u8 *end_of_jmp;
++				s64 fold_off = (s64)insn->off - (s64)span_base;
+ 
+-				/* movabsq r10, span_base */
+-				emit_mov_imm64(&prog, BPF_REG_AX, (long)span_base >> 32,
+-					       (u32)(long)span_base);
+-
++				/*
++				 * The guard needs (src_reg + insn->off -
++				 * span_base) to compare against limit. Fold the
++				 * span_base subtraction into the offset add: add
++				 * the combined immediate directly instead of
++				 * materializing span_base in r10 and issuing a
++				 * separate "add off; sub span_base". This drops
++				 * one movabsq and one sub (up to 2 insns /
++				 * 10 bytes) per probe-memory guard site. The
++				 * compare against limit below is unchanged.
++				 *
++				 * insn->off is an s16 and span_base is fixed at
++				 * boot. For the mainline VSYSCALL_ADDR base (a
++				 * small negative constant) and a low UML physmem
++				 * base the folded immediate fits a sign-extended
++				 * imm32; if it ever does not, fall back to the
++				 * explicit span_base load and subtract.
++				 */
+ 				/* mov src_reg, r11 */
+ 				EMIT_mov(AUX_REG, src_reg);
+ 
+-				if (insn->off) {
+-					/* add r11, insn->off */
++				if (is_simm32(fold_off)) {
++					/* add r11, (insn->off - span_base) */
+ 					maybe_emit_1mod(&prog, AUX_REG, true);
+-					EMIT2_off32(0x81, add_1reg(0xC0, AUX_REG), insn->off);
+-				}
++					EMIT2_off32(0x81, add_1reg(0xC0, AUX_REG),
++						    (s32)fold_off);
++				} else {
++					/* movabsq r10, span_base */
++					emit_mov_imm64(&prog, BPF_REG_AX,
++						       (long)span_base >> 32,
++						       (u32)(long)span_base);
++
++					if (insn->off) {
++						/* add r11, insn->off */
++						maybe_emit_1mod(&prog, AUX_REG, true);
++						EMIT2_off32(0x81,
++							    add_1reg(0xC0, AUX_REG),
++							    insn->off);
++					}
+ 
+-				/* sub r11, r10 */
+-				maybe_emit_mod(&prog, AUX_REG, BPF_REG_AX, true);
+-				EMIT2(0x29, add_2reg(0xC0, AUX_REG, BPF_REG_AX));
++					/* sub r11, r10 */
++					maybe_emit_mod(&prog, AUX_REG, BPF_REG_AX, true);
++					EMIT2(0x29, add_2reg(0xC0, AUX_REG, BPF_REG_AX));
++				}
+ 
+ 				/* movabsq r10, limit */
+ 				emit_mov_imm64(&prog, BPF_REG_AX, (long)limit >> 32,

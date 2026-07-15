@@ -150,12 +150,14 @@ def classify_xlated(op: int, text: str) -> str:
             0x04: "alu32", 0x05: "jmp_cond", 0x06: "jmp32", 0x07: "alu64"}[cls]
 
 
-GUARD_BACK = (
-    re.compile(r"^(movabsq|movl|movq)\t\$.*, %r10d?$"),   # limit
-    re.compile(r"^subq\t%r10, %r11$"),
-    re.compile(r"^addq\t\$.*, %r11$"),                    # optional insn->off
-    re.compile(r"^movq\t%\w+, %r11$"),                    # src copy
-    re.compile(r"^(movabsq|movl|movq)\t\$.*, %r10d?$"),   # span_base
+# A guard prefix is a run of these immediately before the cmp, in either the
+# stock form (span movabsq, src mov, [add off], sub, limit mov) or the
+# 0009c-folded form (src mov, add fold_off, limit mov).
+GUARD_PREFIX = re.compile(
+    r"^(?:(?:movabsq|movl|movq)\t\$.*, %r10d?"
+    r"|subq\t%r10, %r11"
+    r"|addq\t\$.*, %r11"
+    r"|movq\t%\w+, %r11)$"
 )
 
 
@@ -190,18 +192,20 @@ def scan_jited(text: str) -> dict:
     for i, (mn, ops) in enumerate(insns):
         if mn != "cmpq" or ops != "%r10, %r11":
             continue
-        if i + 1 >= len(insns) or insns[i + 1][0] not in ("jb", "ja"):
+        if (i + 3 >= len(insns)
+                or insns[i + 1][0] not in ("jb", "ja")
+                or not insns[i + 2][0].startswith("xor")
+                or insns[i + 3][0] != "jmp"):
             continue
-        # walk backward through the expected guard prefix
+        # walk backward through the guard prefix (stock: up to 5 insns,
+        # folded: 3)
         back = 0
         j = i - 1
-        for pat in GUARD_BACK:
-            if j >= 0 and pat.match(f"{insns[j][0]}\t{insns[j][1]}"):
-                back += 1
-                j -= 1
-            elif pat.pattern.startswith("^addq"):
-                continue  # insn->off == 0: add is absent
-        if back < 4:
+        while j >= 0 and back < 5 and GUARD_PREFIX.match(
+                f"{insns[j][0]}\t{insns[j][1]}"):
+            back += 1
+            j -= 1
+        if back < 3:
             continue  # not a guard; some unrelated cmp
         sites += 1
         guard_insns += back + 4  # prefix + cmp + jcc + xor + jmp

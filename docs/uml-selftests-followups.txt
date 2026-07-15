@@ -183,6 +183,17 @@ Current findings
     reports/selftests-baseline/2026-07-12-520d7d794.md), each a
     candidate kernel-bug hunt in the arena-crash tradition. Baseline
     artifacts live under reports/selftests-baseline/.
+25. (2026-07-15) build.sh robustness: install_core_artifacts does a bare
+    `cp` onto ${INSTALL_DIR}/linux; if any process is still executing the
+    installed binary the cp dies with ETXTBSY and, under set -e, kills the
+    whole build BEFORE the testmod block — leaving a fresh kernel with a
+    stale bpf_testmod.ko (vermagic mismatch, silent insmod failure in the
+    guest, and every testmod-kfunc corpus file failing -22/-3). Fix ideas:
+    write to a temp file + mv (atomic, immune to ETXTBSY), and make the
+    testmod staleness detectable (compare .ko vermagic to the kernel).
+    Also: piping build.sh through `| tail` masks its exit code — use a
+    log file, not a pipe.
+
 21. The verifier_arena_large hang was an infinite fault loop in segv()'s
     vmalloc-range branch: kernel faults in [start_vm, end_vm) sync TLBs and
     retry unconditionally, so a deliberately faulting BPF load on an
