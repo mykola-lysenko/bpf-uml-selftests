@@ -1,0 +1,64 @@
+From 404ba01e505ac13c3446c70673f4d0f69089611e Mon Sep 17 00:00:00 2001
+From: Mykola Lysenko <mykolal@meta.com>
+Date: Wed, 15 Jul 2026 18:05:21 -0700
+Subject: [PATCH] um/x86: disable %gs-relative JIT features on UML
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The x86-64 BPF JIT lowers per-cpu addressing (BPF_MOV64_PERCPU_REG,
+inlined per-cpu array/hash map lookups, inlined bpf_get_smp_processor_id)
+and the private stack pointer to %gs-relative accesses through
+this_cpu_off. A UML kernel is a host user process: %gs points at host
+TLS, not the guest per-cpu area, so the computed addresses are garbage.
+The first store through an inlined per-cpu map value pointer
+faults unrecoverably (stores have no probe-mem guard and no BPF
+extable entry) and segv() panics the guest: "Kernel tried to access
+user memory at addr 0x7f7f928c5000, ip 0xd08a5777", found via gdb on
+the get_stack_raw_tp selftest, whose rawdata_map is a
+BPF_MAP_TYPE_PERCPU_ARRAY.
+
+Make bpf_jit_supports_percpu_insn() and bpf_jit_supports_private_stack()
+return false on UML: the verifier then keeps per-cpu map lookups as
+helper calls and skips private-stack setup, both of which go through the
+generic (correct) per-cpu accessors.
+
+Signed-off-by: Mykola Lysenko <mykolal@meta.com>
+---
+ arch/x86/net/bpf_jit_comp.c | 13 +++++++++++--
+ 1 file changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/arch/x86/net/bpf_jit_comp.c b/arch/x86/net/bpf_jit_comp.c
+index 775fa1a8c..e020155a0 100644
+--- a/arch/x86/net/bpf_jit_comp.c
++++ b/arch/x86/net/bpf_jit_comp.c
+@@ -4271,7 +4271,15 @@ bool bpf_jit_supports_subprog_tailcalls(void)
+ 
+ bool bpf_jit_supports_percpu_insn(void)
+ {
+-	return true;
++	/*
++	 * Per-cpu addressing is emitted as %gs-relative accesses to
++	 * this_cpu_off, but a UML kernel is a host user process whose %gs
++	 * base is host TLS, not the guest per-cpu area: the computed
++	 * addresses are garbage and the first store through an inlined
++	 * per-cpu map value pointer faults unrecoverably (stores have no
++	 * probe-mem guard or BPF extable entry). Fall back to helper calls.
++	 */
++	return !IS_ENABLED(CONFIG_UML);
+ }
+ 
+ void bpf_jit_free(struct bpf_prog *prog)
+@@ -4320,7 +4328,8 @@ bool bpf_jit_supports_exceptions(void)
+ 
+ bool bpf_jit_supports_private_stack(void)
+ {
+-	return true;
++	/* The private stack pointer is %gs-relative too; see above. */
++	return !IS_ENABLED(CONFIG_UML);
+ }
+ 
+ void arch_bpf_stack_walk(bool (*consume_fn)(void *cookie, u64 ip, u64 sp, u64 bp), void *cookie)
+-- 
+2.43.0
+

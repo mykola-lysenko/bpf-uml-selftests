@@ -183,6 +183,38 @@ Current findings
     reports/selftests-baseline/2026-07-12-520d7d794.md), each a
     candidate kernel-bug hunt in the arena-crash tradition. Baseline
     artifacts live under reports/selftests-baseline/.
+25. (2026-07-15) The entire 13-suspect killer list from finding 24 was ONE
+    bug: the x86 BPF JIT lowers per-cpu addressing (inlined percpu
+    array/hash map lookups, BPF_MOV64_PERCPU_REG, inlined
+    bpf_get_smp_processor_id) and the private-stack pointer to
+    %gs-relative accesses through this_cpu_off — but a UML kernel is a
+    host process whose %gs is host TLS, so the computed per-cpu addresses
+    are garbage. The first STORE through an inlined per-cpu map value
+    pointer faults unrecoverably (stores have no probe-mem guard and no
+    BPF extable entry) and segv() panics. Found via gdb on
+    get_stack_raw_tp (whose rawdata_map is a PERCPU_ARRAY): faulting insn
+    `mov %eax,0x0(%r13)` with r13 poisoned by `add %gs:this_cpu_off,%rax`
+    from the inlined lookup; search_exception_tables(ip) = NULL, so
+    neither 0016-hypothesis applied. Note the misleading original
+    diagnosis trail: find_vma was an innocent shadowed victim
+    (alphabetical-attribution harness bug), and even the get_stack_raw_tp
+    "bpf_get_stack(BPF_F_USER_STACK)" framing was wrong — the helper was
+    fine, the map lookup before it was the bomb. Patch 0003c makes
+    bpf_jit_supports_percpu_insn() and bpf_jit_supports_private_stack()
+    return false on UML (verifier falls back to helper calls, which use
+    the generic correct per-cpu accessors). Result: all 13 suspects now
+    complete — 9 OK (cls_redirect, find_vma, hash_large_key, l4lb_all,
+    perf_branches, struct_ops_module, task_fd_query_rawtp,
+    verifier_array_access, xdp_noinline), 3 plain FAIL for later triage
+    (current_pid_tgid, select_reuseport, wq), 1 SKIP
+    (timer_stress_nmi_cancel); get_stack_raw_tp itself now FAILs on
+    stack-content assertions (ordinary UML unwinding gap, same family as
+    stacktrace tests). Task #18's "wq/timer-NMI crash family" is
+    dissolved as a crash class. A fresh chunked baseline should recover
+    most of the 204 NORESULTs. this_cpu_off dummy in bpf_jit_comp.c
+    (from the text-poke patch) stays: it satisfies the now-dead
+    %gs-emission code paths at link time.
+
 21. The verifier_arena_large hang was an infinite fault loop in segv()'s
     vmalloc-range branch: kernel faults in [start_vm, end_vm) sync TLBs and
     retry unconditionally, so a deliberately faulting BPF load on an
