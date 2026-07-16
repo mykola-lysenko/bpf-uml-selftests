@@ -36,7 +36,12 @@ def join_session_keyring() -> None:
     except OSError:
         pass
 
-RESULT_RE = re.compile(r"^#\d+\s+(\S+):(OK|FAIL|SKIP)\b")
+RESULT_RE = re.compile(r"^#(\d+)\s+(\S+):(OK|FAIL|SKIP)\b")
+
+# Known guest-hangers: excluded from chunks by default (see --deny).
+# uprobe_multi_test hangs the guest hard enough that even the test_progs
+# watchdog cannot recover it (uprobes are unimplemented on UML, task #29).
+DEFAULT_DENY = "uprobe_multi_test"
 SUMMARY_RE = re.compile(
     r"^Summary: (\d+)/(\d+) PASSED, (\d+) SKIPPED, (\d+) FAILED"
 )
@@ -84,13 +89,25 @@ def run_chunk(
     }
 
 
-def parse_log(log_path: pathlib.Path) -> tuple[dict[str, str], dict | None]:
+def parse_log(log_path: pathlib.Path) -> tuple[dict[str, str], dict | None, str | None]:
+    """Returns (results, summary, last_reported).
+
+    last_reported is the highest-#id test seen in the log — test_progs runs
+    by internal id order, so after a hang/crash the culprit is the next
+    matched test AFTER this one in id order (NOT the first alphabetically
+    missing one; that heuristic misattributed find_vma for a day).
+    """
     results: dict[str, str] = {}
     summary = None
+    last_id = -1
+    last_reported = None
     for line in log_path.read_text(errors="replace").splitlines():
         m = RESULT_RE.match(line)
-        if m and "/" not in m.group(1):
-            results[m.group(1)] = m.group(2)
+        if m and "/" not in m.group(2):
+            results[m.group(2)] = m.group(3)
+            if int(m.group(1)) > last_id:
+                last_id = int(m.group(1))
+                last_reported = f"#{m.group(1)} {m.group(2)}"
         m = SUMMARY_RE.match(line)
         if m:
             summary = {
@@ -99,7 +116,7 @@ def parse_log(log_path: pathlib.Path) -> tuple[dict[str, str], dict | None]:
                 "skipped": int(m.group(3)),
                 "failed": int(m.group(4)),
             }
-    return results, summary
+    return results, summary, last_reported
 
 
 def main() -> int:
@@ -111,6 +128,9 @@ def main() -> int:
     ap.add_argument("--watchdog", type=int, default=120)
     ap.add_argument("--out-dir", default=None)
     ap.add_argument("--only", help="comma list: run only chunks containing these tests")
+    ap.add_argument("--deny", default=DEFAULT_DENY,
+                    help="comma list of tests to exclude (known guest-hangers); "
+                         "pass '' to run everything")
     args = ap.parse_args()
 
     join_session_keyring()
@@ -122,6 +142,8 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     tests = list_tests(pathlib.Path(args.test_progs))
+    denied = {t for t in args.deny.split(",") if t}
+    tests = [t for t in tests if t not in denied]
     chunks = [
         tests[i : i + args.chunk_size] for i in range(0, len(tests), args.chunk_size)
     ]
@@ -136,7 +158,7 @@ def main() -> int:
         meta = run_chunk(
             pathlib.Path(args.runner), chunk, log_path, args.watchdog, args.chunk_timeout
         )
-        results, summary = parse_log(log_path)
+        results, summary, last_reported = parse_log(log_path)
         # test_progs -t matches substrings, so a chunk can report tests that
         # belong to other chunks; keep every result, first writer wins.
         for name, status in results.items():
@@ -146,7 +168,8 @@ def main() -> int:
             for t in missing:
                 statuses.setdefault(t, "NORESULT")
         meta.update({"index": idx, "tests": len(chunk), "summary": summary,
-                     "missing": missing if meta["timed_out"] else []})
+                     "missing": missing if meta["timed_out"] else [],
+                     "last_reported": last_reported})
         chunk_meta.append(meta)
         state = "TIMEOUT" if meta["timed_out"] else f"rc={meta['rc']}"
         print(f"chunk {idx:03d}/{len(chunks) - 1}: {state} "

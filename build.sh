@@ -953,6 +953,12 @@ CONFIG_ARGS=(
     --enable  CGROUP_BPF
     --enable  CGROUP_NET_CLASSID
     --enable  CGROUP_NET_PRIO
+    # namespace selftests: current_pid_tgid needs PID_NS, token and the
+    # userns-based tests need USER_NS (NET/UTS/IPC_NS are already on)
+    --enable  PID_NS
+    --enable  USER_NS
+    # select_reuseport writes net.ipv4.tcp_syncookies/tcp_fastopen
+    --enable  SYN_COOKIES
     --enable  NET
     --enable  INET
     --enable  IPV6

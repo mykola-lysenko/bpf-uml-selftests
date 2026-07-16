@@ -207,6 +207,9 @@ mount -t bpf bpf /sys/fs/bpf 2>/dev/null || true
 mount -t cgroup2 cgroup2 /sys/fs/cgroup 2>/dev/null || true
 mount -t debugfs debugfs /sys/kernel/debug 2>/dev/null || true
 mount -t tracefs tracefs /sys/kernel/tracing 2>/dev/null || true
+# 'ip netns add' pins namespaces under /run/netns and needs tmpfs mount
+# semantics (bind + MS_SHARED) that the hostfs root cannot provide.
+mount -t tmpfs tmpfs /run 2>/dev/null || true
 
 if command -v ip >/dev/null 2>&1; then
     ip link set lo up 2>/dev/null || true

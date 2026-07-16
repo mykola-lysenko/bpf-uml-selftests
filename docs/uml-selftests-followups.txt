@@ -215,6 +215,33 @@ Current findings
     (from the text-poke patch) stays: it satisfies the now-dead
     %gs-emission code paths at link time.
 
+26. (2026-07-15) Post-percpu-fix triage (task #20) closed out the last
+    baseline incidents:
+    - chunk-21 timeout = uprobe_multi_test hangs the guest hard (even the
+      test_progs watchdog cannot recover; uprobes unimplemented on UML,
+      task #29). Attributed via id-order (last reported line #551
+      uprobe_autoattach, then 12 min silence), confirmed standalone.
+      run_test_chunks.py now records last_reported per chunk (the
+      alphabetical killer-suspect heuristic is retired) and takes --deny
+      with uprobe_multi_test denied by default.
+    - current_pid_tgid: fixed by CONFIG_PID_NS (+ USER_NS enabled for the
+      userns family); ns_current_pid_tgid_cgrp/sk_msg recovered too.
+    - select_reuseport: two fixes — 'ip netns add' needs a tmpfs /run
+      (uml-test-progs init now mounts one; hostfs cannot host the
+      bind+MS_SHARED netns pinning) and CONFIG_SYN_COOKIES for the
+      tcp_syncookies sysctl. Now OK.
+    - wq: OK in the full baseline; the standalone FAIL was ordering
+      flake, not a defect.
+    - token: still FAIL — userns child dies before passing the bpffs fd
+      (recv_bpffs_fd -22/recvmsg 0); needs its own dig.
+    - 178-FAIL classification (heuristic buckets): ~54 attach/ftrace
+      (fentry/fexit/get_func_*/d_path... — the #24-27 ftrace track is
+      the single biggest coverage lever), ~58 network-env (veth/tc/tunnel
+      setup, task #28), 6 stack-unwind (get_stack_raw_tp, stacktrace_*),
+      ~60 mixed/other needing a finer pass.
+    Also: vermagic drift bit again after the namespace-config rebuild
+    (testmod ENOEXEC -8) — --rebuild-testmod after any config change.
+
 21. The verifier_arena_large hang was an infinite fault loop in segv()'s
     vmalloc-range branch: kernel faults in [start_vm, end_vm) sync TLBs and
     retry unconditionally, so a deliberately faulting BPF load on an
