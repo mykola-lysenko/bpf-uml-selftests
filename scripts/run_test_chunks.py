@@ -11,6 +11,7 @@ test cannot sink the baseline.
 from __future__ import annotations
 
 import argparse
+import ctypes
 import json
 import os
 import pathlib
@@ -21,6 +22,19 @@ import sys
 import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+
+
+def join_session_keyring() -> None:
+    """test_progs registers a session key at startup and exits 255 if the
+    session keyring is revoked (common in daemonized/background shells).
+    Join a fresh one; harmless if it fails or already works."""
+    KEYCTL_JOIN_SESSION_KEYRING = 1
+    SYS_keyctl = 250  # x86-64
+    try:
+        ctypes.CDLL(None, use_errno=True).syscall(
+            SYS_keyctl, KEYCTL_JOIN_SESSION_KEYRING, None)
+    except OSError:
+        pass
 
 RESULT_RE = re.compile(r"^#\d+\s+(\S+):(OK|FAIL|SKIP)\b")
 SUMMARY_RE = re.compile(
@@ -98,6 +112,8 @@ def main() -> int:
     ap.add_argument("--out-dir", default=None)
     ap.add_argument("--only", help="comma list: run only chunks containing these tests")
     args = ap.parse_args()
+
+    join_session_keyring()
 
     out_dir = pathlib.Path(
         args.out_dir
